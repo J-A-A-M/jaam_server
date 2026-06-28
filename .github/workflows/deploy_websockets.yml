@@ -71,7 +71,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_websocket_server.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \

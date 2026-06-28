@@ -33,7 +33,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_redis.sh \
                   -w ${{ secrets.CLOUD_REDIS_PASSWORD }}
           - name: Clear unused images

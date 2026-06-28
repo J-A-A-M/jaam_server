@@ -5,7 +5,7 @@ echo "JAAM FLASHER"
 
 # Build Docker image
 echo "Building Docker image..."
-docker build -t jaam_flasher -f deploy/flasher/Dockerfile .
+docker build -t jaam_flasher -f flasher/Dockerfile .
 
 # Stop and remove old container
 echo "Stopping old container..."

@@ -42,7 +42,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_nginx.sh \
                   -c ${{ secrets.CLOUD_NGINX_CONFIG }} \
                   -l ${{ secrets.CLOUD_NGINX_LOGS }}

@@ -19,7 +19,7 @@ sys.setrecursionlimit(100000)
 
 SRC_DIST = "/tmp/districts.svg"
 SRC_STATE = "/tmp/states.svg"
-OUT = "/Users/artem/Documents/Projects/ukraine_alarm_map/deploy/design/ukraine_lowpoly.svg"
+OUT = "/Users/artem/Documents/Projects/jaam_server/design/ukraine_lowpoly.svg"
 
 BEZIER_SAMPLES = 10  # dense sampling -> mapshaper has good detail to snap+simplify
 SIMPLIFY_PCT = 4  # % of vertices kept (lower = lower poly)

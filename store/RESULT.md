@@ -53,7 +53,7 @@ store/
   data/nova_poshta_branches.json   # заглушка відділень НП
   Dockerfile
   requirements.txt
-  redeploy_store.sh    # (у корені deploy/)
+  redeploy_store.sh    # (у корені)
   nginx_store.conf
   README.md
 ```

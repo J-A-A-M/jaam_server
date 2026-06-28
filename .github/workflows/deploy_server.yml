@@ -85,7 +85,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_weather.sh \
                   -w ${{ secrets.WEATHER_TOKEN }} \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
@@ -103,7 +102,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_weather_openmeteo.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
@@ -120,7 +118,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_etryvoga.sh \
                   -e ${{ secrets.ETRYVOGA_HOST }} \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
@@ -138,7 +135,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_etryvoga_ws.sh \
                   -e ${{ secrets.ETRYVOGA_WS_HOST }} \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
@@ -156,7 +152,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_alerts.sh \
                   -a ${{ secrets.AIR_ALARM_API_KEY }} \
                   -p 2 \
@@ -175,7 +170,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_alerts_http.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
@@ -196,7 +190,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_alerts_ws.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
@@ -223,7 +216,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_ukrenergo.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
@@ -246,7 +238,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_radiation.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
@@ -267,7 +258,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_svg_generator.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
@@ -284,7 +274,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_device_map.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
@@ -302,7 +291,6 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
-                cd deploy/
                 bash redeploy_web_server.sh \
                   -d ${{ secrets.WEB_TOKEN }} \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
