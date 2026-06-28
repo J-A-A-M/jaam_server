@@ -50,7 +50,7 @@ jobs:
         run: |
           echo "Current PYTHONPATH: $PYTHONPATH"
 
-      - name: Run PyTest in deploy/tests
+      - name: Run PyTest in tests
         run: |
-          cd deploy/tests
+          cd tests
           pytest --tb=short -v --capture=tee-sys
