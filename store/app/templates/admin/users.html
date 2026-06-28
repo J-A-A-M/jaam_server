@@ -1,0 +1,29 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Користувачі{% endblock %}
+{% block admin_content %}
+<div class="panel">
+    <div class="section-header">Користувачі та постійна знижка</div>
+    <p class="muted">Постійна знижка (%) застосовується автоматично до кожного замовлення.
+        Якщо вона &gt; 0 — коди знижок для цього акаунта не діють.</p>
+    <table>
+        <thead>
+            <tr><th>Email</th><th>Адмін</th><th>Знижка, %</th><th>Дія</th></tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.email }}</td>
+                <td>{% if u.is_admin %}<span class="badge">так</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td colspan="2">
+                    <form method="post" action="/admin/users/{{ u.id }}/discount" class="actions">
+                        <input type="number" name="discount_percent" value="{{ u.discount_percent | price }}"
+                               step="0.01" min="0" max="100" style="width:100px;">
+                        <button class="btn btn-sm btn-success" type="submit">Зберегти</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

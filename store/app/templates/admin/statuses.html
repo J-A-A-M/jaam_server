@@ -1,0 +1,58 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Статуси{% endblock %}
+{% block admin_content %}
+
+{# ===== Список статусів ===== #}
+<div class="panel">
+    <div class="section-header">Статуси замовлень</div>
+    <p class="muted">Замовлення можна переводити з будь-якого статусу в будь-який інший.</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Назва</th>
+                <th>Позиція</th>
+                <th>Дії</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for status in statuses %}
+            <tr>
+                <td>
+                    <span class="badge" style="background:{{ status.color }};color:{{ status.text_color }}">{{ status.name }}</span>
+                    {% if status.is_fixed %}<span class="muted">фіксований</span>{% endif %}
+                </td>
+                <td>{{ status.position }}</td>
+                <td class="actions">
+                    {# Перейменування доступне всім (фіксовані теж можна перейменувати) #}
+                    <form method="post" action="/admin/statuses/{{ status.id }}/edit" class="actions" style="gap:6px;">
+                        <input type="text" name="name" value="{{ status.name }}" style="width:8rem" required>
+                        <input type="number" name="position" value="{{ status.position }}" style="width:4rem">
+                        <input type="color" name="color" value="{{ status.color }}" style="width:42px;padding:2px;" title="Фон">
+                        <input type="color" name="text_color" value="{{ status.text_color }}" style="width:42px;padding:2px;" title="Текст">
+                        <button type="submit" class="btn btn-sm btn-secondary">Зберегти</button>
+                    </form>
+                    {# Видалення — лише для не-фіксованих #}
+                    {% if not status.is_fixed %}
+                    <form method="post" action="/admin/statuses/{{ status.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('Видалити статус «{{ status.name }}»?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Видалити</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {# Форма додавання нового статусу #}
+    <div class="section-header" style="margin-top:1rem">Додати статус</div>
+    <form method="post" action="/admin/statuses/create" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <input type="text" name="name" placeholder="Назва" required style="width:12rem">
+        <input type="number" name="position" placeholder="Позиція" value="100" style="width:6rem">
+        <input type="color" name="color" value="#007bff" style="width:42px;padding:2px;" title="Фон">
+        <input type="color" name="text_color" value="#ffffff" style="width:42px;padding:2px;" title="Текст">
+        <button type="submit" class="btn btn-sm btn-success">Додати</button>
+    </form>
+</div>
+
+{% endblock %}

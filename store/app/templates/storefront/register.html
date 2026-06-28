@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Реєстрація — Магазин JAAM{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:420px;margin:0 auto;">
+    <div class="section-header">Реєстрація</div>
+    <form method="post" action="/register">
+        <label>Email</label>
+        <input type="email" name="email" required>
+        <label>Пароль</label>
+        <input type="password" name="password" required>
+        <div style="margin-top:15px;">
+            <button class="btn" type="submit">Зареєструватися</button>
+        </div>
+    </form>
+    <p class="muted" style="margin-top:12px;">Вже є акаунт? <a href="/login">Увійти</a></p>
+</div>
+{% endblock %}

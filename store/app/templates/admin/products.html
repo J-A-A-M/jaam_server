@@ -1,0 +1,109 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Товари{% endblock %}
+{% block admin_content %}
+
+<div class="panel">
+    <div class="section-header">Товари</div>
+
+    {% if products %}
+    <table>
+        <thead>
+            <tr>
+                <th>Поз.</th>
+                <th>Назва</th>
+                <th>Ціна</th>
+                <th>Активний</th>
+                <th>Головна</th>
+                <th>Розділи</th>
+                <th>Дії</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in products %}
+        <tr>
+            <td class="muted">{{ p.position }}</td>
+            <td><strong>{{ p.name }}</strong> <span class="muted">#{{ p.id }}</span></td>
+            <td>{{ p.base_price | price }} грн</td>
+            <td>
+                {% if p.is_active %}
+                    <span class="badge" style="background:rgba(40,167,69,0.15); border-color:rgba(40,167,69,0.4);">так</span>
+                {% else %}
+                    <span class="badge" style="background:rgba(220,53,69,0.15); border-color:rgba(220,53,69,0.4);">ні</span>
+                {% endif %}
+            </td>
+            <td>{% if p.show_on_home %}<span class="badge">так</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>
+                {% for c in p.categories %}
+                    <span class="badge">{{ c.name }}</span>
+                {% endfor %}
+                {% if not p.categories %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td>
+                <div class="actions">
+                    <a class="btn btn-sm btn-secondary" href="/admin/products/{{ p.id }}/edit">Редагувати</a>
+                    <form method="post" action="/admin/products/{{ p.id }}/delete" style="display:inline;" onsubmit="return confirm('Видалити товар «{{ p.name }}»?');">
+                        <button class="btn btn-sm btn-danger" type="submit">Видалити</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p class="muted">Товарів ще немає.</p>
+    {% endif %}
+</div>
+
+<div class="panel">
+    <div class="section-header">Новий товар</div>
+    <form method="post" action="/admin/products/create">
+        <label for="pname">Назва</label>
+        <input type="text" id="pname" name="name" placeholder="Назва товару" required>
+
+        <label for="pdesc">Короткий опис (картки)</label>
+        <textarea id="pdesc" name="description" rows="2" placeholder="Короткий опис для каталогу"></textarea>
+
+        <label for="pldesc">Повний опис (Markdown, сторінка товару)</label>
+        <textarea id="pldesc" name="long_description" rows="6" placeholder="# Заголовок&#10;**жирний**, *курсив*, списки тощо"></textarea>
+
+        <label for="pprice">Базова ціна (грн)</label>
+        <input type="number" id="pprice" name="base_price" value="0" step="0.01" min="0">
+
+        <label for="pposition">Позиція (порядок сортування)</label>
+        <input type="number" id="pposition" name="position" value="0" step="1">
+
+        <label style="display:inline-flex; align-items:center; gap:8px; margin-top:10px; font-weight:normal;">
+            <input type="checkbox" name="is_active" checked>
+            Активний (відображати в магазині)
+        </label>
+        <label style="display:inline-flex; align-items:center; gap:8px; margin-top:6px; font-weight:normal;">
+            <input type="checkbox" name="show_on_home">
+            Показувати на головній сторінці
+        </label>
+
+        {% if all_cats %}
+        <label for="pcats">Розділи (можна вибрати декілька)</label>
+        <select id="pcats" name="categories" multiple size="{{ [all_cats|length, 6]|min }}">
+            {% for c in all_cats %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        {% if all_mods %}
+        <label for="pmods">Модифікації (можна вибрати декілька)</label>
+        <select id="pmods" name="modifications" multiple size="{{ [all_mods|length, 6]|min }}">
+            {% for m in all_mods %}
+            <option value="{{ m.id }}">{{ m.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        <div style="margin-top:12px;">
+            <button class="btn btn-success" type="submit">Створити товар</button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

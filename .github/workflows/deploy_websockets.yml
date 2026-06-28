@@ -1,0 +1,94 @@
+name: ⚖️ Deploy Websockets
+on:
+  workflow_dispatch:
+    inputs:
+      server_choice:
+        type: choice
+        default: 'Server 1'
+        description: Choose server
+        options:
+          - 'Server 1'
+          - 'Server 2'
+      weather_source:
+        type: choice
+        description: "Weather data source"
+        required: true
+        default: "openmeteo"
+        options:
+          - openmeteo
+          - openweathermap
+      google_stat:
+        type: boolean
+        description: "Enable Google stat"
+        default: true
+      ping_interval:
+        type: number
+        description: "Websocket ping interval (in seconds)"
+        default: 60
+      ping_timeout:
+        type: number
+        description: "Websocket ping timeout (in seconds)"
+        default: 30
+      ping_timeout_count:
+        type: number
+        description: "Websocket ping timeout count before disconnect"
+        default: 1
+      logging:
+        type: choice
+        description: "Log level"
+        required: true
+        default: "WARNING"
+        options:
+          - DEBUG
+          - INFO
+          - WARNING
+          - CRITICAL
+          - ERROR
+
+run-name: Deploy Websockets from '${{ github.ref_name }}' branch
+permissions:
+  contents: read
+jobs:
+    pytests:
+      uses: ./.github/workflows/pytests.yml
+    deploy_websocket:
+        needs: pytests
+        runs-on: ubuntu-latest
+        env:
+          SERVER_IP: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_IP || secrets.CLOUD_SERVER_2_IP }}
+          SERVER_USER: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_USER || secrets.CLOUD_SERVER_2_USER }}
+          SERVER_SSH_KEY: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_SSH_KEY || secrets.CLOUD_SERVER_2_SSH_KEY }}
+        steps:
+          - name: Redeploy WebSockets
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_websocket_server.sh \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
+                  -s ${{ secrets.API_SECRET }} \
+                  -i ${{ secrets.MEASUREMENT_ID }} \
+                  -g ${{ inputs.google_stat && 'True' || 'False' }} \
+                  -l ${{ inputs.logging }} \
+                  -p ${{ inputs.ping_interval }} \
+                  -t ${{ inputs.ping_timeout }} \
+                  -c ${{ inputs.ping_timeout_count }} \
+                  -k ${{ secrets.IP_INFO_TOKEN }} \
+                  -w ${{ inputs.weather_source }}
+          - name: Clear unused images
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                docker image prune -f

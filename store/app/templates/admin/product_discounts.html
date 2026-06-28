@@ -1,0 +1,87 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Знижки на товар{% endblock %}
+{% block admin_content %}
+
+<div class="panel">
+    <div class="section-header">Нова знижка на товар</div>
+    <form method="post" action="/admin/product-discounts/create">
+        <label>Назва</label>
+        <input type="text" name="name" placeholder="Весняний розпродаж" required>
+
+        <label>Тип</label>
+        <select name="kind">
+            <option value="percent">Відсоток (%)</option>
+            <option value="amount">Фіксована сума (грн)</option>
+        </select>
+
+        <label>Значення</label>
+        <input type="number" name="value" value="0" step="0.01" min="0">
+
+        <label>Діє на</label>
+        <select name="scope">
+            <option value="full">Усю ціну (база + модифікації)</option>
+            <option value="base">Лише базову ціну</option>
+        </select>
+
+        <label>Ліміт замовлень (0 = без обмеження)</label>
+        <input type="number" name="max_orders" value="0" step="1" min="0">
+
+        <label>Діє з (порожнє = відразу)</label>
+        <input type="datetime-local" name="starts_at">
+
+        <label>Діє до (порожнє = безстроково)</label>
+        <input type="datetime-local" name="expires_at">
+
+        <label style="display:inline-flex; align-items:center; gap:8px; font-weight:normal; margin-top:10px;">
+            <input type="checkbox" name="is_active" checked> Активна
+        </label>
+        <label style="display:inline-flex; align-items:center; gap:8px; font-weight:normal; margin-top:6px;">
+            <input type="checkbox" name="stack_account"> Сумувати з акаунтною знижкою
+        </label>
+        <label style="display:inline-flex; align-items:center; gap:8px; font-weight:normal; margin-top:6px;">
+            <input type="checkbox" name="stack_code"> Сумувати з промокодом
+        </label>
+
+        <label>Стікер на період дії (опціонально)</label>
+        <select name="sticker_id">
+            <option value="">— без стікера —</option>
+            {% for s in all_stickers %}
+            <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+        </select>
+
+        <div style="margin-top:12px;">
+            <button class="btn btn-success" type="submit">Створити</button>
+        </div>
+    </form>
+</div>
+
+<div class="panel">
+    <div class="section-header">Знижки на товар</div>
+    {% if discounts %}
+    <table>
+        <thead>
+            <tr>
+                <th>Назва</th><th>Знижка</th><th>Діє на</th><th>Замовлень</th><th>Активна</th><th>Товарів</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in discounts %}
+            <tr>
+                <td>{{ d.name }}</td>
+                <td>{% if d.kind == DISCOUNT_PERCENT %}−{{ d.value | price }}%{% else %}−{{ d.value | price }} грн{% endif %}</td>
+                <td>{% if d.scope == 'base' %}базова{% else %}вся{% endif %}</td>
+                <td>{{ d.orders_used }}{% if d.max_orders %} / {{ d.max_orders }}{% endif %}</td>
+                <td>{% if d.is_active %}✅{% else %}—{% endif %}</td>
+                <td>{{ d.products | length }}</td>
+                <td><a class="btn btn-sm btn-secondary" href="/admin/product-discounts/{{ d.id }}">Деталі</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Знижок на товар ще немає.</p>
+    {% endif %}
+</div>
+
+{% endblock %}

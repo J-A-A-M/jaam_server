@@ -1,0 +1,41 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Адміністратори{% endblock %}
+{% block admin_content %}
+<div class="panel">
+    <div class="section-header">Адміністратори</div>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Email</th>
+                <th>Дата реєстрації</th>
+                <th>Дії</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for admin in admins %}
+            <tr>
+                <td>{{ admin.id }}</td>
+                <td>
+                    {{ admin.email }}
+                    {% if admin.id == me_id %}<span class="badge">ви</span>{% endif %}
+                </td>
+                <td class="muted">{{ admin.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+                <td class="actions">
+                    {% if admin.id != me_id %}
+                    <form method="post" action="/admin/admins/{{ admin.id }}/revoke"
+                          onsubmit="return confirm('Зняти права адміністратора з {{ admin.email }}?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Прибрати адміна</button>
+                    </form>
+                    {% else %}
+                    <span class="muted">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">Адміністраторів не знайдено.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

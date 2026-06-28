@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JAAM — TE Design System</title>
+<style>
+/* ============================================================
+   JAAM — Teenage Engineering inspired design system
+   Reference: K.O. Sidekick / EP-133
+   ============================================================ */
+
+:root{
+  /* --- Palette --- */
+  --case:      #E4E4E1;   /* device case off-white */
+  --panel:     #FAFAF8;   /* bright white panel */
+  --graphite:  #2E2E2E;   /* dark rubber buttons */
+  --grey:      #9A9A98;   /* mid grey */
+  --grey-lt:   #C9C9C6;   /* light grey */
+  --ink:       #1A1A1A;   /* text black */
+  --accent:    #F5601A;   /* signature orange */
+  --accent-dk: #D44E10;
+  --line:      #D2D2CE;   /* hairlines */
+
+  /* --- Type --- */
+  --mono: "SF Mono","Roboto Mono",ui-monospace,"DejaVu Sans Mono",Menlo,monospace;
+  --sans: "Helvetica Neue",Arial,"Inter",system-ui,sans-serif;
+
+  /* --- Geometry --- */
+  --r-lg: 22px;
+  --r-md: 12px;
+  --r-sm: 7px;
+  --gap: 14px;
+
+  /* backdrop */
+  --bg-a:#dadad5; --bg-b:#c4c4bf;
+}
+
+/* ---------- DARK THEME ---------- */
+[data-theme="dark"]{
+  --case:     #1C1C1E;
+  --panel:    #131314;
+  --graphite: #0A0A0B;
+  --grey:     #6E6E70;
+  --grey-lt:  #3A3A3C;
+  --ink:      #ECECEC;
+  --accent:   #FF6A2B;
+  --accent-dk:#C9480E;
+  --line:     #2C2C2E;
+  --bg-a:#2a2a2c; --bg-b:#161617;
+}
+[data-theme="dark"] .device{
+  border-color:#242426;
+  box-shadow:0 1px 0 #2e2e30 inset,0 30px 60px -20px rgba(0,0,0,.7),0 4px 10px rgba(0,0,0,.5);
+}
+[data-theme="dark"] .pad{box-shadow:0 3px 0 #000,0 4px 6px rgba(0,0,0,.6);color:#d6d6d6}
+[data-theme="dark"] .pad.light{background:#2A2A2C;color:var(--ink);box-shadow:0 3px 0 #000,0 4px 6px rgba(0,0,0,.5)}
+[data-theme="dark"] .pad.light .n{color:var(--grey)}
+[data-theme="dark"] .cta{box-shadow:0 3px 0 #000;background:var(--accent);color:#1a1a1a;font-weight:700}
+[data-theme="dark"] .seg{border-color:var(--ink)}
+[data-theme="dark"] .seg button{color:var(--ink);border-color:var(--ink)}
+[data-theme="dark"] .hslider{background:#2A2A2C;box-shadow:0 0 0 1px #000 inset}
+[data-theme="dark"] .hslider .hcap{background:#5A5A5C;box-shadow:0 0 0 1px #6e6e70 inset}
+[data-theme="dark"] select.te{background:var(--graphite);color:var(--ink)}
+[data-theme="dark"] .check .box{background:#2A2A2C}
+[data-theme="dark"] .radio .rb{background:#2A2A2C}
+[data-theme="dark"] .switch{background:#2A2A2C}
+[data-theme="dark"] .switch .sk{background:#5A5A5C}
+
+/* ---------- MILITARY / RADAR THEME ---------- */
+[data-theme="mil"]{
+  --case:     #161A12;   /* dark olive case */
+  --panel:    #0D1109;   /* radar scope green-black */
+  --graphite: #090C06;
+  --grey:     #5E6E50;   /* muted olive */
+  --grey-lt:  #2A3320;
+  --ink:      #C2D0A4;   /* phosphor green text */
+  --accent:   #C24B33;   /* threat red (alert) */
+  --accent-dk:#8E3320;
+  --line:     #28311F;   /* faint grid line */
+  --bg-a:#161c12; --bg-b:#080b06;
+  --amber:    #C2A14E;   /* radar ring / gold chrome */
+}
+[data-theme="mil"] .device{
+  border-color:#222a1a;
+  box-shadow:0 1px 0 #2a3420 inset,0 30px 60px -20px rgba(0,0,0,.8),0 4px 10px rgba(0,0,0,.6);
+}
+[data-theme="mil"] .pad{box-shadow:0 3px 0 #000,0 4px 6px rgba(0,0,0,.6);color:#aebf90}
+[data-theme="mil"] .pad.light{background:#1E2616;color:var(--ink);box-shadow:0 3px 0 #000,0 4px 6px rgba(0,0,0,.5)}
+[data-theme="mil"] .pad.light .n{color:var(--grey)}
+[data-theme="mil"] .pad.alert{box-shadow:0 3px 0 var(--accent-dk),0 4px 10px rgba(194,75,51,.55)}
+[data-theme="mil"] .cta{box-shadow:0 3px 0 #000;background:var(--amber);color:#161a12;font-weight:700}
+[data-theme="mil"] .seg{border-color:var(--amber)}
+[data-theme="mil"] .seg button{color:var(--ink);border-color:var(--amber)}
+[data-theme="mil"] .seg button.on{background:var(--amber);color:#161a12}
+[data-theme="mil"] .brand-mark{color:var(--amber)}
+[data-theme="mil"] #theme{border-color:var(--amber)}
+[data-theme="mil"] #theme span{color:var(--amber)}
+[data-theme="mil"] .hslider{background:#1E2616;box-shadow:0 0 0 1px #000 inset}
+[data-theme="mil"] .hslider .hfill{background:var(--amber)}
+[data-theme="mil"] .hslider .hcap{background:#5E6E50;box-shadow:0 0 0 1px #7a8a66 inset}
+[data-theme="mil"] select.te{background:var(--graphite);color:var(--ink);border-color:var(--amber);
+  background-image:linear-gradient(45deg,transparent 50%,var(--amber) 50%),linear-gradient(135deg,var(--amber) 50%,transparent 50%);
+  background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+[data-theme="mil"] .check .box{background:#1E2616;border-color:var(--amber)}
+[data-theme="mil"] .check input:checked + .box{background:var(--amber);border-color:var(--amber)}
+[data-theme="mil"] .check .box::after{color:#161a12}
+[data-theme="mil"] .radio .rb{background:#1E2616;border-color:var(--amber)}
+[data-theme="mil"] .radio .rb::after{background:var(--amber)}
+[data-theme="mil"] .radio input:checked + .rb{border-color:var(--amber)}
+[data-theme="mil"] .switch{background:#1E2616;border-color:var(--amber)}
+[data-theme="mil"] .switch .sk{background:#5E6E50}
+[data-theme="mil"] .switch.on{background:var(--amber);border-color:var(--amber)}
+/* radar scope grid on panel */
+[data-theme="mil"] .panel{
+  background-color:var(--panel);
+  background-image:
+    repeating-radial-gradient(circle at 24% 38%,transparent 0 17px,rgba(120,140,90,.06) 17px 18px),
+    radial-gradient(circle at 24% 38%,rgba(120,140,90,.10),transparent 62%);
+}
+[data-theme="mil"] .panel::after{
+  background-image:radial-gradient(rgba(120,140,90,.05) 1px,transparent 1.3px);
+}
+[data-theme="mil"] .title .tm{color:var(--amber)}
+
+/* ---------- FALLOUT / PIP-BOY THEME ---------- */
+[data-theme="fall"]{
+  --case:     #0C160B;   /* casing */
+  --panel:    #07110A;   /* CRT black-green */
+  --graphite: #050D08;
+  --grey:     #2C6B3A;   /* dim phosphor */
+  --grey-lt:  #123019;
+  --ink:      #44F56E;   /* bright phosphor green */
+  --accent:   #7DFF52;   /* hot green (action / alert) */
+  --accent-dk:#3FAA2A;
+  --line:     #163A1E;
+  --bg-a:#0b160b; --bg-b:#030803;
+  --glow: 0 0 4px rgba(68,245,110,.55);
+}
+[data-theme="fall"] .device{
+  border-color:#15301a;
+  box-shadow:0 1px 0 #1c3a22 inset,0 30px 60px -20px rgba(0,0,0,.85),0 0 22px rgba(68,245,110,.12);
+}
+[data-theme="fall"] .title{text-shadow:var(--glow)}
+[data-theme="fall"] .kicker,[data-theme="fall"] .rule span,[data-theme="fall"] .brand-mark,
+[data-theme="fall"] .ctl-lbl{text-shadow:var(--glow)}
+[data-theme="fall"] .pad{box-shadow:0 3px 0 #000,0 4px 6px rgba(0,0,0,.6);color:var(--ink);text-shadow:var(--glow)}
+[data-theme="fall"] .pad.light{background:#102A16;color:var(--ink);box-shadow:0 3px 0 #000,0 4px 6px rgba(0,0,0,.5)}
+[data-theme="fall"] .pad.light .n{color:var(--grey)}
+[data-theme="fall"] .pad.alert{background:var(--accent);color:#06100A;text-shadow:none;
+  box-shadow:0 3px 0 var(--accent-dk),0 4px 12px rgba(125,255,82,.5)}
+[data-theme="fall"] .pad.alert .n{color:#1a3d10}
+[data-theme="fall"] .cta{box-shadow:0 3px 0 var(--accent-dk);background:var(--accent);color:#06100A;font-weight:700}
+[data-theme="fall"] .seg{border-color:var(--ink)}
+[data-theme="fall"] .seg button{color:var(--ink);border-color:var(--ink)}
+[data-theme="fall"] .seg button.on{background:var(--accent);color:#06100A}
+[data-theme="fall"] #theme span{color:var(--ink)}
+[data-theme="fall"] .hslider{background:#102A16;box-shadow:0 0 0 1px #000 inset}
+[data-theme="fall"] .hslider .hfill{background:var(--accent);box-shadow:0 0 8px rgba(125,255,82,.4)}
+[data-theme="fall"] .hslider .hcap{background:var(--accent);box-shadow:0 0 6px rgba(125,255,82,.5)}
+[data-theme="fall"] select.te{background:var(--graphite);color:var(--ink);border-color:var(--ink);
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),linear-gradient(135deg,var(--ink) 50%,transparent 50%);
+  background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+[data-theme="fall"] .te-input{background:var(--graphite);color:var(--ink);border-color:var(--ink);text-shadow:var(--glow)}
+[data-theme="fall"] .check .box{background:#102A16;border-color:var(--ink)}
+[data-theme="fall"] .check input:checked + .box{background:var(--accent);border-color:var(--accent)}
+[data-theme="fall"] .check .box::after{color:#06100A}
+[data-theme="fall"] .radio .rb{background:#102A16;border-color:var(--ink)}
+[data-theme="fall"] .radio input:checked + .rb{border-color:var(--accent)}
+[data-theme="fall"] .switch{background:#102A16;border-color:var(--ink)}
+[data-theme="fall"] .switch .sk{background:var(--grey)}
+[data-theme="fall"] .switch.on{background:var(--accent);border-color:var(--accent)}
+[data-theme="fall"] .switch.on .sk{background:#06100A}
+[data-theme="fall"] .banner{background:#0C1B0F;border-left-color:var(--accent)}
+[data-theme="fall"] .banner .bt{text-shadow:var(--glow)}
+/* CRT scanlines over the whole panel */
+[data-theme="fall"] .panel::after{
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px),
+    radial-gradient(rgba(68,245,110,.04) 1px, transparent 1.3px);
+  background-size:auto, 5px 5px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:var(--sans);
+  color:var(--ink);
+  /* wood-ish neutral backdrop, device floats on top */
+  background-image:
+    radial-gradient(circle at 50% 0%, var(--bg-a) 0%, var(--bg-b) 70%);
+  min-height:100vh;
+  padding:40px 16px;
+  -webkit-font-smoothing:antialiased;
+  transition:background-image .25s;
+}
+.device,.panel,.pad,.cta{transition:background .25s,color .25s,box-shadow .25s}
+
+/* ---------- DEVICE SHELL ---------- */
+.device{
+  max-width:520px;
+  margin:0 auto;
+  background:var(--case);
+  border-radius:var(--r-lg);
+  padding:18px;
+  box-shadow:
+    0 1px 0 #fff inset,
+    0 30px 60px -20px rgba(0,0,0,.45),
+    0 4px 10px rgba(0,0,0,.2);
+  border:1px solid #f2f2ef;
+}
+
+/* ---------- TOP BAR ---------- */
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:4px 6px 14px;
+}
+.seg{
+  display:flex;
+  border:1.5px solid var(--ink);
+  border-radius:var(--r-sm);
+  overflow:hidden;
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.06em;
+}
+.seg button{
+  border:0;background:transparent;color:var(--ink);
+  padding:5px 10px;cursor:pointer;
+  border-right:1.5px solid var(--ink);
+  text-transform:uppercase;
+}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--accent);color:#fff}
+.brand-mark{
+  font-family:var(--mono);
+  font-weight:700;
+  font-size:13px;
+  color:var(--accent);
+  letter-spacing:.04em;
+}
+
+/* ---------- PANEL ---------- */
+.panel{
+  background:var(--panel);
+  border-radius:var(--r-md);
+  border:1px solid var(--line);
+  position:relative;
+  overflow:hidden;
+}
+.panel::after{ /* subtle halftone wash over panel */
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1.3px);
+  background-size:5px 5px;
+}
+
+/* side vertical title like "K.O. SIDEKICK" */
+.panel-head{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  padding:16px 18px 6px;
+}
+.kicker{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--grey);
+}
+.title{
+  font-family:var(--sans);
+  font-weight:800;
+  font-size:30px;
+  letter-spacing:-.01em;
+  line-height:.95;
+  margin-top:4px;
+}
+.title .tm{font-size:11px;vertical-align:super;color:var(--grey)}
+.serial{
+  font-family:var(--mono);font-size:10px;color:var(--grey);
+  text-align:right;letter-spacing:.05em;line-height:1.5;
+}
+
+/* ---------- SYSTEM PANEL TOGGLE (topbar icon button) ---------- */
+.icobtn{
+  width:28px;height:28px;padding:5px;cursor:pointer;
+  background:transparent;color:var(--ink);
+  border:1.5px solid var(--ink);border-radius:var(--r-sm);
+  display:grid;place-items:center;transition:.12s;
+  font-family:var(--mono);font-size:14px;line-height:1;
+}
+.icobtn span{font-size:14px}
+.icobtn svg{width:100%;height:100%}
+/* mode selector row (below system data) */
+.modes-row{padding:0 18px;margin:0 0 14px}
+.modes-row .seg{display:flex;width:100%}
+.modes-row .seg button{flex:1;padding:7px 0;text-align:center}
+.icobtn svg path{fill:currentColor}
+.icobtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+[data-theme="mil"]  .icobtn{border-color:var(--amber);color:var(--amber)}
+[data-theme="mil"]  .icobtn.on{background:var(--amber);border-color:var(--amber);color:#161a12}
+[data-theme="fall"] .icobtn.on{color:#06100A}
+
+/* collapsible wrapper (system / alerts / api) */
+.collapse{overflow:hidden;transition:max-height .3s ease,opacity .2s ease;max-height:2000px}
+.collapse.collapsed{max-height:0;opacity:0}
+
+/* ---------- SYSTEM PANEL (inline pill chips, flex-wrap) ---------- */
+.sys{
+  display:flex;flex-wrap:wrap;gap:6px;
+  padding:0 18px 16px;
+}
+.metric{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:4px 10px 4px 8px;min-width:0;
+}
+.metric .micon{width:12px;height:12px;flex-shrink:0;color:var(--grey)}
+.metric .micon svg{width:100%;height:100%;display:block}
+.metric .micon svg path{fill:currentColor}
+.metric .mval{font-weight:700;font-size:12px;line-height:1;color:var(--ink);white-space:nowrap}
+.metric .mval .mu{font-family:var(--mono);font-weight:400;font-size:10px;color:var(--grey);margin-left:2px}
+/* memory chip: thin bar after value */
+.metric .mbar{width:34px;height:4px;border-radius:2px;background:var(--grey-lt);overflow:hidden;flex-shrink:0}
+.metric .mbar i{display:block;height:100%;background:var(--accent);border-radius:2px;transition:width .3s}
+
+/* divider hairline w/ label, TE-style "STEREO MIXER" rule */
+.rule{
+  display:flex;align-items:center;gap:10px;
+  padding:0 18px;margin:2px 0 14px;
+}
+.rule::before,.rule::after{content:"";height:1px;background:var(--line);flex:1}
+.rule span{
+  font-family:var(--mono);font-size:14px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--grey);
+}
+
+/* ---------- BUTTON GRID (regions / controls) ---------- */
+.grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);
+  padding:0 18px 18px;
+}
+.pad{
+  aspect-ratio:1/1;
+  border-radius:var(--r-sm);
+  background:var(--graphite);
+  color:#e9e9e9;
+  border:0;cursor:pointer;
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:8px;
+  box-shadow:0 3px 0 #000,0 4px 6px rgba(0,0,0,.3);
+  transition:transform .05s,box-shadow .05s;
+  font-family:var(--mono);
+}
+.pad:active{transform:translateY(2px);box-shadow:0 1px 0 #000}
+.pad .n{font-size:9px;color:var(--grey);text-align:left}
+.pad .v{font-size:13px;font-weight:700;text-align:left;letter-spacing:.02em}
+.pad.alert{
+  background:var(--accent);color:#fff;
+  box-shadow:0 3px 0 var(--accent-dk),0 4px 8px rgba(245,96,26,.5);
+}
+.pad.alert .n{color:#ffd9c6}
+.pad.light{ /* white rubber button */
+  background:#f0f0ed;color:var(--ink);
+  box-shadow:0 3px 0 #c7c7c3,0 4px 6px rgba(0,0,0,.2);
+}
+.pad.light .n{color:var(--grey)}
+
+/* ---------- ACTIVE ALERTS LIST ---------- */
+.alist{padding:0 18px 16px;font-family:var(--mono);font-size:13px}
+.alist .arow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.alist .arow:last-child{border-bottom:0}
+.alist .an{color:var(--grey);width:24px}
+.alist .av{flex:1}
+.alist .as{font-weight:700;white-space:nowrap}
+.alist .as.on{color:var(--accent)}
+.alist .as.off{color:var(--grey)}
+
+/* ---------- API READOUT ---------- */
+.api-pre{
+  margin:0 18px 16px;padding:14px;background:var(--graphite);color:#9fe89f;
+  border-radius:var(--r-sm);font-family:var(--mono);font-size:11px;line-height:1.6;overflow:auto;
+}
+
+/* ---------- TE FORM CONTROLS ---------- */
+.ctl{padding:4px 18px 16px}
+.ctl-row{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:11px 0;border-bottom:1px solid var(--line);
+}
+.ctl-row:last-child{border-bottom:0}
+.ctl-lbl{
+  font-family:var(--mono);font-size:14px;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ink);white-space:nowrap;
+}
+.ctl-lbl small{display:block;font-size:12px;color:var(--grey);letter-spacing:.1em;margin-top:2px}
+
+/* horizontal slider */
+.hslider{
+  position:relative;width:150px;height:8px;border-radius:4px;
+  background:var(--grey-lt);cursor:pointer;flex-shrink:0;
+}
+.hslider .hfill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--accent)}
+.hslider .hcap{
+  position:absolute;top:50%;width:16px;height:30px;border-radius:5px;
+  background:var(--graphite);transform:translate(-50%,-50%);
+  box-shadow:0 2px 5px rgba(0,0,0,.4);
+}
+.hslider .hval{
+  position:absolute;left:-34px;top:50%;transform:translateY(-50%);
+  font-family:var(--mono);font-size:14px;color:var(--ink);width:28px;
+  text-align:right;
+}
+
+/* select */
+select.te{
+  font-family:var(--mono);font-size:14px;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ink);
+  background:var(--panel);
+  border:1.5px solid var(--ink);border-radius:var(--r-sm);
+  height:30px;padding:0 30px 0 12px;cursor:pointer;
+  -webkit-appearance:none;appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),
+                   linear-gradient(135deg,var(--ink) 50%,transparent 50%);
+  background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+}
+
+/* radio group (segmented round) */
+.radio{display:flex;gap:16px}
+.radio label{display:flex;align-items:center;gap:7px;cursor:pointer;
+  font-family:var(--mono);font-size:14px;text-transform:uppercase;color:var(--ink)}
+.radio input{display:none}
+.radio .rb{
+  width:18px;height:18px;border-radius:50%;
+  border:1.5px solid var(--ink);background:var(--panel);
+  display:grid;place-items:center;transition:.12s;
+}
+.radio .rb::after{content:"";width:8px;height:8px;border-radius:50%;
+  background:var(--accent);transform:scale(0);transition:.12s}
+.radio input:checked + .rb::after{transform:scale(1)}
+.radio input:checked + .rb{border-color:var(--accent)}
+
+/* checkbox (rubber square) */
+.check{display:flex;align-items:center;gap:9px;cursor:pointer;
+  font-family:var(--mono);font-size:14px;text-transform:uppercase;color:var(--ink)}
+.check input{display:none}
+.check .box{
+  width:20px;height:20px;border-radius:5px;
+  border:1.5px solid var(--ink);background:var(--panel);
+  display:grid;place-items:center;transition:.12s;
+}
+.check .box::after{content:"✕";font-size:13px;font-weight:700;color:#fff;
+  transform:scale(0);transition:.12s}
+.check input:checked + .box{background:var(--accent);border-color:var(--accent)}
+.check input:checked + .box::after{transform:scale(1)}
+
+/* toggle switch (pill) */
+.switch{
+  width:46px;height:24px;border-radius:13px;background:var(--grey-lt);
+  position:relative;cursor:pointer;transition:.18s;flex-shrink:0;
+  border:1.5px solid var(--ink);
+}
+.switch .sk{
+  position:absolute;top:50%;left:3px;transform:translateY(-50%);
+  width:16px;height:16px;border-radius:50%;background:var(--graphite);
+  transition:.18s;box-shadow:0 1px 3px rgba(0,0,0,.4);z-index:2;
+}
+.switch.on{background:var(--accent);border-color:var(--accent)}
+.switch.on .sk{left:24px;background:#fff}
+
+/* text input / textarea */
+.te-input{
+  font-family:var(--mono);font-size:14px;letter-spacing:.02em;color:var(--ink);
+  background:var(--panel);
+  border:1.5px solid var(--ink);border-radius:var(--r-sm);
+  height:30px;padding:0 12px;width:170px;outline:none;transition:border-color .12s;
+}
+.te-input::placeholder{color:var(--grey);text-transform:uppercase;letter-spacing:.06em;font-size:11px}
+.te-input:focus{border-color:var(--accent)}
+.te-input.block{width:100%;display:block}
+textarea.te-input{height:auto;padding:8px 12px;resize:vertical;min-height:64px;line-height:1.5}
+[data-theme="dark"] .te-input{background:var(--graphite)}
+[data-theme="mil"]  .te-input{background:var(--graphite);border-color:var(--amber)}
+[data-theme="mil"]  .te-input:focus{border-color:var(--accent)}
+
+/* info banner (icon + text), insertable between controls */
+.banner{
+  display:flex;align-items:flex-start;gap:11px;
+  margin:12px 0;padding:11px 13px;
+  background:var(--case);
+  border:1px solid var(--line);
+  border-left:3px solid var(--accent);
+  border-radius:var(--r-sm);
+}
+.banner .ico{
+  flex-shrink:0;width:22px;height:22px;border-radius:50%;
+  background:var(--accent);color:#fff;
+  display:grid;place-items:center;
+  font-family:var(--mono);font-weight:700;font-size:13px;line-height:1;
+}
+.banner .bt{font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--ink)}
+.banner .bt b{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--grey);margin-bottom:3px;font-weight:700}
+/* variants */
+.banner.amber{border-left-color:#C2A14E}
+.banner.amber .ico{background:#C2A14E;color:#1a1a1a}
+.banner.grey{border-left-color:var(--grey)}
+.banner.grey .ico{background:var(--grey)}
+[data-theme="mil"] .banner{background:#11160C}
+
+/* color picker */
+.color-ctl{display:flex;align-items:center;gap:10px}
+.color-ctl .hex{
+  font-family:var(--mono);font-size:14px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink);width:62px;text-align:right;
+}
+.swatch-btn{
+  position:relative;width:40px;height:30px;border-radius:var(--r-sm);
+  border:1.5px solid var(--ink);cursor:pointer;padding:0;overflow:hidden;
+  box-shadow:0 2px 4px rgba(0,0,0,.25);
+}
+.swatch-btn input[type=color]{
+  position:absolute;inset:-6px;width:200%;height:200%;
+  border:0;padding:0;cursor:pointer;opacity:0;
+}
+.presets{display:flex;gap:12px}
+.presets .sw-dot{
+  width:30px;height:30px;border-radius:50%;cursor:pointer;
+  border:1.5px solid rgba(0,0,0,.25);
+  box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .1s;
+}
+.presets .sw-dot:active{transform:scale(.88)}
+.presets .sw-dot.on{outline:2px solid var(--ink);outline-offset:2px}
+[data-theme="mil"]  .swatch-btn{border-color:var(--amber)}
+[data-theme="fall"] .swatch-btn{border-color:var(--ink)}
+[data-theme="mil"]  .presets .sw-dot.on{outline-color:var(--amber)}
+
+/* ---------- BOTTOM BAR ---------- */
+.botbar{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:14px 6px 4px;
+  font-family:var(--mono);font-size:10px;color:var(--grey);
+  letter-spacing:.06em;
+}
+.cta{
+  background:var(--ink);color:#fff;border:0;cursor:pointer;
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;padding:9px 18px;border-radius:var(--r-sm);
+  box-shadow:0 3px 0 #000;
+}
+.cta:active{transform:translateY(2px);box-shadow:0 1px 0 #000}
+
+/* ---------- SWATCH STRIP (design tokens reference) ---------- */
+.tokens{
+  max-width:520px;margin:26px auto 0;
+  display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
+}
+.sw{font-family:var(--mono);font-size:9px;color:var(--grey);text-align:center}
+.sw i{display:block;width:54px;height:34px;border-radius:6px;border:1px solid var(--line);margin-bottom:4px}
+</style>
+</head>
+<body>
+
+<div class="device">
+
+  <!-- TOP BAR: brand + icon buttons -->
+  <div class="topbar">
+    <div class="brand-mark">JAAM—01</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="icobtn on" data-target="sysWrap" title="Системна панель">
+        <svg viewBox="0 0 24 24"><path d="M13,9V7H11V9H13M13,17V11H11V17H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>
+      </button>
+      <button class="icobtn on" data-target="alertsWrap" title="Активні тривоги">
+        <svg viewBox="0 0 24 24"><path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/></svg>
+      </button>
+      <button class="icobtn" data-target="apiWrap" title="WebSocket API">
+        <svg viewBox="0 0 24 24"><path d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z"/></svg>
+      </button>
+      <button id="theme" class="icobtn" title="Перемкнути тему">
+        <span id="themeGlyph">◐</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN PANEL -->
+  <div class="panel">
+
+    <div class="panel-head">
+      <div>
+        <div class="kicker">Air Raid Monitor</div>
+        <div class="title">ПОВІТРЯНА ТРИВОГА<span class="tm">UA</span></div>
+      </div>
+      <div class="serial">
+        REG&nbsp;25<br>
+        v2.1.0<br>
+        live™
+      </div>
+    </div>
+
+    <!-- SYSTEM PANEL (TE-style, rendered from /system-info schema) -->
+    <div id="sysWrap" class="collapse">
+      <div class="rule"><span id="sysTitle">System</span></div>
+      <div class="sys" id="sysPanel"></div>
+    </div>
+
+    <!-- MODE SELECTOR (moved below system data) -->
+    <div class="modes-row">
+      <div class="seg" id="modes">
+        <button data-view="map">MAP</button>
+        <button data-view="list">LIST</button>
+        <button data-view="api">API</button>
+        <button class="on" data-view="set">SET</button>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS VIEW (only pane) ===== -->
+    <section data-pane="set">
+
+      <!-- ACTIVE ALERTS (collapsible, toggled from header) -->
+      <div id="alertsWrap" class="collapse">
+        <div class="rule"><span id="alertsTitle">Активні тривоги</span></div>
+        <div class="alist" id="alertsList"></div>
+      </div>
+
+      <!-- WEBSOCKET API (collapsible, toggled from header) -->
+      <div id="apiWrap" class="collapse collapsed">
+        <div class="rule"><span>WebSocket API</span></div>
+        <pre class="api-pre">wss://jaam.in.ua/ws
+
+→ 0xA1 hello
+← 0xA2 state {regions[25]}
+← 0xA3 alert {id:01,on:1}
+← 0xA6 ping</pre>
+      </div>
+
+      <div class="rule"><span>Налаштування</span></div>
+      <div class="ctl">
+
+        <!-- info banner (between controls) -->
+        <div class="banner">
+          <div class="ico">i</div>
+          <div class="bt"><b>Підказка</b>Ці налаштування зберігаються лише на цьому пристрої.</div>
+        </div>
+
+        <!-- text input -->
+        <div class="ctl-row">
+          <div class="ctl-lbl">Назва<small>device name</small></div>
+          <input class="te-input" type="text" value="jaam-kyiv-01" placeholder="device id">
+        </div>
+
+        <!-- color picker -->
+        <div class="ctl-row">
+          <div class="ctl-lbl">Колір LED<small>alert color</small></div>
+          <div class="color-ctl">
+            <span class="hex" id="cpHex">#F5601A</span>
+            <button class="swatch-btn" id="cpBtn" style="background:#F5601A">
+              <input type="color" id="cpInput" value="#F5601A">
+            </button>
+          </div>
+        </div>
+
+        <!-- preset swatches -->
+        <div class="ctl-row">
+          <div class="ctl-lbl">Пресети<small>presets</small></div>
+          <div class="presets" id="cpPresets">
+            <span class="sw-dot on" data-c="#F5601A" style="background:#F5601A"></span>
+            <span class="sw-dot" data-c="#C24B33" style="background:#C24B33"></span>
+            <span class="sw-dot" data-c="#7DFF52" style="background:#7DFF52"></span>
+            <span class="sw-dot" data-c="#4396FF" style="background:#4396FF"></span>
+            <span class="sw-dot" data-c="#C2A14E" style="background:#C2A14E"></span>
+            <span class="sw-dot" data-c="#FFFFFF" style="background:#FFFFFF"></span>
+          </div>
+        </div>
+
+        <!-- horizontal slider -->
+        <div class="ctl-row">
+          <div class="ctl-lbl">Гучність<small>alert sound</small></div>
+          <div class="hslider" data-h="vol">
+            <div class="hfill" style="width:65%"></div>
+            <div class="hcap" style="left:65%"></div>
+            <div class="hval">65</div>
+          </div>
+        </div>
+
+        <!-- horizontal slider 2 -->
+        <div class="ctl-row">
+          <div class="ctl-lbl">Яскравість<small>led map</small></div>
+          <div class="hslider" data-h="bri">
+            <div class="hfill" style="width:40%"></div>
+            <div class="hcap" style="left:40%"></div>
+            <div class="hval">40</div>
+          </div>
+        </div>
+
+        <!-- select -->
+        <div class="ctl-row">
+          <div class="ctl-lbl">Регіон<small>home oblast</small></div>
+          <select class="te">
+            <option>Київ · 01</option>
+            <option>Харків · 14</option>
+            <option>Львів · 05</option>
+            <option>Одеса · 07</option>
+            <option>Дніпро · 11</option>
+          </select>
+        </div>
+
+        <!-- radio -->
+        <div class="ctl-row">
+          <div class="ctl-lbl">Режим<small>map mode</small></div>
+          <div class="radio">
+            <label><input type="radio" name="mode" checked><span class="rb"></span>Авто</label>
+            <label><input type="radio" name="mode"><span class="rb"></span>Ніч</label>
+            <label><input type="radio" name="mode"><span class="rb"></span>Off</label>
+          </div>
+        </div>
+
+        <!-- checkbox -->
+        <div class="ctl-row">
+          <label class="check"><input type="checkbox" checked><span class="box"></span>Вібрація</label>
+          <label class="check"><input type="checkbox"><span class="box"></span>Тест-сигнал</label>
+        </div>
+
+        <!-- toggle switches -->
+        <div class="ctl-row">
+          <div class="ctl-lbl">Push-сповіщення<small>notifications</small></div>
+          <div class="switch on" data-sw><span class="sk"></span></div>
+        </div>
+        <div class="ctl-row">
+          <div class="ctl-lbl">Тиха ніч<small>22:00 – 07:00</small></div>
+          <div class="switch" data-sw><span class="sk"></span></div>
+        </div>
+
+        <!-- amber banner variant -->
+        <div class="banner amber">
+          <div class="ico">!</div>
+          <div class="bt"><b>Увага</b>Тиха ніч вимкне звук тривоги. Сповіщення залишаться.</div>
+        </div>
+
+        <!-- full-width textarea -->
+        <div style="padding-top:6px">
+          <div class="ctl-lbl" style="margin-bottom:8px">Нотатка<small>note</small></div>
+          <textarea class="te-input block" placeholder="короткий коментар…">Резервне живлення до 06:00</textarea>
+        </div>
+
+      </div>
+
+      <!-- grid / pad example (kept components, 4 pads in one row) -->
+      <div class="rule"><span>Grid / Pad · приклад</span></div>
+      <div class="grid" id="grid">
+        <button class="pad alert"><div class="n">01</div><div class="v">Київ</div></button>
+        <button class="pad"><div class="n">05</div><div class="v">Львів</div></button>
+        <button class="pad alert"><div class="n">14</div><div class="v">Харків</div></button>
+        <button class="pad light"><div class="n">07</div><div class="v">Одеса</div></button>
+      </div>
+    </section>
+
+  </div><!-- /panel -->
+
+  <!-- BOTTOM BAR -->
+  <div class="botbar">
+    <span>teenage·jaam™ · ukraine alarm map</span>
+    <button class="cta">Підключити</button>
+  </div>
+
+</div><!-- /device -->
+
+<!-- DESIGN TOKENS REFERENCE -->
+<div class="tokens">
+  <div class="sw"><i style="background:#E4E4E1"></i>case</div>
+  <div class="sw"><i style="background:#FAFAF8"></i>panel</div>
+  <div class="sw"><i style="background:#2E2E2E"></i>graphite</div>
+  <div class="sw"><i style="background:#9A9A98"></i>grey</div>
+  <div class="sw"><i style="background:#F5601A"></i>accent</div>
+  <div class="sw"><i style="background:#1A1A1A"></i>ink</div>
+</div>
+
+<script>
+(function(){
+  const $  = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+
+  /* ---------- THEME TOGGLE: light → dark → mil (persisted) ---------- */
+  const root = document.documentElement;
+  const THEMES = ['', 'dark', 'mil', 'fall'];
+  const GLYPH  = {'':'◐', 'dark':'●', 'mil':'◈', 'fall':'☢'};
+  const TNAME  = {'':'LIGHT', 'dark':'DARK', 'mil':'MIL', 'fall':'PIP'};
+  const tlbl = $('#themeGlyph'), tbtn = $('#theme');
+  function applyTheme(t){
+    root.dataset.theme = t;
+    tlbl.textContent = GLYPH[t];
+    tbtn.title = 'Тема: ' + TNAME[t];
+    localStorage.setItem('jaam-theme', t);
+  }
+  applyTheme(localStorage.getItem('jaam-theme') || '');
+  $('#theme').addEventListener('click', ()=>{
+    const next = THEMES[(THEMES.indexOf(root.dataset.theme || '') + 1) % THEMES.length];
+    applyTheme(next);
+  });
+
+  /* ---------- MODE MENU (kept; SET default active, highlight only) ---------- */
+  $('#modes').addEventListener('click', e=>{
+    const b = e.target.closest('button'); if(!b) return;
+    $$('#modes button').forEach(x=>x.classList.toggle('on', x===b));
+  });
+
+  /* ---------- COLLAPSIBLE SECTIONS (system / alerts / api) ---------- */
+  $$('.icobtn[data-target]').forEach(btn=>{
+    const wrap = document.getElementById(btn.dataset.target);
+    const key  = 'jaam-' + btn.dataset.target;
+    const saved = localStorage.getItem(key);
+    if(saved !== null) btn.classList.toggle('on', saved === '1');
+    const apply = ()=> wrap.classList.toggle('collapsed', !btn.classList.contains('on'));
+    apply();
+    btn.addEventListener('click', ()=>{
+      btn.classList.toggle('on');
+      apply();
+      localStorage.setItem(key, btn.classList.contains('on') ? '1' : '0');
+    });
+  });
+
+  /* ---------- PADS (demo: toggle alert) ---------- */
+  document.addEventListener('click', e=>{
+    const pad = e.target.closest('.pad'); if(!pad) return;
+    pad.classList.toggle('alert');
+    pad.classList.remove('light');
+    if(navigator.vibrate) navigator.vibrate(8);
+  });
+
+  /* ---------- ACTIVE ALERTS (count-agnostic render) ---------- */
+  const ALERTS = [
+    {n:'01', name:'Київ',    on:true},
+    {n:'14', name:'Харків',  on:true},
+    {n:'18', name:'Суми',    on:true},
+    {n:'05', name:'Львів',   on:false},
+    {n:'07', name:'Одеса',   on:false},
+    {n:'11', name:'Дніпро',  on:false}
+  ];
+  function renderAlerts(){
+    const active = ALERTS.filter(a=>a.on).length;
+    $('#alertsTitle').textContent = `Активні тривоги · ${active}`;
+    $('#alertsList').innerHTML = ALERTS.map(a=>
+      `<div class="arow"><span class="an">${a.n}</span><span class="av">${a.name}</span>` +
+      `<span class="as ${a.on?'on':'off'}">${a.on?'● ТРИВОГА':'○ спокій'}</span></div>`).join('');
+  }
+  renderAlerts();
+
+  /* ---------- HORIZONTAL SLIDERS ---------- */
+  $$('.hslider').forEach(s=>{
+    const fill = s.querySelector('.hfill');
+    const cap  = s.querySelector('.hcap');
+    const val  = s.querySelector('.hval');
+    let drag = false;
+    const set = clientX=>{
+      const r = s.getBoundingClientRect();
+      let p = (clientX - r.left)/r.width;
+      p = Math.max(0, Math.min(1, p));
+      const pc = (p*100).toFixed(0);
+      fill.style.width = pc+'%'; cap.style.left = pc+'%'; val.textContent = pc;
+    };
+    const down = e=>{drag=true; set((e.touches?e.touches[0]:e).clientX);};
+    s.addEventListener('mousedown', down);
+    s.addEventListener('touchstart', down, {passive:true});
+    window.addEventListener('mousemove', e=>drag&&set(e.clientX));
+    window.addEventListener('touchmove', e=>drag&&set(e.touches[0].clientX), {passive:true});
+    window.addEventListener('mouseup', ()=>drag=false);
+    window.addEventListener('touchend', ()=>drag=false);
+  });
+
+  /* ---------- COLOR PICKER ---------- */
+  const cpInput = $('#cpInput'), cpBtn = $('#cpBtn'), cpHex = $('#cpHex');
+  function setColor(c){
+    c = c.toUpperCase();
+    cpInput.value = c; cpBtn.style.background = c; cpHex.textContent = c;
+    $$('#cpPresets .sw-dot').forEach(d=>
+      d.classList.toggle('on', d.dataset.c.toUpperCase() === c));
+  }
+  cpInput.addEventListener('input', e=>setColor(e.target.value));
+  $('#cpPresets').addEventListener('click', e=>{
+    const dot = e.target.closest('.sw-dot'); if(!dot) return;
+    setColor(dot.dataset.c);
+    if(navigator.vibrate) navigator.vibrate(6);
+  });
+
+  /* ---------- TOGGLE SWITCHES ---------- */
+  $$('[data-sw]').forEach(sw=>{
+    sw.addEventListener('click', ()=>{
+      sw.classList.toggle('on');
+      if(navigator.vibrate) navigator.vibrate(6);
+    });
+  });
+
+  /* ---------- SYSTEM PANEL (render from /system-info schema) ---------- */
+  // icons pulled from the JAAM 3.1 device (/system-info)
+  const ICON = {
+    memory:["0 0 24 24","M5 3C3.89543 3 3 3.89543 3 5H1V7H3V9H1V11H3V13H1V15H3V17H1V19H3C3 20.1046 3.89543 21 5 21H9C10.1046 21 11 20.1046 11 19H13C13 20.1046 13.8954 21 15 21H19C20.1046 21 21 20.1046 21 19H23V17H21V15H23V13H21V11H23V9H21V7H23V5H21C21 3.89543 20.1046 3 19 3H15C13.8954 3 13 3.89543 13 5H11C11 3.89543 10.1046 3 9 3H5ZM11 7V9H13V7H11ZM11 11V13H13V11H11ZM11 15V17H13V15H11ZM5 5H9V19H5V5ZM15 5H19V19H15V5Z"],
+    cpu:["0 0 24 24","M7,2V4H6V6H4V7H2V9H4V11H2V13H4V15H2V17H4V18H6V20H7V22H9V20H11V22H13V20H15V22H17V20H18V18H20V17H22V15H20V13H22V11H20V9H22V7H20V6H18V4H17V2H15V4H13V2H11V4H9V2M8,6H16V18H8V6M10,8V16H14V8H10Z"],
+    chip:["0 0 24 24","M18,18H6V6H18M18,4H6A2,2 0 0,0 4,6V18A2,2 0 0,0 6,20H18A2,2 0 0,0 20,18V6A2,2 0 0,0 18,4M8,8H10V10H8M8,12H10V14H8M8,16H10V18H8M16,8V10H12V8M16,12V14H12V12M16,16V18H12V16Z"],
+    clock:["0 0 24 24","M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"],
+    wifi:["-1.5 0 19 19","M14.897 7.404a.553.553 0 0 1-.392-.163 9.192 9.192 0 0 0-13.01 0 .554.554 0 1 1-.784-.783 10.3 10.3 0 0 1 14.578 0 .554.554 0 0 1-.392.946zm-2.172 2.172a.553.553 0 0 1-.392-.162 6.127 6.127 0 0 0-8.666 0 .554.554 0 0 1-.784-.784 7.23 7.23 0 0 1 10.233 0 .554.554 0 0 1-.391.946zm-2.173 2.173a.553.553 0 0 1-.392-.162 3.054 3.054 0 0 0-4.32 0 .554.554 0 1 1-.784-.784 4.163 4.163 0 0 1 5.888 0 .554.554 0 0 1-.392.946zm-1.141 2.048a1.403 1.403 0 1 1-1.403-1.403 1.403 1.403 0 0 1 1.403 1.403z"],
+    ws:["0 0 24 24","M12,2a7.71,7.71,0,0,0-1,15.37v.77h-1a1,1,0,0,0-1,1H2.35V21H9.11a1,1,0,0,0,1,1h3.86a1,1,0,0,0,1-1h6.76V19.11H14.89a1,1,0,0,0-1-1H13v-.77A7.71,7.71,0,0,0,12,2m0,1.67a15.43,15.43,0,0,1,1.21,2.9H10.81A15.83,15.83,0,0,1,12,3.67m-2.15.42a14,14,0,0,0-1,2.48H7A5.78,5.78,0,0,1,9.88,4.09m4.3,0A5.73,5.73,0,0,1,17,6.57H15.17a13,13,0,0,0-1-2.47m-8,4.4H8.48a7.48,7.48,0,0,0-.07,1,7.77,7.77,0,0,0,.07,1H6.33a5.23,5.23,0,0,1-.09-1,5,5,0,0,1,.09-1m3.74,0h3.58a7.48,7.48,0,0,1,.07,1,7.77,7.77,0,0,1-.07,1H10.41a7.77,7.77,0,0,1-.07-1,7.48,7.48,0,0,1,.07-1m5.45,0h1.87a5,5,0,0,1,.09,1,5.23,5.23,0,0,1-.09,1H15.58a7.77,7.77,0,0,0,.07-1,7.48,7.48,0,0,0-.07-1m-8.4,3.85h1.7a13.53,13.53,0,0,0,1,2.47A5.76,5.76,0,0,1,7,12.35m4,0h2.2A15.43,15.43,0,0,1,12,15.25a15.83,15.83,0,0,1-1.22-2.9m4.36,0H17a5.75,5.75,0,0,1-2.85,2.48A13.41,13.41,0,0,0,15.17,12.35Z"],
+    temp:["0 0 24 24","M15,13V5A3,3 0 0,0 9,5V13A5,5 0 1,0 15,13M12,4A1,1 0 0,1 13,5V8H11V5A1,1 0 0,1 12,4Z"],
+    hum:["0 0 24 24","M12,3.25C12,3.25 6,10 6,14C6,17.32 8.69,20 12,20A6,6 0 0,0 18,14C18,10 12,3.25 12,3.25Z"],
+    light:["0 0 24 24","M9,21H15V19H9V21M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17H16V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2Z"],
+    users:["0 0 24 24","M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"]
+  };
+  // live snapshot from device 10.2.0.151  (schema: type, key, label, unit, icon, value/used/total/seconds)
+  const SYS = [
+    {type:'bar',   label:"Пам'ять",   unit:'KB', icon:'memory', used:120, total:250, span:true},
+    {type:'num',   label:'Процесор',  unit:'°C', icon:'cpu',    value:46},
+    {type:'text',  label:'Версія',               icon:'chip',   value:'5.1-b5'},
+    {type:'time',  label:'Аптайм',               icon:'clock',  seconds:26525},
+    {type:'num',   label:'WiFi',      unit:'dBm',icon:'wifi',   value:-50},
+    {type:'time',  label:'WiFi up',              icon:'clock',  seconds:26520},
+    {type:'time',  label:'Websocket',            icon:'ws',     seconds:3989},
+    {type:'num',   label:'Темп.',     unit:'°C', icon:'temp',   value:27},
+    {type:'num',   label:'Вологість', unit:'%',  icon:'hum',    value:38},
+    {type:'num',   label:'Освітл.',   unit:'lx', icon:'light',  value:0.8},
+    {type:'num',   label:'API',                  icon:'users',  value:1}
+  ];
+  const svg = key=>{const i=ICON[key]; return i?`<svg viewBox='${i[0]}'><path d='${i[1]}'/></svg>`:'';};
+  const fmtTime = s=>{const h=s/3600|0,m=(s%3600)/60|0; return h?`${h}г ${m}хв`:`${m}хв`;};
+  const mu = u=>u?`<span class="mu">${u}</span>`:'';
+  // each metric = one inline pill chip [icon] value; label in title (tooltip)
+  function tile(m){
+    const ico=`<span class="micon">${svg(m.icon)}</span>`;
+    let body;
+    if(m.type==='bar'){
+      const pct=Math.min(100, m.used/m.total*100);
+      body=`<span class="mval">${m.used}${mu('/'+m.total)}</span>
+            <div class="mbar"><i style="width:${pct.toFixed(0)}%"></i></div>`;
+    }else if(m.type==='time'){
+      body=`<span class="mval">${fmtTime(m.seconds)}</span>`;
+    }else if(m.type==='text'){
+      body=`<span class="mval">${m.value}</span>`;
+    }else{
+      body=`<span class="mval">${m.value}${mu(m.unit)}</span>`;
+    }
+    return `<div class="metric" title="${m.label}">${ico}${body}</div>`;
+  }
+  // render is count-agnostic: any number of metrics flows into the grid
+  $('#sysPanel').innerHTML = SYS.map(tile).join('');
+  $('#sysTitle').textContent = `System · ${SYS.length}`;
+})();
+</script>
+</body>
+</html>

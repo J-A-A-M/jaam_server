@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="uk" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Магазин JAAM{% endblock %}</title>
+    <script>
+        (function () {
+            var saved = document.cookie.split(';').find(function (c) { return c.trim().startsWith('jaam_theme='); });
+            var theme = saved ? saved.split('=')[1].trim() : 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/store.css?v=2">
+</head>
+<body>
+    <div class="container {% block container_class %}{% endblock %}">
+        <div class="header-container">
+            <h1><a href="/" class="brand">Магазин JAAM</a></h1>
+            <div class="header-actions">
+                <a class="nav-item" href="/cart">Кошик{% if cart_count %} ({{ cart_count }}){% endif %}</a>
+                {% if current_user %}
+                    <a class="nav-item" href="/account">Кабінет</a>
+                    {% if current_user.is_admin %}<a class="nav-item active" href="/admin">Адмінка</a>{% endif %}
+                    <a class="nav-item" href="/logout">Вийти</a>
+                {% else %}
+                    <a class="nav-item" href="/login">Увійти</a>
+                    <a class="nav-item" href="/register">Реєстрація</a>
+                {% endif %}
+                <button class="control-button" onclick="toggleTheme()" title="Змінити тему">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        {% for f in flashes %}
+            <div class="flash flash-{{ f.cat }}">{{ f.msg }}</div>
+        {% endfor %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        function toggleTheme() {
+            var current = document.documentElement.getAttribute('data-theme');
+            var next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            document.cookie = 'jaam_theme=' + next + '; max-age=31536000; path=/';
+        }
+
+        // --- Карусель фото товару ---
+        function carShow(id, idx) {
+            var car = document.getElementById('car-' + id);
+            if (!car) return;
+            var slides = car.querySelectorAll('.carousel-slide');
+            var dots = car.querySelectorAll('.carousel-dot');
+            if (!slides.length) return;
+            idx = (idx + slides.length) % slides.length;
+            slides.forEach(function (s, i) { s.classList.toggle('active', i === idx); });
+            dots.forEach(function (d, i) { d.classList.toggle('active', i === idx); });
+            car.dataset.idx = idx;
+        }
+        function carNav(id, delta) {
+            var car = document.getElementById('car-' + id);
+            if (!car) return;
+            carShow(id, parseInt(car.dataset.idx || '0') + delta);
+        }
+        function carGo(id, idx) { carShow(id, idx); }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

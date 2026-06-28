@@ -1,0 +1,46 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Ключі доступу{% endblock %}
+{% block admin_content %}
+<div class="panel">
+    <div class="section-header">
+        Ключі доступу
+        <form method="post" action="/admin/keys/generate" style="display:inline;margin-left:1rem;">
+            <button type="submit" class="btn btn-sm btn-success">Згенерувати ключ</button>
+        </form>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Ключ</th>
+                <th>Створений</th>
+                <th>Ким створений</th>
+                <th>Статус</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for k in keys %}
+            <tr>
+                <td>{{ k.id }}</td>
+                <td><code>{{ k.key }}</code></td>
+                <td class="muted">{{ k.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+                <td>{{ k.created_by.email if k.created_by else "—" }}</td>
+                <td>
+                    {% if k.used %}
+                        <span class="badge">використаний</span>
+                        <span class="muted">
+                            {{ k.used_by.email if k.used_by else "невідомо" }}
+                            {% if k.used_at %}({{ k.used_at.strftime("%d.%m.%Y %H:%M") }}){% endif %}
+                        </span>
+                    {% else %}
+                        <span class="badge">активний</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="muted">Ключів ще немає.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

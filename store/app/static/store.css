@@ -1,0 +1,509 @@
+:root {
+    --bg-color: #f0f0f0;
+    --container-bg: #ffffff;
+    --text-color: #000000;
+    --border-color: #dee2e6;
+    --panel-bg: #f8f9fa;
+    --secondary-text: #6c757d;
+}
+
+[data-theme='dark'] {
+    --bg-color: #1a1a1a;
+    --container-bg: #2d2d2d;
+    --text-color: #ffffff;
+    --border-color: #444444;
+    --panel-bg: #3a3a3a;
+    --secondary-text: #aaaaaa;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: var(--container-bg);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Адмінка ширша за вітрину — таблиці/редактори потребують місця */
+.container.wide {
+    max-width: 1100px;
+}
+
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.5em;
+}
+
+a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.brand {
+    color: var(--text-color);
+}
+
+.brand:hover {
+    text-decoration: none;
+}
+
+.control-button {
+    background: none;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.control-button:hover {
+    background-color: var(--panel-bg);
+}
+
+.control-button svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--text-color);
+}
+
+.nav-item {
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--container-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    white-space: nowrap;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.nav-item:hover {
+    background: var(--panel-bg);
+    border-color: var(--text-color);
+    text-decoration: none;
+}
+
+.nav-item.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.section-header {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+label {
+    display: block;
+    margin: 10px 0 4px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+input[type=text],
+input[type=email],
+input[type=password],
+input[type=number],
+select,
+textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--container-bg);
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.btn {
+    display: inline-block;
+    background: #007bff;
+    color: white;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    background: #0056b3;
+    text-decoration: none;
+}
+
+.btn-secondary {
+    background: var(--secondary-text);
+}
+
+.btn-danger {
+    background: #dc3545;
+}
+
+.btn-danger:hover {
+    background: #b02a37;
+}
+
+.btn-success {
+    background: #28a745;
+}
+
+.btn-success:hover {
+    background: #1e7e34;
+}
+
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 13px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 14px;
+}
+
+th {
+    color: var(--secondary-text);
+}
+
+.flash {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    border: 1px solid;
+}
+
+.flash-info {
+    background: rgba(23, 162, 184, 0.15);
+    border-color: rgba(23, 162, 184, 0.4);
+}
+
+.flash-success {
+    background: rgba(40, 167, 69, 0.15);
+    border-color: rgba(40, 167, 69, 0.4);
+}
+
+.flash-warning {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.4);
+}
+
+.flash-danger {
+    background: rgba(220, 53, 69, 0.15);
+    border-color: rgba(220, 53, 69, 0.4);
+}
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 15px;
+}
+
+.product-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.product-card .price {
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.pc-title a {
+    color: var(--text-color);
+}
+
+/* Стікери на товар */
+.sticker-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Накладання стікерів на фото: від правого верхнього кута вліво */
+.pc-media-wrap {
+    position: relative;
+}
+
+.sticker-overlay {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    display: flex;
+    flex-direction: row-reverse;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.sticker-overlay .sticker {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.sticker {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.6;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* Фото товару / карусель у картці */
+.pc-media img,
+.carousel-slide {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+}
+
+.carousel {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.carousel-track {
+    position: relative;
+}
+
+.carousel-slide {
+    display: none;
+}
+
+.carousel-slide.active {
+    display: block;
+}
+
+.carousel-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.carousel-nav.prev {
+    left: 6px;
+}
+
+.carousel-nav.next {
+    right: 6px;
+}
+
+.carousel-dots {
+    position: absolute;
+    bottom: 6px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+}
+
+.carousel-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+}
+
+.carousel-dot.active {
+    background: #fff;
+}
+
+/* Велика галерея на сторінці товару */
+.product-gallery .pc-media img,
+.product-gallery .carousel-slide {
+    height: 360px;
+}
+
+.muted {
+    color: var(--secondary-text);
+    font-size: 13px;
+}
+
+.price-big {
+    font-size: 22px;
+    font-weight: bold;
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(0, 123, 255, 0.15);
+    border: 1px solid rgba(0, 123, 255, 0.4);
+}
+
+.tree {
+    list-style: none;
+    padding-left: 18px;
+}
+
+.actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.actions form {
+    margin: 0;
+}
+
+/* Рядок розділу в дереві: назва ліворуч, кнопки праворуч, вирівняно */
+.tree li {
+    margin: 6px 0;
+}
+
+.cat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.cat-row .cat-name {
+    flex: 1;
+    min-width: 120px;
+}
+
+/* Nova Poshta автодоповнення */
+.np-list {
+    display: none;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--container-bg);
+    margin-top: 2px;
+}
+
+.np-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.np-item:hover {
+    background: var(--panel-bg);
+}
+
+/* Markdown-опис товару */
+.markdown-body {
+    line-height: 1.6;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+    margin: 0.6em 0 0.3em;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+    padding-left: 1.5em;
+    color: var(--text-color);
+    font-size: inherit;
+}
+
+.markdown-body img {
+    max-width: 100%;
+    border-radius: 8px;
+}
+
+.markdown-body code {
+    background: var(--panel-bg);
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+
+.markdown-body a {
+    color: #4396ff;
+}

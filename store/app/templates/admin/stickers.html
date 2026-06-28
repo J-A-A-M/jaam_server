@@ -1,0 +1,59 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Стікери{% endblock %}
+{% block admin_content %}
+
+<div class="panel">
+    <div class="section-header">Новий стікер</div>
+    <form method="post" action="/admin/stickers/create">
+        <label>Назва</label>
+        <input type="text" name="name" placeholder="Розпродаж" required>
+        <div class="actions" style="align-items:flex-end;">
+            <div>
+                <label>Колір фону</label>
+                <input type="color" name="color" value="#dc3545" style="width:60px; padding:2px;">
+            </div>
+            <div>
+                <label>Колір тексту</label>
+                <input type="color" name="text_color" value="#ffffff" style="width:60px; padding:2px;">
+            </div>
+        </div>
+        <div style="margin-top:12px;">
+            <button class="btn btn-success" type="submit">Створити</button>
+        </div>
+    </form>
+</div>
+
+<div class="panel">
+    <div class="section-header">Стікери</div>
+    {% if stickers %}
+    <table>
+        <thead>
+            <tr><th>Перегляд</th><th>Редагування</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for s in stickers %}
+            <tr>
+                <td><span class="sticker" style="background:{{ s.color }};color:{{ s.text_color }}">{{ s.name }}</span></td>
+                <td>
+                    <form method="post" action="/admin/stickers/{{ s.id }}/edit" class="actions" style="gap:8px;">
+                        <input type="text" name="name" value="{{ s.name }}" style="max-width:160px;">
+                        <input type="color" name="color" value="{{ s.color }}" style="width:48px; padding:2px;">
+                        <input type="color" name="text_color" value="{{ s.text_color }}" style="width:48px; padding:2px;">
+                        <button class="btn btn-sm btn-success" type="submit">Зберегти</button>
+                    </form>
+                </td>
+                <td>
+                    <form method="post" action="/admin/stickers/{{ s.id }}/delete">
+                        <button class="btn btn-sm btn-danger" type="submit">Видалити</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Стікерів ще немає.</p>
+    {% endif %}
+</div>
+
+{% endblock %}

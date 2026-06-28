@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ category.name }} — Магазин JAAM{% endblock %}
+{% block content %}
+<div class="panel">
+    <div class="section-header">Розділ: {{ category.name }}</div>
+    {% if category.children %}
+    <div class="actions" style="margin-bottom:15px;">
+        {% for c in category.children %}
+        <a class="nav-item" href="/category/{{ c.id }}">{{ c.name }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if products %}
+    <div class="product-grid">
+        {% for p in products %}
+        {% include "storefront/_product_card.html" %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">У цьому розділі немає товарів.</p>
+    {% endif %}
+</div>
+<a class="nav-item" href="/">← На головну</a>
+{% endblock %}

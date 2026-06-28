@@ -1,0 +1,18 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Стати адміністратором{% endblock %}
+{% block admin_content %}
+<div class="panel">
+    <div class="section-header">Стати адміністратором</div>
+    <form method="post" action="/admin/become">
+        <p class="muted">Введіть одноразовий ключ доступу або майстер-ключ, щоб отримати права адміністратора.</p>
+        <div>
+            <label for="key">Ключ доступу</label><br>
+            <input type="text" id="key" name="key" placeholder="Введіть ключ..." autocomplete="off" style="width:100%;max-width:400px;margin-top:0.4rem;">
+        </div>
+        <div style="margin-top:1rem;">
+            <button type="submit" class="btn btn-success">Активувати</button>
+            <a class="btn btn-secondary" href="/">На головну</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Кошик — Магазин JAAM{% endblock %}
+{% block content %}
+<div class="panel">
+    <div class="section-header">Кошик</div>
+    {% if items %}
+    <table>
+        <thead>
+            <tr><th>Товар</th><th>Модифікації</th><th>К-сть</th><th>Сума</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for it in items %}
+            <tr>
+                <td>{{ it.product.name }}<br><span class="muted">{{ it.unit_price | price }} грн/шт</span></td>
+                <td>
+                    {% for m in it.mods %}
+                    <div class="muted">{{ m.label }}{% if m.text %}: «{{ m.text }}»{% endif %}
+                        {% if m.price and m.price > 0 %} (+{{ m.price | price }}){% endif %}</div>
+                    {% else %}<span class="muted">—</span>{% endfor %}
+                </td>
+                <td>{{ it.quantity }}</td>
+                <td><strong>{{ it.line_total | price }} грн</strong></td>
+                <td>
+                    <form method="post" action="/cart/remove">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
+                        <button class="btn btn-sm btn-danger" type="submit">✕</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if product_discount and product_discount > 0 %}
+    <div>Сума: <span class="muted" style="text-decoration:line-through;">{{ subtotal_orig | price }}</span> {{ total | price }} грн</div>
+    <p class="muted">Знижка на товари: −{{ product_discount | price }} грн</p>
+    {% endif %}
+    {% if account_discount_pct > 0 %}
+    <div>Підсумок: <span class="muted" style="text-decoration:line-through;">{{ total | price }}</span> грн</div>
+    <p class="price-big">З вашою знижкою −{{ account_discount_pct | price }}%: {{ total | discounted(account_discount_pct) }} грн</p>
+    <p class="muted">Точну суму з урахуванням умов знижок буде показано при оформленні.</p>
+    {% else %}
+    <p class="price-big">Разом: {{ total | price }} грн</p>
+    {% endif %}
+    <a class="btn" href="/checkout">Оформити замовлення</a>
+    {% else %}
+    <p class="muted">Кошик порожній.</p>
+    {% endif %}
+    <a class="nav-item" href="/">← Продовжити покупки</a>
+</div>
+{% endblock %}

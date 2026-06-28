@@ -1,0 +1,40 @@
+{# Картка товару для каталогу/головної. Очікує `p` (Product) у контексті. #}
+{% from "storefront/_carousel.html" import carousel %}
+{% set cp = p | card_price(account_discount_pct) %}
+{% set card_stickers = p | stickers %}
+<div class="product-card">
+    <div class="pc-title"><a href="/product/{{ p.id }}"><strong>{{ p.name }}</strong></a></div>
+
+    {% if p.images %}
+    <div class="pc-media-wrap">
+        {{ carousel(p.images, 'card-' ~ p.id, media_url) }}
+        {% if card_stickers %}
+        <div class="sticker-overlay">
+            {% for s in card_stickers %}
+            <span class="sticker" style="background:{{ s.color }};color:{{ s.text_color }}">{{ s.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% elif card_stickers %}
+    {# без фото — стікери звичайним рядком #}
+    <div class="sticker-row">
+        {% for s in card_stickers %}
+        <span class="sticker" style="background:{{ s.color }};color:{{ s.text_color }}">{{ s.name }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if p.description %}<div class="muted">{{ p.description[:80] }}</div>{% endif %}
+
+    <div class="price">
+        {% if cp.discounted %}
+        <span class="muted" style="text-decoration:line-through;font-size:14px;">від {{ cp.orig | price }}</span>
+        від {{ cp.final | price }} грн
+        {% else %}
+        від {{ cp.final | price }} грн
+        {% endif %}
+    </div>
+
+    <a class="btn btn-sm" href="/product/{{ p.id }}">Детальніше</a>
+</div>

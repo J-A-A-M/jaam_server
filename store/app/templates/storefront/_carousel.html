@@ -1,0 +1,25 @@
+{# Карусель фото товару. images — список ProductImage; dom_id — унікальний суфікс. #}
+{% macro carousel(images, dom_id, media_url) %}
+{% if images|length == 1 %}
+<div class="pc-media">
+    <img src="{{ media_url }}/{{ images[0].filename }}" alt="">
+</div>
+{% elif images|length > 1 %}
+<div class="carousel" id="car-{{ dom_id }}" data-idx="0">
+    <div class="carousel-track">
+        {% for img in images %}
+        <img class="carousel-slide{% if loop.first %} active{% endif %}"
+             src="{{ media_url }}/{{ img.filename }}" alt="">
+        {% endfor %}
+    </div>
+    <button type="button" class="carousel-nav prev" onclick="carNav('{{ dom_id }}', -1)" aria-label="Назад">‹</button>
+    <button type="button" class="carousel-nav next" onclick="carNav('{{ dom_id }}', 1)" aria-label="Вперед">›</button>
+    <div class="carousel-dots">
+        {% for img in images %}
+        <span class="carousel-dot{% if loop.first %} active{% endif %}"
+              onclick="carGo('{{ dom_id }}', {{ loop.index0 }})"></span>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endmacro %}

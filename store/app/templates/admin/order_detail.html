@@ -1,0 +1,188 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Замовлення №{{ order.number }}{% endblock %}
+{% block admin_content %}
+<div class="panel">
+    <div class="section-header">
+        Замовлення №{{ order.number }}
+        <span class="badge" style="background:{{ order.status.color }};color:{{ order.status.text_color }}">{{ order.status.name }}</span>
+    </div>
+
+    {# --- Дані отримувача --- #}
+    <div class="panel">
+        <div class="section-header">Отримувач</div>
+        <table>
+            <tbody>
+                <tr><th>ПІБ</th><td>{{ order.full_name }}</td></tr>
+                <tr><th>Телефон</th><td>{{ order.recipient_phone or '—' }}</td></tr>
+                <tr><th>Місто</th><td>{{ order.np_city_name or order.city }}</td></tr>
+                <tr>
+                    <th>{% if order.np_warehouse_type == 'Postomat' %}Поштомат{% else %}Відділення{% endif %} НП</th>
+                    <td>{{ order.np_branch }}</td>
+                </tr>
+                <tr><th>Акаунт</th><td>{{ order.user.email }}</td></tr>
+                <tr><th>Дата</th><td>{{ order.created_at.strftime("%d.%m.%Y %H:%M") }}</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    {# --- Експрес-накладна Нова Пошта --- #}
+    <div class="panel">
+        <div class="section-header">Експрес-накладна (Нова Пошта)</div>
+        {% if order.np_waybill_number %}
+        <p><span class="badge">ЕН: {{ order.np_waybill_number }}</span></p>
+        <a class="btn btn-sm btn-secondary" target="_blank"
+           href="https://my.novaposhta.ua/orders/printDocument/orders[]/{{ order.np_waybill_ref }}/type/pdf/apiKey/">
+            Друк (потрібен apiKey у посиланні)
+        </a>
+        <p class="muted">Номер для відстеження: {{ order.np_waybill_number }}</p>
+        {% elif not np_enabled %}
+        <p class="muted">Інтеграцію Нова Пошта не налаштовано (NP_API_KEY).</p>
+        {% elif not order.np_warehouse_ref %}
+        <p class="muted">У замовленні немає даних Нова Пошта (старе замовлення).</p>
+        {% else %}
+        <form method="post" action="/admin/orders/{{ order.id }}/waybill">
+            <div class="actions" style="align-items:flex-end;">
+                <label style="margin:0;font-weight:normal;">Вага, кг<br>
+                    <input type="number" name="weight" value="{{ np_default_weight }}" step="0.1" min="0.1" style="width:90px;">
+                </label>
+                <label style="margin:0;font-weight:normal;">Ширина, см<br>
+                    <input type="number" name="width" value="{{ np_default_width }}" step="1" min="1" style="width:80px;">
+                </label>
+                <label style="margin:0;font-weight:normal;">Довжина, см<br>
+                    <input type="number" name="length" value="{{ np_default_length }}" step="1" min="1" style="width:80px;">
+                </label>
+                <label style="margin:0;font-weight:normal;">Висота, см<br>
+                    <input type="number" name="height" value="{{ np_default_height }}" step="1" min="1" style="width:80px;">
+                </label>
+            </div>
+            <label style="margin-top:10px;">Опис відправлення (для накладної)</label>
+            <textarea name="description" rows="2" maxlength="250">{{ default_description }}</textarea>
+            <div style="margin-top:10px;">
+                <button class="btn btn-sm btn-success" type="submit">Сформувати ЕН
+                    ({% if order.np_warehouse_type == 'Postomat' %}поштомат{% else %}відділення{% endif %})</button>
+            </div>
+        </form>
+        <p class="muted">Створить накладну на {{ order.np_branch }}.</p>
+        {% endif %}
+    </div>
+
+    {# --- Склад замовлення --- #}
+    <div class="panel">
+        <div class="section-header">Склад замовлення</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Товар</th>
+                    <th>К-сть</th>
+                    <th>Модифікації</th>
+                    <th>Сума</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in order.items %}
+                <tr>
+                    <td>{{ item.product_name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>
+                        {% if item.modifications %}
+                            {% for mod in item.modifications %}
+                            <div>
+                                {{ mod.label }}
+                                {% if mod.custom_text %}<span class="muted"> — {{ mod.custom_text }}</span>{% endif %}
+                                {% if mod.price %}<span class="badge">+{{ mod.price | price }} грн</span>{% endif %}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <span class="muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.line_total | price }} грн</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                {% if (order.product_discount_amount and order.product_discount_amount > 0) or (order.discount_amount and order.discount_amount > 0) %}
+                <tr>
+                    <td colspan="3">Підсумок</td>
+                    <td>{{ order.subtotal | price }} грн</td>
+                </tr>
+                {% if order.product_discount_amount and order.product_discount_amount > 0 %}
+                <tr>
+                    <td colspan="3">Знижка на товари</td>
+                    <td>−{{ order.product_discount_amount | price }} грн</td>
+                </tr>
+                {% endif %}
+                {% if order.discount_amount and order.discount_amount > 0 %}
+                <tr>
+                    <td colspan="3">Знижка ({{ order.discount_label }})</td>
+                    <td>−{{ order.discount_amount | price }} грн</td>
+                </tr>
+                {% endif %}
+                {% endif %}
+                <tr>
+                    <th colspan="3">До сплати</th>
+                    <th>{{ order.total_price | price }} грн</th>
+                </tr>
+            </tfoot>
+        </table>
+        {% if order.discount_source == 'code' %}
+        <p class="muted">Застосовано код:
+            {% if order.discount_code %}<strong>{{ order.discount_code.code }}</strong>
+            <a class="nav-item btn-sm" href="/admin/discounts/{{ order.discount_code.id }}">переглянути код</a>
+            {% else %}(код видалено){% endif %}
+        </p>
+        {% elif order.discount_source == 'account' %}
+        <p class="muted">Застосовано постійну знижку акаунта.</p>
+        {% else %}
+        <p class="muted">Знижку не застосовано.</p>
+        {% endif %}
+    </div>
+
+    {# --- Журнал переходів статусів --- #}
+    <div class="panel">
+        <div class="section-header">Історія статусів</div>
+        {% if order.status_logs %}
+        <table>
+            <thead><tr><th>Час</th><th>Перехід</th></tr></thead>
+            <tbody>
+                {% for log in order.status_logs %}
+                <tr>
+                    <td class="muted">{{ log.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                    <td>
+                        {% if log.from_status %}{{ log.from_status }} → {% endif %}
+                        <strong>{{ log.to_status }}</strong>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="muted">Журнал порожній (старе замовлення без логування).</p>
+        {% endif %}
+    </div>
+
+    {# --- Управління статусом --- #}
+    <div class="panel">
+        <div class="section-header">Управління статусом</div>
+        {% if targets %}
+        <div class="actions">
+            {% for target in targets %}
+            <form method="post" action="/admin/orders/{{ order.id }}/move" style="display:inline">
+                <input type="hidden" name="target_status_id" value="{{ target.id }}">
+                <button type="submit"
+                    class="btn btn-sm {% if target.name == STATUS_CANCELLED %}btn-danger{% else %}btn-success{% endif %}">
+                    {{ target.name }}
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Замовлення у кінцевому статусі — подальші переходи неможливі.</p>
+        {% endif %}
+    </div>
+
+    <div class="actions">
+        <a class="btn btn-sm btn-secondary" href="/admin/orders">← Усі замовлення</a>
+    </div>
+</div>
+{% endblock %}

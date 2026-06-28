@@ -1,0 +1,2 @@
+redis==5.0.1
+aiohttp_socks==0.10.1

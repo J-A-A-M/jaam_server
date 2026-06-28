@@ -1,0 +1,81 @@
+name: ⚖️ Deploy Watchdog
+on:
+  workflow_dispatch:
+    inputs:
+      server_choice:
+        type: choice
+        default: 'Server 1'
+        description: Choose server
+        options:
+          - 'Server 1'
+          - 'Server 2'
+      container_name:
+        type: string
+        description: "Watched container name"
+        required: true
+        default: "map_websocket_server"
+      image_name:
+        type: string
+        description: "Watchdog container name"
+        required: true
+        default: "map_watchdog"
+      threshold:
+        type: number
+        description: "CPU threshold (in %)"
+        required: true
+        default: 60
+      restart_threshold:
+        type: number
+        description: "How many times CPU must hit threshold"
+        required: true
+        default: 2
+      interval:
+        type: number
+        description: "Checking interval (in seconds)"
+        required: true
+        default: 30
+      log_file:
+        type: string
+        description: "Log file"
+        required: true
+        default: "watchdog.log"
+
+run-name: Deploy Watchdog from '${{ github.ref_name }}' branch
+permissions:
+  contents: read
+jobs:
+    deploy_watchdog:
+        runs-on: ubuntu-latest
+        env:
+          SERVER_IP: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_IP || secrets.CLOUD_SERVER_2_IP }}
+          SERVER_USER: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_USER || secrets.CLOUD_SERVER_2_USER }}
+          SERVER_SSH_KEY: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_SSH_KEY || secrets.CLOUD_SERVER_2_SSH_KEY }}
+        steps:
+          - name: Redeploy Watchdog
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_watchdog.sh \
+                  -c ${{ inputs.container_name }} \
+                  -w ${{ inputs.image_name }} \
+                  -t ${{ inputs.threshold }} \
+                  -r ${{ inputs.restart_threshold }} \
+                  -i ${{ inputs.interval }} \
+                  -l ${{ inputs.log_file }}
+          - name: Clear unused images
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                docker image prune -f

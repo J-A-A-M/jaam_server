@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Адмінка — {% block admin_title %}JAAM{% endblock %}{% endblock %}
+{% block container_class %}wide{% endblock %}
+{% block content %}
+<div class="panel">
+    <div class="actions">
+        <a class="nav-item" href="/admin">Панель</a>
+        <a class="nav-item" href="/admin/orders">Замовлення</a>
+        <a class="nav-item" href="/admin/statuses">Статуси</a>
+        <a class="nav-item" href="/admin/categories">Розділи</a>
+        <a class="nav-item" href="/admin/modifications">Модифікації</a>
+        <a class="nav-item" href="/admin/products">Товари</a>
+        <a class="nav-item" href="/admin/stickers">Стікери</a>
+        <a class="nav-item" href="/admin/discounts">Промокоди</a>
+        <a class="nav-item" href="/admin/product-discounts">Знижки на товар</a>
+        <a class="nav-item" href="/admin/users">Користувачі</a>
+        <a class="nav-item" href="/admin/admins">Адміни</a>
+        <a class="nav-item" href="/admin/keys">Ключі</a>
+        <a class="nav-item" href="/admin/np-config">Нова Пошта</a>
+    </div>
+</div>
+{% block admin_content %}{% endblock %}
+{% endblock %}

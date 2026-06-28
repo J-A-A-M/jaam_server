@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Замовлення №{{ order.number }} — Магазин JAAM{% endblock %}
+{% block content %}
+<div class="panel">
+    <div class="section-header">Замовлення №{{ order.number }}
+        <span class="badge" style="background:{{ order.status.color }};color:{{ order.status.text_color }}">{{ order.status.name }}</span></div>
+    <p class="muted">{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    <p><strong>Отримувач:</strong> {{ order.full_name }}<br>
+       {% if order.recipient_phone %}<strong>Телефон:</strong> {{ order.recipient_phone }}<br>{% endif %}
+       <strong>Місто:</strong> {{ order.np_city_name or order.city }}<br>
+       <strong>{% if order.np_warehouse_type == 'Postomat' %}Поштомат{% else %}Відділення{% endif %} НП:</strong> {{ order.np_branch }}</p>
+    {% if order.np_waybill_number %}
+    <p><span class="badge">ЕН: {{ order.np_waybill_number }}</span></p>
+    {% endif %}
+</div>
+
+<div class="panel">
+    <div class="section-header">Склад замовлення</div>
+    <table>
+        {% for it in order.items %}
+        <tr>
+            <td>{{ it.product_name }} × {{ it.quantity }}
+                {% for m in it.modifications %}
+                <div class="muted">{{ m.label }}{% if m.custom_text %}: «{{ m.custom_text }}»{% endif %}</div>
+                {% endfor %}
+            </td>
+            <td style="text-align:right;"><strong>{{ it.line_total | price }} грн</strong></td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% if (order.product_discount_amount and order.product_discount_amount > 0) or (order.discount_amount and order.discount_amount > 0) %}
+    <div>Підсумок: {{ order.subtotal | price }} грн</div>
+    {% if order.product_discount_amount and order.product_discount_amount > 0 %}
+    <div>Знижка на товари: −{{ order.product_discount_amount | price }} грн</div>
+    {% endif %}
+    {% if order.discount_amount and order.discount_amount > 0 %}
+    <div>Знижка ({{ order.discount_label }}): −{{ order.discount_amount | price }} грн</div>
+    {% endif %}
+    {% endif %}
+    <p class="price-big">До сплати: {{ order.total_price | price }} грн</p>
+    {% if order.discount_source == 'code' %}
+    <p class="muted">Застосовано код знижки{% if order.discount_code %}: <strong>{{ order.discount_code.code }}</strong>{% endif %}.</p>
+    {% elif order.discount_source == 'account' %}
+    <p class="muted">Застосовано постійну знижку акаунта.</p>
+    {% endif %}
+</div>
+{% if order.status_logs %}
+<div class="panel">
+    <div class="section-header">Історія статусів</div>
+    <table>
+        <thead><tr><th>Час</th><th>Перехід</th></tr></thead>
+        <tbody>
+            {% for log in order.status_logs %}
+            <tr>
+                <td class="muted">{{ log.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                <td>
+                    {% if log.from_status %}{{ log.from_status }} → {% endif %}
+                    <strong>{{ log.to_status }}</strong>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<a class="nav-item" href="/account">← До замовлень</a>
+{% endblock %}

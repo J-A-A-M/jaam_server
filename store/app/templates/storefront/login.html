@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Вхід — Магазин JAAM{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:420px;margin:0 auto;">
+    <div class="section-header">Вхід</div>
+    <form method="post" action="/login">
+        <input type="hidden" name="next" value="{{ next_url }}">
+        <label>Email</label>
+        <input type="email" name="email" required>
+        <label>Пароль</label>
+        <input type="password" name="password" required>
+        <div style="margin-top:15px;">
+            <button class="btn" type="submit">Увійти</button>
+        </div>
+    </form>
+    <p class="muted" style="margin-top:12px;">Немає акаунта? <a href="/register">Зареєструватися</a></p>
+</div>
+{% endblock %}

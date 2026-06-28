@@ -1,0 +1,26 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Редагування розділу{% endblock %}
+{% block admin_content %}
+
+<div class="panel">
+    <div class="section-header">Редагування розділу «{{ cat.name }}»</div>
+    <form method="post" action="/admin/categories/{{ cat.id }}/edit">
+        <label for="name">Назва</label>
+        <input type="text" id="name" name="name" value="{{ cat.name }}" required>
+
+        <label for="parent_id">Батьківський розділ</label>
+        <select id="parent_id" name="parent_id">
+            <option value="">— без батьківського —</option>
+            {% for c in all_cats %}
+            <option value="{{ c.id }}" {% if cat.parent_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+        </select>
+
+        <div class="actions" style="margin-top:12px;">
+            <button class="btn btn-success" type="submit">Зберегти</button>
+            <a class="btn btn-secondary" href="/admin/categories">Скасувати</a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

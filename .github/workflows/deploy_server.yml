@@ -1,0 +1,319 @@
+name: ☁️ Deploy Microservices
+on:
+  workflow_dispatch:
+    inputs:
+      redeploy_weather:
+        type: boolean
+        default: false
+        description: Weather parser (OpenWeatherMap)
+      redeploy_weather_openmeteo:
+        type: boolean
+        default: false
+        description: Weather parser (OpenMeteo)
+      redeploy_etryvoga:
+        type: boolean
+        default: false
+        description: Etryvoga HTTP parser
+      redeploy_etryvoga_ws:
+        type: boolean
+        default: false
+        description: Etryvoga websocket parser
+      redeploy_alerts:
+        type: boolean
+        default: false
+        description: Alerts UkraineAlarm Api parser
+      redeploy_alerts_ws:
+        type: boolean
+        default: false
+        description: Alerts UkraineAlarm websocket parser
+      redeploy_alerts_http:
+        type: boolean
+        default: false
+        description: Alerts UkraineAlarm HTTP parser  
+      redeploy_energy:
+        type: boolean
+        default: false
+        description: UkrEnergo parser
+      redeploy_radiation:
+        type: boolean
+        default: false
+        description: SaveEcoBot radiation parser
+      redeploy_svg_generator:
+        type: boolean
+        default: false
+        description: SVG Generator
+      redeploy_device_map:
+        type: boolean
+        default: false
+        description: Device Map
+      redeploy_web_server:
+        type: boolean
+        default: false
+        description: Web server
+      server_choice:
+        type: choice
+        default: 'Server 1'
+        description: Choose server
+        options:
+          - 'Server 1'
+          - 'Server 2'
+
+run-name: Deploy Microservices from '${{ github.ref_name }}' branch
+permissions:
+  contents: read
+jobs:
+    pytests:
+      uses: ./.github/workflows/pytests.yml
+    deploy_microservices:
+        needs: pytests
+        runs-on: ubuntu-latest
+        env:
+          SERVER_IP: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_IP || secrets.CLOUD_SERVER_2_IP }}
+          SERVER_USER: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_USER || secrets.CLOUD_SERVER_2_USER }}
+          SERVER_SSH_KEY: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_SSH_KEY || secrets.CLOUD_SERVER_2_SSH_KEY }}
+        steps:
+          - name: Redeploy Weather (OpenWeatherMap)
+            if: ${{ inputs.redeploy_weather }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_weather.sh \
+                  -w ${{ secrets.WEATHER_TOKEN }} \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
+          - name: Redeploy Weather (OpenMeteo)
+            if: ${{ inputs.redeploy_weather_openmeteo }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_weather_openmeteo.sh \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
+          - name: Redeploy Etryvoga
+            if: ${{ inputs.redeploy_etryvoga }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_etryvoga.sh \
+                  -e ${{ secrets.ETRYVOGA_HOST }} \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
+          - name: Redeploy Etryvoga websocket parser
+            if: ${{ inputs.redeploy_etryvoga_ws }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_etryvoga_ws.sh \
+                  -e ${{ secrets.ETRYVOGA_WS_HOST }} \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
+          - name: Redeploy Alerts
+            if: ${{ inputs.redeploy_alerts }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_alerts.sh \
+                  -a ${{ secrets.AIR_ALARM_API_KEY }} \
+                  -p 2 \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
+          - name: Redeploy Alerts HTTP parser
+            if: ${{ inputs.redeploy_alerts_http }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_alerts_http.sh \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
+                  -su ${{ secrets.ALERTS_HTTP_SOURCE_URL }} \
+                  -mu ${{ secrets.ALERTS_HTTP_UPDATE_URL }} \
+                  -pr ${{ secrets.PROXIES }} \
+                  -f ${{ secrets.ALERT_HTTP_FIELDS }}
+          - name: Redeploy Alerts websocket parser
+            if: ${{ inputs.redeploy_alerts_ws }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_alerts_ws.sh \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
+                  -pr ${{ secrets.PROXIES }} \
+                  -su ${{ secrets.WS_SOURCE_URL }} \
+                  -tid ${{ secrets.WS_TOKEN_ID }} \
+                  -u ${{ secrets.WS_URL_ID }} \
+                  -rfu '${{ secrets.WS_REQUEST_FOLLOW_UP }}' \
+                  -rdt '${{ secrets.WS_REQUEST_DATA_TRIGGER }}' \
+                  -ika ${{ secrets.WS_RESPONSE_INITIAL_KEY_ALERTS }} \
+                  -iki ${{ secrets.WS_RESPONSE_INITIAL_KEY_INFO }} \
+                  -lka ${{ secrets.WS_RESPONSE_LOOP_KEY_ALERTS }} \
+                  -lki ${{ secrets.WS_RESPONSE_LOOP_KEY_INFO }} 
+          - name: Redeploy UkrEnergo parser
+            if: ${{ inputs.redeploy_energy }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_ukrenergo.sh \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
+                  -r ${{ secrets.UKRENERGO_REQUEST_PERIOD }} \
+                  -u ${{ secrets.UKRENERGO_UPDATE_PERIOD }} \
+                  -s ${{ secrets.UKRENERGO_SOURCE_URL }} \
+                  -pr ${{ secrets.PROXIES }} \
+                  -ua '${{ secrets.UKRENERGO_USER_AGENT }}' \
+                  -mx '${{ secrets.UKRENERGO_MATRIX }}'
+          - name: Redeploy SaveEcoBot radiation parser
+            if: ${{ inputs.redeploy_radiation }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_radiation.sh \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
+                  -a ${{ secrets.SAVEECOBOT_API_KEY }} \
+                  -s ${{ secrets.SAVEECOBOT_SENSORS_URL }} \
+                  -d ${{ secrets.SAVEECOBOT_DATA_URL }} \
+                  -pr ${{ secrets.PROXIES }}
+          - name: Redeploy Svg Generator
+            if: ${{ inputs.redeploy_svg_generator }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_svg_generator.sh \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
+          - name: Redeploy Device Map
+            if: ${{ inputs.redeploy_device_map }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_device_map.sh \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
+                  -wp '${{ secrets.WEB_PASSWORD }}'
+          - name: Redeploy Web Server
+            if: ${{ inputs.redeploy_web_server }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                cd deploy/
+                bash redeploy_web_server.sh \
+                  -d ${{ secrets.WEB_TOKEN }} \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
+                  -ws ${{ secrets.WS_SERVERS_LIST }}
+
+          - name: Clear unused images
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                docker image prune -f

@@ -1,0 +1,139 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Код знижки {{ code.code }}{% endblock %}
+{% block admin_content %}
+<div class="panel">
+    <div class="section-header">
+        Код знижки <strong>{{ code.code }}</strong>
+        {% if code.is_active %}
+            <span class="badge btn-success">активний</span>
+        {% else %}
+            <span class="badge btn-danger">вимкнено</span>
+        {% endif %}
+    </div>
+
+    {# --- Форма редагування --- #}
+    <form method="post" action="/admin/discounts/{{ code.id }}/edit">
+        <table>
+            <tbody>
+                <tr>
+                    <th>Код</th>
+                    <td><strong>{{ code.code }}</strong></td>
+                </tr>
+                <tr>
+                    <th>Тип знижки</th>
+                    <td>
+                        <select name="kind">
+                            <option value="{{ DISCOUNT_PERCENT }}"
+                                {% if code.kind == DISCOUNT_PERCENT %}selected{% endif %}>
+                                Відсоток (%)
+                            </option>
+                            <option value="{{ DISCOUNT_AMOUNT }}"
+                                {% if code.kind == DISCOUNT_AMOUNT %}selected{% endif %}>
+                                Фіксована сума (грн)
+                            </option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Значення</th>
+                    <td>
+                        <input type="text" name="value" value="{{ code.value | price }}" style="width:120px">
+                    </td>
+                </tr>
+                <tr>
+                    <th>Макс. активацій</th>
+                    <td>
+                        <input type="number" name="max_activations" value="{{ code.max_activations }}"
+                               min="0" style="width:120px">
+                        <span class="muted"> (0 = без обмеження)</span>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Діє до</th>
+                    <td>
+                        <input type="datetime-local" name="expires_at"
+                               value="{{ code.expires_at.strftime('%Y-%m-%dT%H:%M') if code.expires_at else '' }}">
+                        <span class="muted"> (порожньо = безстроково)</span>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Активний</th>
+                    <td>
+                        <input type="checkbox" name="is_active" value="1"
+                               {% if code.is_active %}checked{% endif %}>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Використано активацій</th>
+                    <td>
+                        {{ code.activations_used }} /
+                        {% if code.max_activations == 0 %}∞{% else %}{{ code.max_activations }}{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Створено</th>
+                    <td>{{ code.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="actions" style="margin-top:12px">
+            <button type="submit" class="btn btn-success">Зберегти</button>
+        </div>
+    </form>
+
+    {# --- Кнопки управління --- #}
+    <div class="actions" style="margin-top:12px">
+        <form method="post" action="/admin/discounts/{{ code.id }}/toggle" style="display:inline">
+            {% if code.is_active %}
+                <button type="submit" class="btn btn-sm btn-secondary">Вимкнути</button>
+            {% else %}
+                <button type="submit" class="btn btn-sm btn-success">Увімкнути</button>
+            {% endif %}
+        </form>
+
+        <form method="post" action="/admin/discounts/{{ code.id }}/delete" style="display:inline"
+              onsubmit="return confirm('Видалити код «{{ code.code }}»? Це незворотна дія.')">
+            <button type="submit" class="btn btn-sm btn-danger">Видалити</button>
+        </form>
+
+        <a class="btn btn-sm btn-secondary" href="/admin/discounts">← Усі знижки</a>
+    </div>
+</div>
+
+{# --- Лог активацій --- #}
+<div class="panel">
+    <div class="section-header">Лог активацій</div>
+    {% if code.activations %}
+    <table>
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Користувач</th>
+                <th>Замовлення</th>
+                <th>Сума знижки</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for act in code.activations %}
+            <tr>
+                <td>{{ act.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                <td>
+                    {% if act.user %}{{ act.user.email }}{% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td>
+                    {% if act.order_id %}
+                        <a href="/admin/orders/{{ act.order_id }}">№{{ act.order_id }}</a>
+                    {% else %}
+                        <span class="muted">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ act.discount_amount | price }} грн</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Активацій ще не було.</p>
+    {% endif %}
+</div>
+{% endblock %}

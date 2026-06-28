@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Кабінет — Магазин JAAM{% endblock %}
+{% block content %}
+<div class="panel">
+    <div class="section-header">Профіль</div>
+    <p>{{ current_user.full_name or 'ПІБ не вказано' }}
+       {% if current_user.phone %}· {{ current_user.phone }}{% endif %}
+       <a class="nav-item btn-sm" href="/account/profile" style="margin-left:8px;">Редагувати</a></p>
+</div>
+{% if current_user and current_user.discount_percent and current_user.discount_percent > 0 %}
+<div class="panel">
+    <div class="section-header">Ваша знижка</div>
+    <p>Постійна знижка акаунта: <span class="badge">−{{ current_user.discount_percent | price }}%</span>
+       <span class="muted">застосовується автоматично до кожного замовлення (коди не діють).</span></p>
+</div>
+{% endif %}
+<div class="panel">
+    <div class="section-header">Мої замовлення</div>
+    {% if orders %}
+    <table>
+        <thead><tr><th>№</th><th>Дата</th><th>Сума</th><th>Статус</th><th></th></tr></thead>
+        <tbody>
+            {% for o in orders %}
+            <tr>
+                <td>{{ o.number }}</td>
+                <td class="muted">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ o.total_price | price }} грн</td>
+                <td><span class="badge" style="background:{{ o.status.color }};color:{{ o.status.text_color }}">{{ o.status.name }}</span></td>
+                <td><a class="btn btn-sm" href="/account/orders/{{ o.id }}">Деталі</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">У вас ще немає замовлень. <a href="/">До каталогу →</a></p>
+    {% endif %}
+</div>
+{% endblock %}

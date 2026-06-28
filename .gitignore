@@ -1,0 +1,17 @@
+*.png
+shared_data/
+.DS_Store
+.idea/
+.vscode/
+.claude
+.build/
+.pio/
+.venv/
+*.pyc
+.python-version
+
+deploy/logs/*
+deploy/CLAUDE.md
+
+# graphify
+graphify-out/*

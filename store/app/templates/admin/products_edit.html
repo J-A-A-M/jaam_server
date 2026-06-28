@@ -1,0 +1,94 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Редагування товару{% endblock %}
+{% block admin_content %}
+
+<div class="panel">
+    <div class="section-header">Редагування товару «{{ product.name }}»</div>
+    <form method="post" action="/admin/products/{{ product.id }}/edit">
+        <label for="pname">Назва</label>
+        <input type="text" id="pname" name="name" value="{{ product.name }}" required>
+
+        <label for="pdesc">Короткий опис (картки)</label>
+        <textarea id="pdesc" name="description" rows="2">{{ product.description }}</textarea>
+
+        <label for="pldesc">Повний опис (Markdown, сторінка товару)</label>
+        <textarea id="pldesc" name="long_description" rows="8">{{ product.long_description }}</textarea>
+
+        <label for="pprice">Базова ціна (грн)</label>
+        <input type="number" id="pprice" name="base_price" value="{{ product.base_price | price }}" step="0.01" min="0">
+
+        <label for="pposition">Позиція (порядок сортування)</label>
+        <input type="number" id="pposition" name="position" value="{{ product.position }}" step="1">
+
+        <label style="display:inline-flex; align-items:center; gap:8px; margin-top:10px; font-weight:normal;">
+            <input type="checkbox" name="is_active" {% if product.is_active %}checked{% endif %}>
+            Активний (відображати в магазині)
+        </label>
+        <label style="display:inline-flex; align-items:center; gap:8px; margin-top:6px; font-weight:normal;">
+            <input type="checkbox" name="show_on_home" {% if product.show_on_home %}checked{% endif %}>
+            Показувати на головній сторінці
+        </label>
+
+        {% if all_cats %}
+        <label for="pcats">Розділи (Ctrl+клік — множинний вибір)</label>
+        <select id="pcats" name="categories" multiple size="{{ [all_cats|length, 8]|min }}">
+            {% for c in all_cats %}
+            <option value="{{ c.id }}" {% if c.id in selected_cat_ids %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        {% if all_mods %}
+        <label for="pmods">Модифікації (Ctrl+клік — множинний вибір)</label>
+        <select id="pmods" name="modifications" multiple size="{{ [all_mods|length, 8]|min }}">
+            {% for m in all_mods %}
+            <option value="{{ m.id }}" {% if m.id in selected_mod_ids %}selected{% endif %}>{{ m.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        {% if all_stickers %}
+        <label for="pstickers">Стікери (Ctrl+клік — множинний вибір)</label>
+        <select id="pstickers" name="stickers" multiple size="{{ [all_stickers|length, 6]|min }}">
+            {% for s in all_stickers %}
+            <option value="{{ s.id }}" {% if s.id in selected_sticker_ids %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+        {% else %}
+        <p class="muted">Стікерів ще немає — створіть їх у розділі «Стікери».</p>
+        {% endif %}
+
+        <div class="actions" style="margin-top:12px;">
+            <button class="btn btn-success" type="submit">Зберегти</button>
+            <a class="btn btn-secondary" href="/admin/products">До списку</a>
+        </div>
+    </form>
+</div>
+
+<div class="panel">
+    <div class="section-header">Фотографії</div>
+    {% if product.images %}
+    <div class="product-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));">
+        {% for img in product.images %}
+        <div class="product-card">
+            <img src="{{ media_url }}/{{ img.filename }}" alt="" style="width:100%;height:120px;object-fit:cover;border-radius:6px;">
+            <form method="post" action="/admin/product_images/{{ img.id }}/delete">
+                <button class="btn btn-sm btn-danger" type="submit">Видалити</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Фото ще немає.</p>
+    {% endif %}
+
+    <form method="post" action="/admin/products/{{ product.id }}/images/add" enctype="multipart/form-data" style="margin-top:12px;">
+        <label for="pimages">Додати фото (можна кілька; jpg/png/webp/gif)</label>
+        <input type="file" id="pimages" name="images" accept="image/*" multiple>
+        <div style="margin-top:10px;">
+            <button class="btn" type="submit">Завантажити</button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

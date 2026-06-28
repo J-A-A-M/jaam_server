@@ -1,0 +1,83 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Знижка на товар{% endblock %}
+{% block admin_content %}
+
+<div class="panel">
+    <div class="section-header">Знижка «{{ discount.name }}»</div>
+    <form method="post" action="/admin/product-discounts/{{ discount.id }}/edit">
+        <label>Назва</label>
+        <input type="text" name="name" value="{{ discount.name }}" required>
+
+        <label>Тип</label>
+        <select name="kind">
+            <option value="percent" {% if discount.kind == DISCOUNT_PERCENT %}selected{% endif %}>Відсоток (%)</option>
+            <option value="amount" {% if discount.kind == DISCOUNT_AMOUNT %}selected{% endif %}>Фіксована сума (грн)</option>
+        </select>
+
+        <label>Значення</label>
+        <input type="number" name="value" value="{{ discount.value | price }}" step="0.01" min="0">
+
+        <label>Діє на</label>
+        <select name="scope">
+            <option value="full" {% if discount.scope == DISCOUNT_SCOPE_FULL %}selected{% endif %}>Усю ціну (база + модифікації)</option>
+            <option value="base" {% if discount.scope == DISCOUNT_SCOPE_BASE %}selected{% endif %}>Лише базову ціну</option>
+        </select>
+
+        <label>Ліміт замовлень (0 = без обмеження)</label>
+        <input type="number" name="max_orders" value="{{ discount.max_orders }}" step="1" min="0">
+        <p class="muted">Використано замовлень: {{ discount.orders_used }}</p>
+
+        <label>Діє з (порожнє = відразу)</label>
+        <input type="datetime-local" name="starts_at"
+               value="{{ discount.starts_at.strftime('%Y-%m-%dT%H:%M') if discount.starts_at else '' }}">
+
+        <label>Діє до (порожнє = безстроково)</label>
+        <input type="datetime-local" name="expires_at"
+               value="{{ discount.expires_at.strftime('%Y-%m-%dT%H:%M') if discount.expires_at else '' }}">
+
+        <label style="display:inline-flex; align-items:center; gap:8px; font-weight:normal; margin-top:10px;">
+            <input type="checkbox" name="is_active" {% if discount.is_active %}checked{% endif %}> Активна
+        </label>
+        <label style="display:inline-flex; align-items:center; gap:8px; font-weight:normal; margin-top:6px;">
+            <input type="checkbox" name="stack_account" {% if discount.stack_account %}checked{% endif %}> Сумувати з акаунтною знижкою
+        </label>
+        <label style="display:inline-flex; align-items:center; gap:8px; font-weight:normal; margin-top:6px;">
+            <input type="checkbox" name="stack_code" {% if discount.stack_code %}checked{% endif %}> Сумувати з промокодом
+        </label>
+
+        <label>Стікер на період дії (опціонально)</label>
+        <select name="sticker_id">
+            <option value="">— без стікера —</option>
+            {% for s in all_stickers %}
+            <option value="{{ s.id }}" {% if discount.sticker_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+
+        {% if all_products %}
+        <label for="pd-products">Призначити товарам (Ctrl+клік — множинний вибір)</label>
+        <select id="pd-products" name="products" multiple size="{{ [all_products|length, 10]|min }}">
+            {% for p in all_products %}
+            <option value="{{ p.id }}" {% if p.id in selected_ids %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        <div class="actions" style="margin-top:12px;">
+            <button class="btn btn-success" type="submit">Зберегти</button>
+            <a class="btn btn-secondary" href="/admin/product-discounts">До списку</a>
+        </div>
+    </form>
+</div>
+
+<div class="panel">
+    <div class="actions">
+        <form method="post" action="/admin/product-discounts/{{ discount.id }}/toggle">
+            <button class="btn btn-sm" type="submit">{% if discount.is_active %}Вимкнути{% else %}Увімкнути{% endif %}</button>
+        </form>
+        <form method="post" action="/admin/product-discounts/{{ discount.id }}/delete">
+            <button class="btn btn-sm btn-danger" type="submit">Видалити знижку</button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

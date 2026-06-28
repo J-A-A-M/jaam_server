@@ -1,0 +1,56 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Розділи{% endblock %}
+{% block admin_content %}
+
+<div class="panel">
+    <div class="section-header">Розділи каталогу</div>
+
+    {% macro tree(nodes) %}
+    <ul class="tree">
+        {% for n in nodes %}
+        <li>
+            <div class="cat-row">
+                <span class="cat-name"><strong>{{ n.name }}</strong> <span class="muted">#{{ n.id }}</span></span>
+                <span class="actions">
+                    <a class="btn btn-sm btn-secondary" href="/admin/categories/{{ n.id }}/edit">Редагувати</a>
+                    <form method="post" action="/admin/categories/{{ n.id }}/delete" onsubmit="return confirm('Видалити розділ «{{ n.name }}» та всі вкладені?');">
+                        <button class="btn btn-sm btn-danger" type="submit">Видалити</button>
+                    </form>
+                </span>
+            </div>
+            {% if n.children %}
+                {{ tree(n.children) }}
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endmacro %}
+
+    {% if roots %}
+        {{ tree(roots) }}
+    {% else %}
+        <p class="muted">Розділів ще немає.</p>
+    {% endif %}
+</div>
+
+<div class="panel">
+    <div class="section-header">Новий розділ</div>
+    <form method="post" action="/admin/categories/create">
+        <label for="name">Назва</label>
+        <input type="text" id="name" name="name" placeholder="Наприклад: Електроніка" required>
+
+        <label for="parent_id">Батьківський розділ</label>
+        <select id="parent_id" name="parent_id">
+            <option value="">— без батьківського —</option>
+            {% for c in all_cats %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+        </select>
+
+        <div style="margin-top:12px;">
+            <button class="btn btn-success" type="submit">Створити розділ</button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

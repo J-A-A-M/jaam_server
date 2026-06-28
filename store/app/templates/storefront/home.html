@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Магазин JAAM — каталог{% endblock %}
+{% block content %}
+{% if categories %}
+<div class="panel">
+    <div class="section-header">Розділи</div>
+    <div class="actions">
+        {% for c in categories %}
+        <a class="nav-item" href="/category/{{ c.id }}">{{ c.name }}</a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="panel">
+    <div class="section-header">Товари</div>
+    {% if products %}
+    <div class="product-grid">
+        {% for p in products %}
+        {% include "storefront/_product_card.html" %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Товарів поки немає.</p>
+    {% endif %}
+</div>
+{% endblock %}

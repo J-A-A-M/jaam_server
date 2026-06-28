@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Оформлення — Магазин JAAM{% endblock %}
+{% block content %}
+<div class="panel">
+    <div class="section-header">Дані для відправки</div>
+    <form method="post" action="/checkout" id="checkout-form">
+        <label>Прізвище, імʼя та по батькові</label>
+        <input type="text" name="full_name" value="{{ user.full_name }}" required>
+
+        <label>Телефон отримувача</label>
+        <input type="text" name="recipient_phone" value="{{ user.phone }}" placeholder="380XXXXXXXXX" required>
+
+        <label>Місто (Нова Пошта)</label>
+        <input type="text" id="city-search" autocomplete="off" placeholder="Почніть вводити місто…">
+        <div id="city-list" class="np-list"></div>
+        <input type="hidden" name="np_city_ref" id="np_city_ref">
+        <input type="hidden" name="np_city_name" id="np_city_name">
+
+        <label style="margin-top:12px;">Тип відділення</label>
+        <div class="actions">
+            <label style="font-weight:normal;"><input type="radio" name="wh_type" value="branch" checked onchange="loadWarehouses()"> Відділення</label>
+            <label style="font-weight:normal;"><input type="radio" name="wh_type" value="postomat" onchange="loadWarehouses()"> Поштомат</label>
+        </div>
+
+        <label>Відділення / Поштомат</label>
+        <input type="text" id="wh-search" autocomplete="off" placeholder="Спочатку оберіть місто" disabled>
+        <div id="wh-list" class="np-list"></div>
+        <input type="hidden" name="np_warehouse_ref" id="np_warehouse_ref">
+        <input type="hidden" name="np_warehouse_name" id="np_warehouse_name">
+        <input type="hidden" name="np_warehouse_type" id="np_warehouse_type">
+
+        <label>Код знижки</label>
+        {% if account_discount and account_discount > 0 %}
+        <input type="text" name="discount_code" value="" placeholder="Коди не діють — у вас постійна знижка" disabled>
+        <p class="muted">На вашому акаунті діє постійна знижка −{{ account_discount | price }}%. Коди не застосовуються.</p>
+        {% else %}
+        <div class="actions" style="align-items:stretch;">
+            <input type="text" name="discount_code" id="discount_code" value="{{ code_str }}"
+                   placeholder="Введіть код" style="flex:1;">
+            <button class="btn btn-secondary" type="button" onclick="previewDiscount()">Застосувати</button>
+        </div>
+        <p class="muted" id="code-msg"></p>
+        {% endif %}
+
+        <div class="panel" style="margin-top:16px;background:var(--container-bg);">
+            {% if product_discount and product_discount > 0 %}
+            <div class="muted">Сума товарів: <span style="text-decoration:line-through;">{{ subtotal_orig | price }}</span> грн ·
+                знижка на товари −{{ product_discount | price }} грн</div>
+            {% endif %}
+            <div>Підсумок: <span id="subtotal">{{ total | price }}</span> грн</div>
+            <div id="discount-row" {% if discount.amount <= 0 %}style="display:none;"{% endif %}>
+                Знижка (<span id="discount-label">{{ discount.label }}</span>):
+                −<span id="discount-amount">{{ discount.amount | price }}</span> грн
+            </div>
+            <p class="price-big" style="margin-top:8px;">До сплати: <span id="final-total">{{ final_total | price }}</span> грн</p>
+        </div>
+
+        <button class="btn btn-success" type="submit">Оплатити</button>
+        <a class="nav-item" href="/cart">← Кошик</a>
+    </form>
+</div>
+
+<div class="panel">
+    <div class="section-header">Ваше замовлення</div>
+    <table>
+        {% for it in items %}
+        <tr>
+            <td>{{ it.product.name }} × {{ it.quantity }}
+                {% for m in it.mods %}<div class="muted">{{ m.label }}{% if m.text %}: «{{ m.text }}»{% endif %}</div>{% endfor %}
+            </td>
+            <td style="text-align:right;"><strong>{{ it.line_total | price }} грн</strong></td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+<script>
+    function previewDiscount() {
+        var code = document.getElementById('discount_code').value;
+        var data = new FormData();
+        data.append('discount_code', code);
+        fetch('/checkout/preview', { method: 'POST', body: data })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                var msg = document.getElementById('code-msg');
+                var row = document.getElementById('discount-row');
+                document.getElementById('subtotal').textContent = d.subtotal;
+                document.getElementById('final-total').textContent = d.total;
+                if (d.error) {
+                    msg.textContent = d.error;
+                    msg.style.color = '#dc3545';
+                } else if (d.source === 'code') {
+                    msg.textContent = 'Код застосовано.';
+                    msg.style.color = '#28a745';
+                } else {
+                    msg.textContent = '';
+                }
+                if (parseFloat(d.discount) > 0) {
+                    row.style.display = '';
+                    document.getElementById('discount-label').textContent = d.label;
+                    document.getElementById('discount-amount').textContent = d.discount;
+                } else {
+                    row.style.display = 'none';
+                }
+            })
+            .catch(function () { });
+    }
+
+    // ---- Nova Poshta автодоповнення ----
+    function debounce(fn, ms) {
+        var t;
+        return function () {
+            var a = arguments, c = this;
+            clearTimeout(t);
+            t = setTimeout(function () { fn.apply(c, a); }, ms);
+        };
+    }
+    function renderList(box, items, onPick) {
+        box.innerHTML = '';
+        if (!items.length) { box.style.display = 'none'; return; }
+        items.forEach(function (it) {
+            var d = document.createElement('div');
+            d.className = 'np-item';
+            d.textContent = it.label;
+            d.onclick = function () { onPick(it); box.style.display = 'none'; };
+            box.appendChild(d);
+        });
+        box.style.display = 'block';
+    }
+
+    var citySearch = document.getElementById('city-search');
+    var cityList = document.getElementById('city-list');
+    var whSearch = document.getElementById('wh-search');
+    var whList = document.getElementById('wh-list');
+
+    var searchCities = debounce(function () {
+        var q = citySearch.value.trim();
+        if (q.length < 2) { cityList.style.display = 'none'; return; }
+        fetch('/np/cities?q=' + encodeURIComponent(q))
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                renderList(cityList, (d.items || []).map(function (c) {
+                    return { label: c.name, ref: c.ref, name: c.name };
+                }), function (it) {
+                    citySearch.value = it.name;
+                    document.getElementById('np_city_ref').value = it.ref;
+                    document.getElementById('np_city_name').value = it.name;
+                    whSearch.disabled = false;
+                    whSearch.placeholder = 'Пошук відділення/поштомата…';
+                    whSearch.value = '';
+                    document.getElementById('np_warehouse_ref').value = '';
+                    loadWarehouses();
+                });
+            });
+    }, 300);
+    citySearch.addEventListener('input', searchCities);
+
+    var loadWarehouses = debounce(function () {
+        var cityRef = document.getElementById('np_city_ref').value;
+        if (!cityRef) return;
+        var q = whSearch.value.trim();
+        var type = document.querySelector('[name=wh_type]:checked').value;
+        fetch('/np/warehouses?city_ref=' + encodeURIComponent(cityRef) + '&q=' + encodeURIComponent(q) + '&type=' + type)
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                var list = type === 'postomat' ? (d.postomats || []) : (d.branches || []);
+                renderList(whList, list.map(function (w) {
+                    return { label: w.name, ref: w.ref, name: w.name, type: w.type };
+                }), function (it) {
+                    whSearch.value = it.name;
+                    document.getElementById('np_warehouse_ref').value = it.ref;
+                    document.getElementById('np_warehouse_name').value = it.name;
+                    document.getElementById('np_warehouse_type').value = it.type;
+                });
+            });
+    }, 300);
+    whSearch.addEventListener('input', loadWarehouses);
+
+    document.getElementById('checkout-form').addEventListener('submit', function (e) {
+        if (!document.getElementById('np_warehouse_ref').value) {
+            e.preventDefault();
+            alert('Оберіть відділення або поштомат зі списку.');
+        }
+    });
+</script>
+{% endblock %}

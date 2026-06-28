@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Профіль — Магазин JAAM{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:480px;margin:0 auto;">
+    <div class="section-header">Профіль доставки</div>
+    <p class="muted">Ці дані використовуються для оформлення та експрес-накладної Нова Пошта.</p>
+    <form method="post" action="/account/profile">
+        <label>Прізвище, імʼя та по батькові</label>
+        <input type="text" name="full_name" value="{{ user.full_name }}" placeholder="Шевченко Тарас Григорович">
+
+        <label>Телефон</label>
+        <input type="text" name="phone" value="{{ user.phone }}" placeholder="380XXXXXXXXX">
+
+        <div style="margin-top:15px;">
+            <button class="btn btn-success" type="submit">Зберегти</button>
+            <a class="nav-item" href="/account">← До кабінету</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

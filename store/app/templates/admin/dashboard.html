@@ -1,0 +1,38 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Панель керування{% endblock %}
+{% block admin_content %}
+<div class="panel">
+    <div class="section-header">Панель керування</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Розділ</th>
+                <th>Кількість</th>
+                <th>Дія</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Товари</td>
+                <td><span class="badge">{{ products_count }}</span></td>
+                <td class="actions"><a class="btn btn-sm btn-secondary" href="/admin/products">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>Розділи (категорії)</td>
+                <td><span class="badge">{{ categories_count }}</span></td>
+                <td class="actions"><a class="btn btn-sm btn-secondary" href="/admin/categories">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>Замовлення</td>
+                <td><span class="badge">{{ orders_count }}</span></td>
+                <td class="actions"><a class="btn btn-sm btn-secondary" href="/admin/orders">Перейти</a></td>
+            </tr>
+            <tr>
+                <td>Адміністратори</td>
+                <td><span class="badge">{{ admins_count }}</span></td>
+                <td class="actions"><a class="btn btn-sm btn-secondary" href="/admin/admins">Перейти</a></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

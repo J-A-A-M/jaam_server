@@ -1,0 +1,119 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Нова Пошта{% endblock %}
+{% block admin_content %}
+<div class="panel">
+    <div class="section-header">Налаштування Нова Пошта</div>
+    <p class="muted">Порожні поля використовують значення з env. Заповнені — перекривають env.</p>
+
+    <form method="post" action="/admin/np-config/save">
+        <label>Ключ API</label>
+        <input type="text" name="np_api_key" value="{{ s.np_api_key }}" placeholder="ключ із бізнес-кабінету">
+
+        <div class="section-header" style="margin-top:16px;">Відправник</div>
+        <div class="actions" style="align-items:flex-end;">
+            <label style="margin:0;flex:1;">Ref відправника
+                <input type="text" name="np_sender_ref" value="{{ s.np_sender_ref }}">
+            </label>
+            <label style="margin:0;flex:1;">Ref контакту
+                <input type="text" name="np_sender_contact_ref" value="{{ s.np_sender_contact_ref }}">
+            </label>
+        </div>
+        <label>Телефон відправника</label>
+        <input type="text" name="np_sender_phone" value="{{ s.np_sender_phone }}" placeholder="380XXXXXXXXX">
+
+        <label>Місто відправника</label>
+        <input type="text" id="s-city-search" autocomplete="off" value="{{ s.np_sender_city_name }}" placeholder="Почніть вводити місто…">
+        <div id="s-city-list" class="np-list"></div>
+        <input type="hidden" name="np_sender_city_ref" id="s_city_ref" value="{{ s.np_sender_city_ref }}">
+        <input type="hidden" name="np_sender_city_name" id="s_city_name" value="{{ s.np_sender_city_name }}">
+
+        <label style="margin-top:12px;">Тип</label>
+        <div class="actions">
+            <label style="font-weight:normal;"><input type="radio" name="s_wh_type" value="branch" {% if s.np_sender_warehouse_type != 'Postomat' %}checked{% endif %} onchange="sLoadWh()"> Відділення</label>
+            <label style="font-weight:normal;"><input type="radio" name="s_wh_type" value="postomat" {% if s.np_sender_warehouse_type == 'Postomat' %}checked{% endif %} onchange="sLoadWh()"> Поштомат</label>
+        </div>
+        <label>Відділення / Поштомат відправника</label>
+        <input type="text" id="s-wh-search" autocomplete="off" value="{{ s.np_sender_warehouse_name }}" placeholder="Спочатку оберіть місто">
+        <div id="s-wh-list" class="np-list"></div>
+        <input type="hidden" name="np_sender_warehouse_ref" id="s_wh_ref" value="{{ s.np_sender_warehouse_ref }}">
+        <input type="hidden" name="np_sender_warehouse_name" id="s_wh_name" value="{{ s.np_sender_warehouse_name }}">
+        <input type="hidden" name="np_sender_warehouse_type" id="s_wh_type_hidden" value="{{ s.np_sender_warehouse_type }}">
+
+        <div class="section-header" style="margin-top:16px;">Параметри відправлення за замовчуванням</div>
+        <div class="actions" style="align-items:flex-end;">
+            <label style="margin:0;">Вага, кг<br><input type="number" name="np_default_weight" value="{{ s.np_default_weight }}" step="0.1" min="0" style="width:90px;" placeholder="0.5"></label>
+            <label style="margin:0;">Ширина, см<br><input type="number" name="np_seat_width" value="{{ s.np_seat_width }}" step="1" min="0" style="width:90px;" placeholder="20"></label>
+            <label style="margin:0;">Довжина, см<br><input type="number" name="np_seat_length" value="{{ s.np_seat_length }}" step="1" min="0" style="width:90px;" placeholder="20"></label>
+            <label style="margin:0;">Висота, см<br><input type="number" name="np_seat_height" value="{{ s.np_seat_height }}" step="1" min="0" style="width:90px;" placeholder="20"></label>
+        </div>
+
+        <label style="margin-top:12px;">Хто оплачує доставку</label>
+        <select name="np_payer_type" style="max-width:280px;">
+            <option value="Recipient" {% if s.np_payer_type == 'Recipient' or not s.np_payer_type %}selected{% endif %}>Отримувач (покупець)</option>
+            <option value="Sender" {% if s.np_payer_type == 'Sender' %}selected{% endif %}>Відправник (продавець)</option>
+        </select>
+
+        <div class="section-header" style="margin-top:16px;">Нумерація замовлень</div>
+        <label>Початковий номер замовлень</label>
+        <input type="number" name="order_start_number" value="{{ s.order_start_number }}" step="1" min="1" style="max-width:160px;">
+        <p class="muted">Нові замовлення отримають номер не менший за цей. Вже наявні номери не змінюються.</p>
+
+        <div style="margin-top:16px;">
+            <button class="btn btn-success" type="submit">Зберегти налаштування</button>
+        </div>
+    </form>
+
+    <form method="post" action="/admin/np-config/detect-sender" style="margin-top:12px;">
+        <button class="btn btn-sm btn-secondary" type="submit">Авто-визначити відправника за ключем</button>
+        <span class="muted">Заповнить Ref відправника, контакту й телефон з акаунта ключа.</span>
+    </form>
+</div>
+
+<script>
+    function debounce(fn, ms) { var t; return function () { var a = arguments, c = this; clearTimeout(t); t = setTimeout(function () { fn.apply(c, a); }, ms); }; }
+    function renderList(box, items, onPick) {
+        box.innerHTML = '';
+        if (!items.length) { box.style.display = 'none'; return; }
+        items.forEach(function (it) {
+            var d = document.createElement('div');
+            d.className = 'np-item'; d.textContent = it.label;
+            d.onclick = function () { onPick(it); box.style.display = 'none'; };
+            box.appendChild(d);
+        });
+        box.style.display = 'block';
+    }
+    var sCity = document.getElementById('s-city-search'), sCityList = document.getElementById('s-city-list');
+    var sWh = document.getElementById('s-wh-search'), sWhList = document.getElementById('s-wh-list');
+
+    sCity.addEventListener('input', debounce(function () {
+        var q = sCity.value.trim();
+        if (q.length < 2) { sCityList.style.display = 'none'; return; }
+        fetch('/np/cities?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (d) {
+            renderList(sCityList, (d.items || []).map(function (c) { return { label: c.name, ref: c.ref, name: c.name }; }), function (it) {
+                sCity.value = it.name;
+                document.getElementById('s_city_ref').value = it.ref;
+                document.getElementById('s_city_name').value = it.name;
+                sWh.value = ''; document.getElementById('s_wh_ref').value = '';
+                sLoadWh();
+            });
+        });
+    }, 300));
+
+    var sLoadWh = debounce(function () {
+        var cityRef = document.getElementById('s_city_ref').value;
+        if (!cityRef) return;
+        var type = document.querySelector('[name=s_wh_type]:checked').value;
+        fetch('/np/warehouses?city_ref=' + encodeURIComponent(cityRef) + '&q=' + encodeURIComponent(sWh.value.trim()) + '&type=' + type)
+            .then(function (r) { return r.json(); }).then(function (d) {
+                var list = type === 'postomat' ? (d.postomats || []) : (d.branches || []);
+                renderList(sWhList, list.map(function (w) { return { label: w.name, ref: w.ref, name: w.name, type: w.type }; }), function (it) {
+                    sWh.value = it.name;
+                    document.getElementById('s_wh_ref').value = it.ref;
+                    document.getElementById('s_wh_name').value = it.name;
+                    document.getElementById('s_wh_type_hidden').value = it.type;
+                });
+            });
+    }, 300);
+    sWh.addEventListener('input', sLoadWh);
+</script>
+{% endblock %}

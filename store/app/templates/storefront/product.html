@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% from "storefront/_carousel.html" import carousel %}
+{% block title %}{{ product.name }} — Магазин JAAM{% endblock %}
+{% block content %}
+<div class="panel">
+    <div class="section-header">{{ product.name }}</div>
+
+    {% set page_stickers = product | stickers %}
+    {% if product.images %}
+    <div class="product-gallery pc-media-wrap" style="margin-bottom:15px;">
+        {{ carousel(product.images, 'product-' ~ product.id, media_url) }}
+        {% if page_stickers %}
+        <div class="sticker-overlay">
+            {% for s in page_stickers %}
+            <span class="sticker" style="background:{{ s.color }};color:{{ s.text_color }}">{{ s.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% elif page_stickers %}
+    <div class="sticker-row" style="margin-bottom:12px;">
+        {% for s in page_stickers %}
+        <span class="sticker" style="background:{{ s.color }};color:{{ s.text_color }}">{{ s.name }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if product.description %}<p>{{ product.description }}</p>{% endif %}
+
+    {% if account_discount_pct > 0 %}
+    <p class="muted">Ціни вказано з урахуванням вашої знижки −{{ account_discount_pct | price }}%.</p>
+    {% endif %}
+
+    {% set cp = product | card_price(account_discount_pct) %}
+    <p style="margin:6px 0;">
+        <span id="orig-price" class="muted" style="text-decoration:line-through; font-size:16px; {% if not cp.discounted %}display:none;{% endif %}">{{ cp.orig | price }} грн</span>
+        <span class="price-big" id="total-price"
+              data-base="{{ product.base_price | price }}"
+              data-discount="{{ account_discount_pct | price }}"
+              {% if product_discount %}
+              data-pd-kind="{{ product_discount.kind }}"
+              data-pd-value="{{ product_discount.value | price }}"
+              data-pd-scope="{{ product_discount.scope }}"
+              data-pd-stack-account="{{ '1' if product_discount.stack_account else '0' }}"
+              {% endif %}>
+            {{ cp.final | price }} грн
+        </span>
+    </p>
+
+    <form method="post" action="/cart/add" id="buy-form">
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+
+        {% for mod in product.modifications %}
+        {% set enabled_values = mod.values | selectattr('is_enabled') | list %}
+        {% if enabled_values %}
+        <label>{{ mod.name }}</label>
+        <select name="mod_{{ mod.id }}" class="mod-select" data-mod="{{ mod.id }}"
+                onchange="onModChange(this)">
+            {% for v in enabled_values %}
+            <option value="{{ v.id }}" data-price="{{ v.price | price }}"
+                    data-text="{{ '1' if v.is_custom_text else '0' }}">
+                {{ v.label }}{% if v.price and v.price > 0 %} (+{{ v.price | price }} грн){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <div id="text-wrap-{{ mod.id }}" style="display:none;">
+            <input type="text" name="text_{{ mod.id }}" placeholder="Ваш опис / текст">
+        </div>
+        {% endif %}
+        {% endfor %}
+
+        <label>Кількість</label>
+        <input type="number" name="quantity" value="1" min="1" style="max-width:120px;"
+               oninput="recalc()">
+
+        <div style="margin-top:15px;">
+            <button class="btn" type="submit">Додати в кошик</button>
+            <a class="nav-item" href="/">← Назад</a>
+        </div>
+    </form>
+</div>
+
+{% if product.long_description %}
+<div class="panel">
+    <div class="section-header">Опис</div>
+    <div class="markdown-body">{{ product.long_description | markdown }}</div>
+</div>
+{% endif %}
+
+<script>
+    function onModChange(sel) {
+        var opt = sel.options[sel.selectedIndex];
+        var wrap = document.getElementById('text-wrap-' + sel.dataset.mod);
+        if (wrap) wrap.style.display = opt.dataset.text === '1' ? 'block' : 'none';
+        recalc();
+    }
+    function recalc() {
+        var el = document.getElementById('total-price');
+        var origEl = document.getElementById('orig-price');
+        var base = parseFloat(el.dataset.base);
+        var modsTotal = 0;
+        document.querySelectorAll('.mod-select').forEach(function (s) {
+            var o = s.options[s.selectedIndex];
+            if (o) modsTotal += parseFloat(o.dataset.price || '0');
+        });
+        var unit = base + modsTotal;
+        var orig = unit;  // до знижок
+
+        // Знижка на товар
+        var pdKind = el.dataset.pdKind;
+        if (pdKind) {
+            var pdVal = parseFloat(el.dataset.pdValue || '0');
+            var pdScope = el.dataset.pdScope;
+            var target = pdScope === 'base' ? base : unit;
+            var red = pdKind === 'percent' ? target * pdVal / 100 : pdVal;
+            if (red > target) red = target;
+            unit -= red;
+        }
+
+        // Акаунтна знижка (накладається, якщо немає знижки на товар або вона стекається)
+        var acct = parseFloat(el.dataset.discount || '0');
+        var pdStackAcc = el.dataset.pdStackAccount === '1';
+        if (acct > 0 && (!pdKind || pdStackAcc)) {
+            unit = unit * (100 - acct) / 100;
+            orig = orig * (100 - acct) / 100;
+        }
+
+        var qty = parseInt(document.querySelector('[name=quantity]').value || '1');
+        qty = qty > 0 ? qty : 1;
+        var total = unit * qty;
+        var origTotal = orig * qty;
+        el.textContent = total.toFixed(2) + ' грн';
+        if (origTotal > total + 0.001) {
+            origEl.textContent = origTotal.toFixed(2) + ' грн';
+            origEl.style.display = 'inline';
+        } else {
+            origEl.style.display = 'none';
+        }
+    }
+    document.querySelectorAll('.mod-select').forEach(onModChange);
+    recalc();
+</script>
+{% endblock %}

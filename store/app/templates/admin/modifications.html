@@ -1,0 +1,58 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Модифікації{% endblock %}
+{% block admin_content %}
+
+<div class="panel">
+    <div class="section-header">Модифікації товарів</div>
+
+    {% if mods %}
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Назва</th>
+                <th>Значення</th>
+                <th>Дії</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for mod in mods %}
+        <tr>
+            <td class="muted">{{ mod.id }}</td>
+            <td><strong>{{ mod.name }}</strong></td>
+            <td>
+                {% for v in mod.values %}
+                <span class="badge">{{ v.label }}{% if v.price %} +{{ v.price | price }}{% endif %}{% if v.is_custom_text %} <em>(текст)</em>{% endif %}</span>
+                {% endfor %}
+                {% if not mod.values %}<span class="muted">немає значень</span>{% endif %}
+            </td>
+            <td>
+                <div class="actions">
+                    <a class="btn btn-sm btn-secondary" href="/admin/modifications/{{ mod.id }}/edit">Редагувати</a>
+                    <form method="post" action="/admin/modifications/{{ mod.id }}/delete" style="display:inline;" onsubmit="return confirm('Видалити модифікацію «{{ mod.name }}»?');">
+                        <button class="btn btn-sm btn-danger" type="submit">Видалити</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p class="muted">Модифікацій ще немає.</p>
+    {% endif %}
+</div>
+
+<div class="panel">
+    <div class="section-header">Нова модифікація</div>
+    <form method="post" action="/admin/modifications/create">
+        <label for="name">Назва</label>
+        <input type="text" id="name" name="name" placeholder="Наприклад: Колір" required>
+
+        <div style="margin-top:12px;">
+            <button class="btn btn-success" type="submit">Створити</button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

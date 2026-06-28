@@ -1,0 +1,37 @@
+{% extends "admin/_base.html" %}
+{% block admin_title %}Замовлення{% endblock %}
+{% block admin_content %}
+<div class="panel">
+    <div class="section-header">Замовлення</div>
+    {% if orders %}
+    <table>
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Дата</th>
+                <th>Покупець</th>
+                <th>Сума</th>
+                <th>Статус</th>
+                <th>Дія</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>{{ order.number }}</td>
+                <td>{{ order.created_at.strftime("%d.%m.%Y %H:%M") }}</td>
+                <td>{{ order.user.email }}</td>
+                <td>{{ order.total_price | price }} грн</td>
+                <td><span class="badge" style="background:{{ order.status.color }};color:{{ order.status.text_color }}">{{ order.status.name }}</span></td>
+                <td class="actions">
+                    <a class="btn btn-sm btn-secondary" href="/admin/orders/{{ order.id }}">Деталі</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Замовлень ще немає.</p>
+    {% endif %}
+</div>
+{% endblock %}
