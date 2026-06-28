@@ -1,2 +1,2 @@
 FROM nginx:alpine
-COPY flasher/ /usr/share/nginx/html
+COPY flasher/src/ /usr/share/nginx/html

@@ -1,4 +1,4 @@
-*.png
+/*.png
 shared_data/
 .DS_Store
 .idea/

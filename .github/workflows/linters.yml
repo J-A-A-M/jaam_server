@@ -21,7 +21,7 @@ jobs:
       - name: Check flasher with proof-html
         uses: anishathalye/proof-html@v2
         with:
-            directory: ${{ github.workspace }}/flasher
+            directory: ${{ github.workspace }}/flasher/src
   run_black:
     runs-on: ubuntu-latest
     steps:
