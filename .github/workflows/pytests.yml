@@ -28,7 +28,6 @@ jobs:
 
       - name: Install dependencies from deploy subfolders
         run: |
-          cd deploy
           for req_file in $(find . -name "requirements.txt"); do
             echo "Installing dependencies from $req_file"
             pip install -r "$req_file"
@@ -39,7 +38,7 @@ jobs:
 
       - name: Add deploy to PYTHONPATH
         run: |
-          DEPLOY_PATH=$(pwd)/deploy
+          DEPLOY_PATH=$(pwd)
           if [ -z "$PYTHONPATH" ]; then
             echo "PYTHONPATH=$DEPLOY_PATH" >> $GITHUB_ENV
           else
