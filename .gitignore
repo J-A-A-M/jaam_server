@@ -10,8 +10,8 @@ shared_data/
 *.pyc
 .python-version
 
-deploy/logs/*
-deploy/CLAUDE.md
+logs/*
+CLAUDE.md
 
 # graphify
 graphify-out/*
