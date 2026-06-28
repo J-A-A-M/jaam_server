@@ -124,8 +124,7 @@ document.querySelectorAll('.raion[data-oblast="14"]').forEach(g=>g.classList.add
 ---
 
 ## Дані пристрою JAAM (референс)
-Прототип на `10.2.0.151` (модель JAAM 3.1, прошивка v5.1-b5). Системна панель рендериться
-з ендпоінта `/system-info` (JSON: масив `system_models` типів рядків + масив `system` метрик).
+Системна панель рендеритьсяз ендпоінта `/system-info` (JSON: масив `system_models` типів рядків + масив `system` метрик).
 Типи рядків: `bar` (used/total), `number` (value+unit), `text`, `time` (seconds).
 Метрики: memory, cpuTemp, version, uptime, wifiSignal, wifiUptime, websocketUptime,
 localTemp/Humidity/Light, apiClients. SVG-іконки вшиті в `SYS`/`ICON` у JS прототипу.
