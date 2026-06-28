@@ -1,12 +1,12 @@
 name: ⚡ Deploy Flasher
 
 on:
-  push:
-    branches: [master, develop]
-    paths:
-      - 'flasher/**'
-      - 'redeploy_flasher.sh'
-      - '.github/workflows/deploy_flasher.yml'
+  # push:
+  #   branches: [master, develop]
+  #   paths:
+  #     - 'flasher/**'
+  #     - 'redeploy_flasher.sh'
+  #     - '.github/workflows/deploy_flasher.yml'
   workflow_dispatch:
     inputs:
       server_choice:
