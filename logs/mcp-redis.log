@@ -1,2 +1,0 @@
-2026-05-07T16:02:23.534Z | SIGTERM | {"signal":"SIGTERM"} | SUCCESS | RESPONSE: {"status":"shutting_down"}
-2026-05-07T16:02:23.536Z | connection_closed | {} | SUCCESS | RESPONSE: {"status":"closed"}
