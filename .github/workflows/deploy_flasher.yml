@@ -5,8 +5,7 @@ on:
     branches: [master, develop]
     paths:
       - 'flasher/**'
-      - 'deploy/flasher/**'
-      - 'deploy/redeploy_flasher.sh'
+      - 'redeploy_flasher.sh'
       - '.github/workflows/deploy_flasher.yml'
   workflow_dispatch:
     inputs:
