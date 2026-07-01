@@ -53,6 +53,7 @@ try:
         radiation,
         releases,
         notifications,
+        corrections,
     )
 except ImportError:
     from updater.pubsub_loop import run_pubsub_loop
@@ -66,6 +67,7 @@ except ImportError:
         radiation,
         releases,
         notifications,
+        corrections,
     )
 
 # Імпорт regions.json - спочатку з поточної папки, потім з батьківської
@@ -724,6 +726,7 @@ async def update_websocket_fusion_v1_energy(redis_client, run_once=False):
             energy_cache = await get_redis_data(logger, redis_client, "energy:ukrenergo:data", default_response=[])
 
             data = energy.build_fusion_energy(energy_cache)
+            corrections.apply_region_corrections(data, corrections.ENERGY_CORRECTIONS)
 
             logger.debug(f"⚠️ ENERGY FUSION DATA: {data}")
             logger.debug("💾 Зберігаємо websocket:v1:fusion:energy:data")
@@ -758,6 +761,7 @@ async def update_websocket_fusion_v1_radiation(redis_client, run_once=False):
             )
 
             data = radiation.build_fusion_radiation(data_cache, sensors_cache, regions)
+            corrections.apply_region_corrections(data, corrections.RADIATION_CORRECTIONS)
 
             logger.debug(f"⚠️ RADIATION FUSION DATA: {data}")
             logger.debug("💾 Зберігаємо websocket:v1:fusion:radiation:data")
