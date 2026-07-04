@@ -89,17 +89,11 @@ async def overview(
         .where(Device.is_online.is_(True), Device.chip_id.in_(select(JaamMap.chip_id)))
     )
     self_online = (online_now or 0) - (jaam_online or 0)
-    unique_24h = await session.scalar(
-        select(func.count()).select_from(Device).where(Device.last_seen >= day_ago)
-    )
-    new_24h = await session.scalar(
-        select(func.count()).select_from(Device).where(Device.first_seen >= day_ago)
-    )
+    unique_24h = await session.scalar(select(func.count()).select_from(Device).where(Device.last_seen >= day_ago))
+    new_24h = await session.scalar(select(func.count()).select_from(Device).where(Device.first_seen >= day_ago))
 
     # Тривалості поточного онлайну — з connect_time мап (реальна тривалість, як у maps_online)
-    online_rows = await session.execute(
-        select(Device.connect_time).where(Device.is_online.is_(True))
-    )
+    online_rows = await session.execute(select(Device.connect_time).where(Device.is_online.is_(True)))
     durations_min = []
     for (raw,) in online_rows.all():
         ct = _connect_time_to_utc(raw)

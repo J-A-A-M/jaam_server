@@ -149,9 +149,7 @@ async def _close_open_sessions(session, chip_id: str, now: datetime.datetime) ->
 async def _mark_stale_offline(session, seen_chip_ids: set[str], now: datetime.datetime) -> int:
     """Позначає офлайн ті пристрої, яких не бачили довше за поріг."""
     threshold = now - datetime.timedelta(seconds=OFFLINE_AFTER_SECONDS)
-    result = await session.execute(
-        select(Device).where(Device.is_online.is_(True), Device.last_seen < threshold)
-    )
+    result = await session.execute(select(Device).where(Device.is_online.is_(True), Device.last_seen < threshold))
     count = 0
     for device in result.scalars().all():
         if device.chip_id in seen_chip_ids:
@@ -166,9 +164,7 @@ async def _mark_stale_offline(session, seen_chip_ids: set[str], now: datetime.da
 
 async def collect_once(servers: list[RedisServer]) -> dict:
     now = utcnow()
-    scans = await asyncio.gather(
-        *[scan_clients(s.client) for s in servers], return_exceptions=True
-    )
+    scans = await asyncio.gather(*[scan_clients(s.client) for s in servers], return_exceptions=True)
     records: list[tuple[str, dict]] = []
     per_server: dict[str, int] = {}
     for server, result in zip(servers, scans):

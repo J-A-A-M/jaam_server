@@ -22,9 +22,7 @@ async def _snapshot() -> dict:
     async with SessionLocal() as session:
         online = await session.scalar(select(func.count()).select_from(Device).where(Device.is_online.is_(True)))
         total = await session.scalar(select(func.count()).select_from(Device))
-        events_res = await session.execute(
-            select(DeviceEvent).order_by(DeviceEvent.ts.desc()).limit(15)
-        )
+        events_res = await session.execute(select(DeviceEvent).order_by(DeviceEvent.ts.desc()).limit(15))
         events = [
             {
                 "chip_id": e.chip_id,

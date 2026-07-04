@@ -11,6 +11,7 @@ from ..schemas import DeviceDetailOut, DeviceListOut, DeviceOut, EventOut, Sessi
 
 router = APIRouter(prefix="/api/devices", tags=["devices"])
 
+
 def _device_out(d: Device, reg: JaamMap | None) -> DeviceOut:
     out = DeviceOut.model_validate(d)
     if reg is not None:

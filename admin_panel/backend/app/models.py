@@ -42,12 +42,8 @@ class Device(Base):
     secure_connection: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     last_server: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
-    sessions: Mapped[list["DeviceSession"]] = relationship(
-        back_populates="device", cascade="all, delete-orphan"
-    )
-    events: Mapped[list["DeviceEvent"]] = relationship(
-        back_populates="device", cascade="all, delete-orphan"
-    )
+    sessions: Mapped[list["DeviceSession"]] = relationship(back_populates="device", cascade="all, delete-orphan")
+    events: Mapped[list["DeviceEvent"]] = relationship(back_populates="device", cascade="all, delete-orphan")
 
 
 class DeviceSession(Base):
@@ -99,9 +95,7 @@ class JaamMap(Base):
     order_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     customer_info: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class User(Base):

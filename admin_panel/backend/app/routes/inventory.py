@@ -48,7 +48,11 @@ async def list_maps(
 
     total = await session.scalar(select(func.count()).select_from(JaamMap).where(*filters))
     result = await session.execute(
-        select(JaamMap).where(*filters).order_by(JaamMap.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+        select(JaamMap)
+        .where(*filters)
+        .order_by(JaamMap.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     maps = result.scalars().all()
 
