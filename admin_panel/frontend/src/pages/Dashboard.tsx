@@ -32,12 +32,14 @@ function useStream(): StreamData | null {
   return data;
 }
 
-const chartAxis = { stroke: "hsl(215 16% 45%)", fontSize: 11 };
+const chartAxis = { stroke: "#48526A", fontSize: 10, fontFamily: "'JetBrains Mono', monospace" };
 const tooltipStyle = {
-  background: "hsl(222 28% 11%)",
-  border: "1px solid hsl(215 20% 20%)",
-  borderRadius: 8,
-  fontSize: 12,
+  background: "#0B0D14",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 4,
+  fontSize: 11,
+  fontFamily: "'JetBrains Mono', monospace",
+  color: "#C4CFDF",
 };
 
 const EVENT_LABEL: Record<string, string> = {
@@ -99,15 +101,15 @@ export default function Dashboard() {
             <AreaChart data={trend}>
               <defs>
                 <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(199 89% 52%)" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="hsl(199 89% 52%)" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#F59E0B" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 20% 18%)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="t" {...chartAxis} minTickGap={40} />
               <YAxis {...chartAxis} allowDecimals={false} width={30} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Area type="monotone" dataKey="online" stroke="hsl(199 89% 52%)" fill="url(#g)" strokeWidth={2} />
+              <Area type="monotone" dataKey="online" stroke="#F59E0B" fill="url(#g)" strokeWidth={1.5} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </CardBody>

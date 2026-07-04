@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,23 +11,53 @@
 body {
   @apply bg-background text-foreground font-sans antialiased;
   margin: 0;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.022) 1px, transparent 1px);
+  background-size: 26px 26px;
+  min-height: 100vh;
 }
 
-/* Leaflet у темній темі */
-.leaflet-container {
-  background: #0b111e;
+/* Subtle amber ambient on login */
+.login-bg {
+  background-image:
+    radial-gradient(ellipse at 50% 55%, rgba(245,158,11,0.045) 0%, transparent 55%),
+    radial-gradient(circle, rgba(255,255,255,0.022) 1px, transparent 1px);
+  background-size: auto, 26px 26px;
 }
+
+/* Text selection */
+::selection {
+  background: rgba(245, 158, 11, 0.28);
+  color: #fff;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.09); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(245,158,11,0.5); }
+
+/* Leaflet dark theme */
+.leaflet-container { background: #050609; }
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  background: hsl(222 28% 11%);
-  color: hsl(210 40% 96%);
+  background: #0B0D14;
+  color: #C4CFDF;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+.leaflet-control-zoom a {
+  background: #0B0D14 !important;
+  color: #C4CFDF !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: #10131C !important;
+  color: #F59E0B !important;
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-thumb {
-  background: hsl(217 20% 22%);
-  border-radius: 4px;
+/* Recharts tooltip label */
+.recharts-tooltip-label {
+  color: #C4CFDF !important;
+  font-family: 'JetBrains Mono', monospace !important;
 }
