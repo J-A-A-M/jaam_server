@@ -142,6 +142,7 @@ export default function DeviceDetail() {
                   <div>{fmtDateTime(s.started_at)}</div>
                   <div className="text-xs text-muted-foreground">
                     {s.ended_at ? `завершено ${fmtDateTime(s.ended_at)}` : "триває"} · {s.server_name ?? "—"}
+                    {s.ip && <span className="ml-1 font-mono">· {s.ip}</span>}
                   </div>
                 </div>
                 <Badge variant={s.ended_at ? "offline" : "online"}>{fmtDuration(s.duration_sec)}</Badge>
