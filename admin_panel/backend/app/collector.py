@@ -82,6 +82,7 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
     prev_firmware = None if is_new else device.firmware
     prev_location = None if is_new else device.location
     prev_connect = None if is_new else device.connect_time
+    prev_ip = None if is_new else device.last_ip
 
     if is_new:
         device = Device(chip_id=chip_id, first_seen=now)
@@ -117,6 +118,9 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
         await _add_event(session, chip_id, "firmware_change", {"from": prev_firmware, "to": firmware})
     if not is_new and prev_location and device.location and prev_location != device.location:
         await _add_event(session, chip_id, "geo_change", {"from": prev_location, "to": device.location})
+    new_ip = value.get("ip")
+    if not is_new and not was_offline and prev_ip and new_ip and prev_ip != new_ip:
+        await _add_event(session, chip_id, "ip_change", {"from": prev_ip, "to": new_ip})
 
     # Сесія: нова, якщо пристрій був офлайн або змінився connect_time
     new_session_needed = was_offline or (connect_time and connect_time != prev_connect)

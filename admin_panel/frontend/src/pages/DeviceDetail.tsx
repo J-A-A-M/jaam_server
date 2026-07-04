@@ -11,6 +11,7 @@ const EVENT_LABEL: Record<string, string> = {
   offline: "Пішла в офлайн",
   firmware_change: "Оновлення прошивки",
   geo_change: "Зміна локації",
+  ip_change: "Зміна IP",
   first_seen: "Перша поява",
 };
 
