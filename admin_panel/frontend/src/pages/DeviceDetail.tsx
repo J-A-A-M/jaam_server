@@ -129,8 +129,8 @@ export default function DeviceDetail() {
             {data.sessions.length === 0 && <div className="text-sm text-muted-foreground">Немає сесій</div>}
             {data.sessions.map((s) => (
               <div key={s.id} className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0">
-                <div className="min-w-0">
-                  <div className="text-foreground">{fmtDateTime(s.started_at)}</div>
+                <div className="min-w-0 overflow-hidden">
+                  <div className="truncate text-foreground">{fmtDateTime(s.started_at)}</div>
                   <div className="truncate text-xs text-muted-foreground">
                     {s.ended_at ? `завершено ${fmtDateTime(s.ended_at)}` : "триває"} · {s.server_name ?? "—"}
                     {s.ip && <span className="ml-1 font-mono">· {s.ip}</span>}
