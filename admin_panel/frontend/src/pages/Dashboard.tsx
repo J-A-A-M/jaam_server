@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid,
@@ -138,7 +139,11 @@ export default function Dashboard() {
               <div className="py-6 text-center text-sm text-muted-foreground">Подій ще немає</div>
             )}
             {(stream?.events ?? []).map((e) => (
-              <div key={e.id} className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0">
+              <Link
+                key={e.id}
+                to={e.chip_id ? `/devices/${encodeURIComponent(e.chip_id)}` : "#"}
+                className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0 hover:bg-muted/40 -mx-4 px-4 rounded transition-colors"
+              >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className={e.type === "offline" ? "h-2 w-2 shrink-0 rounded-full bg-muted-foreground" : "h-2 w-2 shrink-0 rounded-full bg-success"} />
                   <span className="font-mono text-xs text-muted-foreground truncate">{e.chip_id}</span>
@@ -147,7 +152,7 @@ export default function Dashboard() {
                 <span className="ml-2 shrink-0 text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>
                   {timeAgo(e.ts)}
                 </span>
-              </div>
+              </Link>
             ))}
           </CardBody>
         </Card>

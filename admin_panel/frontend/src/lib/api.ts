@@ -98,6 +98,7 @@ export interface DeviceSession {
 
 export interface DeviceEvent {
   id: number;
+  chip_id?: string;
   type: string;
   ts: string;
   details: string | null;
