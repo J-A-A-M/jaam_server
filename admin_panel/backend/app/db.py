@@ -21,7 +21,8 @@ async def get_session() -> AsyncSession:
         yield session
 
 
-_MIGRATIONS = text("""
+_MIGRATIONS = text(
+    """
 DO $$
 BEGIN
     -- devices: custom_id → firmware_id
@@ -59,7 +60,8 @@ BEGIN
                            ELSE firmware END
     WHERE firmware IS NOT NULL AND position('_' IN firmware) > 0;
 END $$;
-""")
+"""
+)
 
 
 async def init_models() -> None:
