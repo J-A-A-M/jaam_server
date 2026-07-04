@@ -103,7 +103,8 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
     device.lat, device.lon = lat, lon
     latency = value.get("latency")
     device.latency = latency if isinstance(latency, int) else device.latency
-    device.secure_connection = value.get("secure_connection")
+    sc = value.get("secure_connection")
+    device.secure_connection = (sc.lower() == "true") if isinstance(sc, str) else bool(sc) if sc is not None else None
     device.last_server = server_name
 
     # Події
