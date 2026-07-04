@@ -42,10 +42,6 @@ jobs:
         steps:
           - name: Redeploy Admin Panel
             uses: appleboy/ssh-action@v1.2.0
-            with:
-              host: ${{ env.SERVER_IP }}
-              username: ${{ env.SERVER_USER }}
-              key: ${{ env.SERVER_SSH_KEY }}
             env:
               REDIS_HOSTS_INPUT: ${{ inputs.redis_hosts }}
               REDIS_HOST: ${{ secrets.CLOUD_REDIS_HOST }}
