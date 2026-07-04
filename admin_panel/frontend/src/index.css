@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-background text-foreground font-sans antialiased;
+  margin: 0;
+}
+
+/* Leaflet у темній темі */
+.leaflet-container {
+  background: #0b111e;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: hsl(222 28% 11%);
+  color: hsl(210 40% 96%);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(217 20% 22%);
+  border-radius: 4px;
+}

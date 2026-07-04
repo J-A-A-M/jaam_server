@@ -1,0 +1,98 @@
+name: 📊 Deploy Admin Panel
+on:
+  workflow_dispatch:
+    inputs:
+      server_choice:
+        type: choice
+        default: 'Server 1'
+        description: Choose server
+        options:
+          - 'Server 1'
+          - 'Server 2'
+      redis_hosts:
+        type: string
+        description: "Multi-server Redis as JSON array [{host,port,password,db,name}] (leave empty for single Redis)"
+        default: ""
+      collect_interval:
+        type: number
+        description: "Redis scan interval (seconds)"
+        default: 20
+      logging:
+        type: choice
+        description: "Log level"
+        required: true
+        default: "INFO"
+        options:
+          - DEBUG
+          - INFO
+          - WARNING
+          - CRITICAL
+          - ERROR
+
+run-name: Deploy Admin Panel from '${{ github.ref_name }}' branch
+permissions:
+  contents: read
+jobs:
+    deploy_admin_panel:
+        runs-on: ubuntu-latest
+        env:
+          SERVER_IP: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_IP || secrets.CLOUD_SERVER_2_IP }}
+          SERVER_USER: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_USER || secrets.CLOUD_SERVER_2_USER }}
+          SERVER_SSH_KEY: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_SSH_KEY || secrets.CLOUD_SERVER_2_SSH_KEY }}
+        steps:
+          - name: Redeploy Admin Panel
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+            env:
+              REDIS_HOSTS_INPUT: ${{ inputs.redis_hosts }}
+              REDIS_HOST: ${{ secrets.CLOUD_REDIS_HOST }}
+              REDIS_PASSWORD: ${{ secrets.CLOUD_REDIS_PASSWORD }}
+              DB_PASSWORD: ${{ secrets.ADMIN_PANEL_DB_PASSWORD }}
+              JWT_SECRET: ${{ secrets.ADMIN_PANEL_JWT_SECRET }}
+              COLLECT_INTERVAL: ${{ inputs.collect_interval }}
+              LOG_LEVEL: ${{ inputs.logging }}
+              REF_NAME: ${{ github.ref_name }}
+              REPO: ${{ github.repository }}
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              envs: REDIS_HOSTS_INPUT,REDIS_HOST,REDIS_PASSWORD,DB_PASSWORD,JWT_SECRET,COLLECT_INTERVAL,LOG_LEVEL,REF_NAME,REPO
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch "$REF_NAME" "https://github.com/$REPO.git" .
+                DB_URL="postgresql+asyncpg://jaam:${DB_PASSWORD}@postgres:5432/jaam_admin"
+                if [ -n "$REDIS_HOSTS_INPUT" ]; then
+                  # Мультисерверний режим: агрегація по кількох Redis
+                  bash redeploy_admin_panel.sh \
+                    -rh "$REDIS_HOSTS_INPUT" \
+                    -d "$DB_URL" \
+                    -s "$JWT_SECRET" \
+                    -ci "$COLLECT_INTERVAL" \
+                    -cs true \
+                    -l "$LOG_LEVEL"
+                else
+                  # Один спільний Redis
+                  bash redeploy_admin_panel.sh \
+                    -m "$REDIS_HOST" \
+                    -pw "$REDIS_PASSWORD" \
+                    -d "$DB_URL" \
+                    -s "$JWT_SECRET" \
+                    -ci "$COLLECT_INTERVAL" \
+                    -cs true \
+                    -l "$LOG_LEVEL"
+                fi
+          - name: Clear unused images
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                docker image prune -f
