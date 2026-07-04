@@ -65,6 +65,17 @@ async def _read_value(client: redis.Redis, key: str) -> dict | None:
     return None
 
 
+_KEY_PREFIX = "websocket:clients:"
+
+
+def _ip_from_key(key: str) -> str | None:
+    """Витягує IP з ключа 'websocket:clients:{ip}:{client_id}'.
+    Використовує rsplit щоб не ламати IPv6-адреси."""
+    rest = key[len(_KEY_PREFIX) :]
+    parts = rest.rsplit(":", 1)
+    return parts[0] if len(parts) == 2 else None
+
+
 async def scan_clients(client: redis.Redis) -> list[dict]:
     """Повертає список значень усіх websocket:clients:* на одному Redis."""
     result: list[dict] = []
@@ -75,6 +86,7 @@ async def scan_clients(client: redis.Redis) -> list[dict]:
             try:
                 value = await _read_value(client, key)
                 if value:
+                    value["ip"] = _ip_from_key(key)
                     result.append(value)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Помилка читання ключа %s: %s", key, exc)
