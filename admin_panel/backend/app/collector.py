@@ -30,11 +30,12 @@ def _parse_location(loc: str | None) -> tuple[float | None, float | None]:
         return None, None
 
 
-def _custom_id(firmware: str | None) -> str | None:
-    """firmware має вигляд "<version>_<id>" (напр. "5.0.1_github")."""
-    if firmware and "_" in firmware:
-        return firmware.split("_", 1)[1]
-    return None
+def _split_firmware(raw: str | None) -> tuple[str | None, str | None]:
+    """Розбиває 'version_id' → (version, id). Якщо '_' немає — (raw, None)."""
+    if raw and "_" in raw:
+        version, fid = raw.split("_", 1)
+        return version, fid
+    return raw, None
 
 
 def _hw_type(value: dict) -> str | None:
@@ -70,7 +71,7 @@ async def _add_event(session, chip_id: str, event_type: str, details: dict | Non
 
 
 async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.datetime) -> None:
-    firmware = value.get("firmware")
+    firmware, firmware_id = _split_firmware(value.get("firmware"))
     server_name = value.get("_server")
     connect_time = value.get("connect_time")
     lat, lon = _parse_location(value.get("location"))
@@ -87,7 +88,7 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
         session.add(device)
 
     device.firmware = firmware
-    device.custom_id = _custom_id(firmware)
+    device.firmware_id = firmware_id
     device.hw_type = _hw_type(value) or device.hw_type
     device.is_online = True
     device.last_seen = now
@@ -128,6 +129,7 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
                 connect_time=connect_time,
                 started_at=now,
                 firmware=firmware,
+                firmware_id=firmware_id,
                 ip=value.get("ip"),
                 city=value.get("city"),
                 region=value.get("region"),

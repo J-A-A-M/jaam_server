@@ -58,7 +58,7 @@ export default function DeviceDetail() {
             Самозбірка
           </span>
         )}
-        {d.custom_id && <span className="text-sm text-muted-foreground">ID: {d.custom_id}</span>}
+        {d.firmware_id && <span className="text-sm text-muted-foreground">ID: {d.firmware_id}</span>}
       </div>
 
       {d.is_jaam && (
@@ -81,7 +81,15 @@ export default function DeviceDetail() {
             <CardTitle>Інформація</CardTitle>
           </CardHeader>
           <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Field label="Прошивка" value={<span className="font-mono">{d.firmware}</span>} />
+            <Field
+              label="Прошивка"
+              value={
+                <span className="font-mono">
+                  {d.firmware ?? "—"}
+                  {d.firmware_id && <span className="ml-1 text-muted-foreground">({d.firmware_id})</span>}
+                </span>
+              }
+            />
             <Field label="Тип HW" value={d.hw_type} />
             <Field label="Сервер" value={d.last_server} />
             <Field label="IP" value={<span className="font-mono">{d.last_ip}</span>} />

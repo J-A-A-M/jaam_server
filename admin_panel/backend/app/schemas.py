@@ -34,8 +34,8 @@ class DeviceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     chip_id: str
-    custom_id: str | None
     firmware: str | None
+    firmware_id: str | None
     hw_type: str | None
     is_online: bool
     first_seen: datetime.datetime
@@ -79,6 +79,7 @@ class SessionOut(BaseModel):
     ended_at: datetime.datetime | None
     duration_sec: int | None
     firmware: str | None
+    firmware_id: str | None = None
     ip: str | None
     city: str | None
     region: str | None

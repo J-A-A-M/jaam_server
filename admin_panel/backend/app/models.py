@@ -18,8 +18,8 @@ class Device(Base):
     __tablename__ = "devices"
 
     chip_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    custom_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     firmware: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    firmware_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     hw_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
 
     is_online: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
@@ -59,6 +59,7 @@ class DeviceSession(Base):
     ended_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
     firmware: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    firmware_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
     city: Mapped[str | None] = mapped_column(String(128), nullable=True)
     region: Mapped[str | None] = mapped_column(String(128), nullable=True)

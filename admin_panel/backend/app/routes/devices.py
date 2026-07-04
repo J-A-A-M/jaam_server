@@ -37,7 +37,7 @@ _SORT_COLUMNS = {
 async def list_devices(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-    q: str | None = Query(None, description="Пошук за chip_id / custom_id / city"),
+    q: str | None = Query(None, description="Пошук за chip_id / firmware_id / city"),
     status_: str | None = Query(None, alias="status", description="online|offline"),
     firmware: str | None = None,
     hw: str | None = None,
@@ -53,7 +53,7 @@ async def list_devices(
     filters = []
     if q:
         like = f"%{q}%"
-        filters.append(or_(Device.chip_id.ilike(like), Device.custom_id.ilike(like), Device.city.ilike(like)))
+        filters.append(or_(Device.chip_id.ilike(like), Device.firmware_id.ilike(like), Device.city.ilike(like)))
     if status_ == "online":
         filters.append(Device.is_online.is_(True))
     elif status_ == "offline":

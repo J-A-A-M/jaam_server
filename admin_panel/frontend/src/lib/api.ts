@@ -1,7 +1,7 @@
 export interface Device {
   chip_id: string;
-  custom_id: string | null;
   firmware: string | null;
+  firmware_id: string | null;
   hw_type: string | null;
   is_online: boolean;
   first_seen: string;
