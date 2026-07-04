@@ -123,7 +123,13 @@ export default function Dashboard() {
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <DistroChart title="Версії прошивок" items={data.by_firmware} />
+        <DistroChart title="Типи HW" items={data.by_hw} />
+      </div>
+
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+        <DistroChart title="Топ країн" items={data.by_country} />
         <DistroChart title="Топ регіонів" items={data.by_region} />
+        <DistroChart title="Топ міст" items={data.by_city} />
       </div>
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">

@@ -78,6 +78,7 @@ export interface Overview {
   by_hw: CountItem[];
   by_region: CountItem[];
   by_country: CountItem[];
+  by_city: CountItem[];
   duration_histogram: CountItem[];
   online_trend: TrendPoint[];
 }

@@ -142,6 +142,7 @@ async def overview(
         by_hw=await _grouped(session, Device.hw_type),
         by_region=await _grouped(session, Device.region),
         by_country=await _grouped(session, Device.country),
+        by_city=await _grouped(session, Device.city),
         duration_histogram=duration_histogram,
         online_trend=trend,
     )

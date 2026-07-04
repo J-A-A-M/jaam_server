@@ -161,6 +161,7 @@ class OverviewOut(BaseModel):
     by_hw: list[CountItem]
     by_region: list[CountItem]
     by_country: list[CountItem]
+    by_city: list[CountItem]
     duration_histogram: list[CountItem]
     online_trend: list[TrendPoint]
 
