@@ -12,9 +12,9 @@ export default function Servers() {
   });
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-4 p-4 sm:p-6">
       <div>
-        <h1 className="text-2xl font-bold">Сервери</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">Сервери</h1>
         <p className="text-sm text-muted-foreground">Стан Redis-інстансів та кількість клієнтів</p>
       </div>
 
@@ -23,7 +23,7 @@ export default function Servers() {
           <Spinner className="h-8 w-8" />
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.map((s) => (
             <Card key={s.name}>
               <CardBody className="pt-5">
@@ -32,20 +32,15 @@ export default function Servers() {
                     <Server className="h-5 w-5 text-muted-foreground" />
                     <span className="font-mono text-sm text-foreground">{s.name}</span>
                   </div>
-                  {s.ok ? (
-                    <CheckCircle2 className="h-5 w-5 text-success" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-danger" />
-                  )}
+                  {s.ok
+                    ? <CheckCircle2 className="h-5 w-5 text-success" />
+                    : <XCircle className="h-5 w-5 text-danger" />}
                 </div>
                 <div className="mt-4 font-mono text-3xl font-bold text-primary">{s.ok ? s.online : "—"}</div>
                 <div className="text-xs text-muted-foreground">мап онлайн</div>
                 <div className="mt-3 text-xs text-muted-foreground">
-                  {s.ok ? (
-                    <span className="text-success">доступний</span>
-                  ) : (
-                    <span className="text-danger">недоступний</span>
-                  )} · перевірено {fmtDateTime(s.checked_at)}
+                  {s.ok ? <span className="text-success">доступний</span> : <span className="text-danger">недоступний</span>}
+                  {" · "}перевірено {fmtDateTime(s.checked_at)}
                 </div>
               </CardBody>
             </Card>

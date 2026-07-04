@@ -27,10 +27,7 @@ function Clusters({ points }: { points: GeoPoint[] }) {
 
   useEffect(() => {
     if (!groupRef.current) {
-      groupRef.current = (L as any).markerClusterGroup({
-        showCoverageOnHover: false,
-        maxClusterRadius: 40,
-      });
+      groupRef.current = (L as any).markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 40 });
       map.addLayer(groupRef.current);
     }
     const group = groupRef.current!;
@@ -71,26 +68,32 @@ export default function MapPage() {
     : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   return (
-    <div className="relative h-screen">
-      <div className="absolute left-4 right-4 top-4 z-[500] flex items-center justify-between">
-        <div className="rounded border border-border/[0.1] bg-card/95 px-4 py-2 backdrop-blur-sm shadow-sm">
-          <div className="text-sm font-semibold text-foreground">
-            {points.length} мап на карті · <span className="text-success">{online} онлайн</span>
+    <div className="relative" style={{ height: "calc(100vh - 53px)" }}>
+      {/* On desktop (no mobile header), use full vh */}
+      <style>{`@media (min-width: 768px) { .map-root { height: 100vh !important; } }`}</style>
+      <div className="map-root absolute inset-0">
+        {/* Overlay */}
+        <div className="absolute left-3 right-3 top-3 z-[500] flex items-center justify-between gap-2 sm:left-4 sm:right-4 sm:top-4">
+          <div className="rounded border border-border/[0.1] bg-card/95 px-3 py-2 backdrop-blur-sm shadow-sm">
+            <div className="text-xs font-semibold text-foreground sm:text-sm">
+              {points.length} мап · <span className="text-success">{online} онлайн</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {isLoading && <Spinner className="h-4 w-4" />}
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="bg-card/95 backdrop-blur-sm text-xs sm:text-sm">
+              <option value="">Усі</option>
+              <option value="online">Тільки онлайн</option>
+              <option value="offline">Тільки офлайн</option>
+            </Select>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isLoading && <Spinner className="h-4 w-4" />}
-          <Select value={status} onChange={(e) => setStatus(e.target.value)} className="bg-card/95 backdrop-blur-sm">
-            <option value="">Усі</option>
-            <option value="online">Тільки онлайн</option>
-            <option value="offline">Тільки офлайн</option>
-          </Select>
-        </div>
+
+        <MapContainer center={[49, 32]} zoom={6} className="h-full w-full" scrollWheelZoom>
+          <TileLayer url={tileUrl} attribution="© OpenStreetMap contributors" />
+          <Clusters points={points} />
+        </MapContainer>
       </div>
-      <MapContainer center={[49, 32]} zoom={6} className="h-full w-full" scrollWheelZoom>
-        <TileLayer url={tileUrl} attribution="© OpenStreetMap contributors" />
-        <Clusters points={points} />
-      </MapContainer>
     </div>
   );
 }

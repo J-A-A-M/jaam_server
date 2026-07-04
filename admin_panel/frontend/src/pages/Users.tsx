@@ -20,11 +20,7 @@ export default function Users() {
 
   const createMut = useMutation({
     mutationFn: (body: PanelUserInput) => api.createUser(body),
-    onSuccess: () => {
-      invalidate();
-      setModalOpen(false);
-      setError("");
-    },
+    onSuccess: () => { invalidate(); setModalOpen(false); setError(""); },
     onError: (e: Error) => setError(e.message),
   });
 
@@ -35,20 +31,14 @@ export default function Users() {
   });
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-4 p-4 sm:p-6">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Користувачі</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">Користувачі</h1>
           <p className="text-sm text-muted-foreground">Доступ до адмін-панелі</p>
         </div>
-        <Button
-          onClick={() => {
-            setForm(EMPTY);
-            setError("");
-            setModalOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" /> Додати користувача
+        <Button onClick={() => { setForm(EMPTY); setError(""); setModalOpen(true); }} className="shrink-0">
+          <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Додати</span>
         </Button>
       </div>
 
@@ -57,46 +47,34 @@ export default function Users() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/[0.1] text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Логін</th>
-                <th className="px-4 py-3 font-medium">Роль</th>
-                <th className="px-4 py-3 font-medium">Створено</th>
-                <th className="px-4 py-3"></th>
+                <th className="px-3 py-3 font-medium sm:px-4">Логін</th>
+                <th className="px-3 py-3 font-medium sm:px-4">Роль</th>
+                <th className="hidden px-4 py-3 font-medium sm:table-cell">Створено</th>
+                <th className="px-3 py-3 sm:px-4"></th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr>
-                  <td colSpan={4} className="py-16 text-center">
-                    <Spinner className="mx-auto h-6 w-6" />
-                  </td>
-                </tr>
+                <tr><td colSpan={4} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
               ) : (
                 data?.map((u) => (
                   <tr key={u.id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
-                    <td className="px-4 py-3 font-medium text-foreground">
+                    <td className="px-3 py-3 font-medium text-foreground sm:px-4">
                       {u.username}
-                      {u.username === user?.username && (
-                        <span className="ml-2 text-xs text-muted-foreground">(ви)</span>
-                      )}
+                      {u.username === user?.username && <span className="ml-2 text-xs text-muted-foreground">(ви)</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 sm:px-4">
                       <Badge variant="muted">
-                        {u.role === "admin" ? (
-                          <><Shield className="h-3 w-3" /> admin</>
-                        ) : (
-                          <><Eye className="h-3 w-3" /> viewer</>
-                        )}
+                        {u.role === "admin" ? <><Shield className="h-3 w-3" /> admin</> : <><Eye className="h-3 w-3" /> viewer</>}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{fmtDateTime(u.created_at)}</td>
-                    <td className="px-4 py-3">
+                    <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{fmtDateTime(u.created_at)}</td>
+                    <td className="px-3 py-3 sm:px-4">
                       <div className="flex justify-end">
                         <button
-                          onClick={() => {
-                            if (confirm(`Видалити користувача ${u.username}?`)) delMut.mutate(u.username);
-                          }}
+                          onClick={() => { if (confirm(`Видалити користувача ${u.username}?`)) delMut.mutate(u.username); }}
                           disabled={delMut.isPending || u.username === user?.username}
-                          className="rounded-md p-1.5 text-muted-foreground transition hover:bg-danger/15 hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="rounded-md p-1.5 text-muted-foreground transition hover:bg-danger/15 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
                           title={u.username === user?.username ? "Неможливо видалити себе" : "Видалити"}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -112,25 +90,14 @@ export default function Users() {
       </Card>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Новий користувач">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            createMut.mutate(form);
-          }}
-          className="space-y-3"
-        >
+        <form onSubmit={(e) => { e.preventDefault(); createMut.mutate(form); }} className="space-y-3">
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Логін *</label>
             <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required autoFocus />
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Пароль *</label>
-            <Input
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required
-            />
+            <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Роль</label>
@@ -141,16 +108,8 @@ export default function Users() {
           </div>
           {error && <div className="text-sm text-danger">{error}</div>}
           <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="rounded border border-border/[0.1] px-4 py-2 text-sm transition hover:bg-muted hover:text-foreground"
-            >
-              Скасувати
-            </button>
-            <Button type="submit" disabled={createMut.isPending}>
-              {createMut.isPending ? <Spinner /> : "Створити"}
-            </Button>
+            <button type="button" onClick={() => setModalOpen(false)} className="rounded border border-border/[0.1] px-4 py-2 text-sm transition hover:bg-muted hover:text-foreground">Скасувати</button>
+            <Button type="submit" disabled={createMut.isPending}>{createMut.isPending ? <Spinner /> : "Створити"}</Button>
           </div>
         </form>
       </Modal>

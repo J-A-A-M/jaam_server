@@ -1,15 +1,8 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
+  Area, AreaChart, Bar, BarChart, CartesianGrid,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { Activity, Cpu, Clock, PlusCircle } from "lucide-react";
 import { api, type DeviceEvent } from "@/lib/api";
@@ -46,24 +39,19 @@ function useChartPalette() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   return {
-    axis: {
-      stroke: isDark ? "#5C6A80" : "#94A3B8",
-      fontSize: 10,
-      fontFamily: "'JetBrains Mono', monospace",
-    },
+    axis:    { stroke: isDark ? "#5C6A80" : "#94A3B8", fontSize: 10, fontFamily: "'JetBrains Mono', monospace" },
     tooltip: {
       background: isDark ? "#0B0D14" : "#FFFFFF",
       border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
-      borderRadius: 4,
-      fontSize: 11,
+      borderRadius: 4, fontSize: 11,
       fontFamily: "'JetBrains Mono', monospace",
       color: isDark ? "#DCE4F0" : "#0F172A",
     },
-    primary:   isDark ? "#F59E0B" : "#D97706",
-    accent:    "#22D3EE",
-    gridArea:  isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
-    gridBar:   isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
-    cursor:    isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+    primary:  isDark ? "#F59E0B" : "#D97706",
+    accent:   "#22D3EE",
+    gridArea: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+    gridBar:  isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+    cursor:   isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
   };
 }
 
@@ -84,7 +72,7 @@ export default function Dashboard() {
     );
 
   const onlineNow = stream?.online_now ?? data.online_now;
-  const totalReg = stream?.total_registered ?? data.total_registered;
+  const totalReg  = stream?.total_registered ?? data.total_registered;
 
   const trend = data.online_trend.map((p) => ({
     t: new Date(p.ts).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" }),
@@ -92,29 +80,30 @@ export default function Dashboard() {
   }));
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
       <div>
-        <h1 className="text-2xl font-bold">Дашборд</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">Дашборд</h1>
         <p className="text-sm text-muted-foreground">Загальний стан парку мап</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat
           label="Онлайн зараз"
           value={<span className="text-primary">{onlineNow}</span>}
           hint={<span className="inline-flex items-center gap-1"><Activity className="h-3 w-3" /> JAAM {data.jaam_online} · самозбірки {data.self_online}</span>}
         />
-        <Stat label="Усього бачено" value={totalReg} hint={<span className="inline-flex items-center gap-1"><Cpu className="h-3 w-3" /> у реєстрі JAAM {data.registry_total}</span>} />
-        <Stat label="Активні за 24 год" value={data.unique_24h} hint={<span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> медіана {data.median_online}</span>} />
-        <Stat label="Нові за 24 год" value={data.new_24h} hint={<span className="inline-flex items-center gap-1"><PlusCircle className="h-3 w-3" /> вперше побачені</span>} />
+        <Stat label="Усього бачено" value={totalReg}
+          hint={<span className="inline-flex items-center gap-1"><Cpu className="h-3 w-3" /> у реєстрі JAAM {data.registry_total}</span>} />
+        <Stat label="Активні за 24 год" value={data.unique_24h}
+          hint={<span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> медіана {data.median_online}</span>} />
+        <Stat label="Нові за 24 год" value={data.new_24h}
+          hint={<span className="inline-flex items-center gap-1"><PlusCircle className="h-3 w-3" /> вперше побачені</span>} />
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Онлайн за останні 24 години</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Онлайн за останні 24 години</CardTitle></CardHeader>
         <CardBody>
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={trend}>
               <defs>
                 <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
@@ -124,7 +113,7 @@ export default function Dashboard() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={palette.gridArea} />
               <XAxis dataKey="t" {...palette.axis} minTickGap={40} />
-              <YAxis {...palette.axis} allowDecimals={false} width={30} />
+              <YAxis {...palette.axis} allowDecimals={false} width={28} />
               <Tooltip contentStyle={palette.tooltip} />
               <Area type="monotone" dataKey="online" stroke={palette.primary} fill="url(#g)" strokeWidth={1.5} dot={false} />
             </AreaChart>
@@ -132,35 +121,27 @@ export default function Dashboard() {
         </CardBody>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <DistroChart title="Версії прошивок" items={data.by_firmware} />
         <DistroChart title="Топ регіонів" items={data.by_region} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <DistroChart title="Тривалість онлайн-сесій" items={data.duration_histogram} hideEmpty />
         <Card>
-          <CardHeader>
-            <CardTitle>Останні події</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Останні події</CardTitle></CardHeader>
           <CardBody className="space-y-2">
             {(stream?.events ?? []).length === 0 && (
               <div className="py-6 text-center text-sm text-muted-foreground">Подій ще немає</div>
             )}
             {(stream?.events ?? []).map((e) => (
               <div key={e.id} className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={
-                      e.type === "offline"
-                        ? "h-2 w-2 rounded-full bg-muted-foreground"
-                        : "h-2 w-2 rounded-full bg-success"
-                    }
-                  />
-                  <span className="font-mono text-xs text-muted-foreground">{e.chip_id}</span>
-                  <span>{EVENT_LABEL[e.type] ?? e.type}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={e.type === "offline" ? "h-2 w-2 shrink-0 rounded-full bg-muted-foreground" : "h-2 w-2 shrink-0 rounded-full bg-success"} />
+                  <span className="font-mono text-xs text-muted-foreground truncate">{e.chip_id}</span>
+                  <span className="hidden sm:inline">{EVENT_LABEL[e.type] ?? e.type}</span>
                 </div>
-                <span className="text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>
+                <span className="ml-2 shrink-0 text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>
                   {timeAgo(e.ts)}
                 </span>
               </div>
@@ -172,31 +153,21 @@ export default function Dashboard() {
   );
 }
 
-function DistroChart({
-  title,
-  items,
-  hideEmpty,
-}: {
-  title: string;
-  items: { label: string; count: number }[];
-  hideEmpty?: boolean;
-}) {
+function DistroChart({ title, items, hideEmpty }: { title: string; items: { label: string; count: number }[]; hideEmpty?: boolean }) {
   const palette = useChartPalette();
   const data = hideEmpty ? items.filter((i) => i.count > 0) : items;
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
       <CardBody>
         {data.length === 0 ? (
           <div className="py-6 text-center text-sm text-muted-foreground">Немає даних</div>
         ) : (
-          <ResponsiveContainer width="100%" height={Math.max(200, data.length * 28)}>
-            <BarChart data={data} layout="vertical" margin={{ left: 8 }}>
+          <ResponsiveContainer width="100%" height={Math.max(160, data.length * 26)}>
+            <BarChart data={data} layout="vertical" margin={{ left: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} horizontal={false} />
               <XAxis type="number" {...palette.axis} allowDecimals={false} />
-              <YAxis type="category" dataKey="label" {...palette.axis} width={110} />
+              <YAxis type="category" dataKey="label" {...palette.axis} width={100} />
               <Tooltip contentStyle={palette.tooltip} cursor={{ fill: palette.cursor }} />
               <Bar dataKey="count" fill={palette.accent} radius={[0, 4, 4, 0]} />
             </BarChart>
