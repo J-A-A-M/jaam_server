@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 import json
 from unittest.mock import Mock, AsyncMock, MagicMock, patch, call
@@ -58,8 +60,10 @@ def get_data_mock(ids=None, gamma_nsv_h=None, is_old=None):
     if is_old is None:
         is_old = [0]
     # Повертаємо список, а не dict з states
+    # updated_at свіжий, щоб показання проходили фільтр за віком (RADIATION_MAX_SENSOR_AGE_DAYS)
+    updated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     data = [
-        {"sensor_id": id, "updated_at": "2022-03-21 13:04:02", "gamma_nsv_h": gamma, "is_old": old}
+        {"sensor_id": id, "updated_at": updated_at, "gamma_nsv_h": gamma, "is_old": old}
         for id, gamma, old in zip(ids, gamma_nsv_h, is_old)
     ]
     return data

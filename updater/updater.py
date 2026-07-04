@@ -100,6 +100,7 @@ sink_local_files = os.environ.get("SINK_LOCAL_FILES", "True").lower() == "true"
 fusion_alerts_debounce = float(os.environ.get("FUSION_ALERTS_DEBOUNCE", 1))
 fusion_alerts_throttle = float(os.environ.get("FUSION_ALERTS_THROTTLE", 0))
 fusion_etryvoga_throttle = float(os.environ.get("FUSION_ETRYVOGA_THROTTLE", 0))
+radiation_max_sensor_age_days = float(os.environ.get("RADIATION_MAX_SENSOR_AGE_DAYS", 7))
 
 logging.basicConfig(level=debug_level, format="%(asctime)s %(levelname)s : %(message)s")
 logger = logging.getLogger(__name__)
@@ -386,7 +387,9 @@ async def update_websocket_v1_radiation(redis_client, run_once=False):
                 ),
             )
 
-            data = radiation.build_v1_radiation(data_cache, sensors_cache, regions, LEGACY_LED_COUNT)
+            data = radiation.build_v1_radiation(
+                data_cache, sensors_cache, regions, LEGACY_LED_COUNT, radiation_max_sensor_age_days
+            )
 
             logger.debug("💾 Зберігаємо websocket:v1:legacy:radiation")
             await set_redis_data(logger, redis_client, "websocket:v1:legacy:radiation", data)
@@ -760,7 +763,7 @@ async def update_websocket_fusion_v1_radiation(redis_client, run_once=False):
                 ),
             )
 
-            data = radiation.build_fusion_radiation(data_cache, sensors_cache, regions)
+            data = radiation.build_fusion_radiation(data_cache, sensors_cache, regions, radiation_max_sensor_age_days)
             corrections.apply_region_corrections(data, corrections.RADIATION_CORRECTIONS)
 
             logger.debug(f"⚠️ RADIATION FUSION DATA: {data}")
