@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, MapPin, Cpu, Server, LogOut, Radar, ClipboardList, Users } from "lucide-react";
+import { LayoutDashboard, MapPin, Cpu, Server, LogOut, Radar, ClipboardList, Users, Sun, Moon } from "lucide-react";
 import { useAuth } from "./AuthContext";
+import { useTheme } from "./ThemeContext";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -14,12 +15,13 @@ const nav = [
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { theme, toggle } = useTheme();
   const navigate = useNavigate();
 
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <aside className="flex w-[210px] shrink-0 flex-col border-r border-white/[0.06] bg-[#08090E]">
+      <aside className="flex w-[210px] shrink-0 flex-col border-r border-border/[0.07] bg-sidebar">
         {/* Logo */}
         <div className="px-5 py-5">
           <div className="flex items-center gap-2.5">
@@ -38,7 +40,7 @@ export default function Layout() {
         </div>
 
         {/* Divider */}
-        <div className="mx-5 h-px bg-white/[0.06]" />
+        <div className="mx-5 h-px bg-border/[0.07]" />
 
         {/* Nav */}
         <nav className="flex-1 space-y-0.5 px-3 pt-3">
@@ -54,7 +56,7 @@ export default function Layout() {
                     "flex items-center gap-3 border-l-2 px-3 py-2 text-[13px] font-medium transition-all duration-150 rounded-r",
                     isActive
                       ? "border-primary bg-primary/[0.07] text-primary"
-                      : "border-transparent text-muted-foreground hover:border-white/[0.1] hover:bg-white/[0.03] hover:text-foreground",
+                      : "border-transparent text-muted-foreground hover:border-border/[0.15] hover:bg-border/[0.04] hover:text-foreground",
                   )
                 }
               >
@@ -65,10 +67,25 @@ export default function Layout() {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-white/[0.06] p-3">
+        <div className="border-t border-border/[0.07] p-3">
           <div className="mb-1 px-3 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground/70">
             {user?.username}
           </div>
+
+          {/* Theme toggle */}
+          <button
+            onClick={toggle}
+            className="flex w-full items-center gap-3 border-l-2 border-transparent rounded-r px-3 py-2 text-[13px] text-muted-foreground transition-all duration-150 hover:border-border/[0.15] hover:bg-border/[0.04] hover:text-foreground"
+            title={theme === "dark" ? "Світла тема" : "Темна тема"}
+          >
+            {theme === "dark" ? (
+              <Sun className="h-[15px] w-[15px] shrink-0" />
+            ) : (
+              <Moon className="h-[15px] w-[15px] shrink-0" />
+            )}
+            {theme === "dark" ? "Світла тема" : "Темна тема"}
+          </button>
+
           <button
             onClick={async () => {
               await logout();

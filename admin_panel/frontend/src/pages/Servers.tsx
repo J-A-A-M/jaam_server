@@ -30,7 +30,7 @@ export default function Servers() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Server className="h-5 w-5 text-muted-foreground" />
-                    <span className="font-mono text-sm">{s.name}</span>
+                    <span className="font-mono text-sm text-foreground">{s.name}</span>
                   </div>
                   {s.ok ? (
                     <CheckCircle2 className="h-5 w-5 text-success" />
@@ -38,10 +38,14 @@ export default function Servers() {
                     <XCircle className="h-5 w-5 text-danger" />
                   )}
                 </div>
-                <div className="mt-4 text-3xl font-bold text-primary">{s.ok ? s.online : "—"}</div>
+                <div className="mt-4 font-mono text-3xl font-bold text-primary">{s.ok ? s.online : "—"}</div>
                 <div className="text-xs text-muted-foreground">мап онлайн</div>
                 <div className="mt-3 text-xs text-muted-foreground">
-                  {s.ok ? "доступний" : "недоступний"} · перевірено {fmtDateTime(s.checked_at)}
+                  {s.ok ? (
+                    <span className="text-success">доступний</span>
+                  ) : (
+                    <span className="text-danger">недоступний</span>
+                  )} · перевірено {fmtDateTime(s.checked_at)}
                 </div>
               </CardBody>
             </Card>

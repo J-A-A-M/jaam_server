@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, FlaskConical } from "lucide-react";
 import { api, type JaamMap, type JaamMapInput } from "@/lib/api";
 import { Badge, Button, Card, Input, Modal, Select, Spinner, Textarea } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/utils";
 
 const EMPTY: JaamMapInput = { chip_id: "", hw_version: "", is_prototype: false, order_number: "", customer_info: "" };
@@ -20,12 +21,21 @@ export default function Inventory() {
   const [form, setForm] = useState<JaamMapInput>(EMPTY);
   const [error, setError] = useState("");
 
+  const tableRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["inventory", q, status, page],
     queryFn: () => api.inventory({ q, status, page, page_size: pageSize }),
     refetchInterval: 20000,
     placeholderData: keepPreviousData,
   });
+
+  // Scroll table into view on page change (not on initial render)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [page]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["inventory"] });
 
@@ -66,6 +76,11 @@ export default function Inventory() {
   };
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
+
+  const goPage = (dir: number, e: React.MouseEvent<HTMLButtonElement>) => {
+    setPage((p) => p + dir);
+    e.currentTarget.blur();
+  };
 
   return (
     <div className="space-y-4 p-6">
@@ -109,112 +124,118 @@ export default function Inventory() {
         {isFetching && <Spinner className="h-5 w-5 self-center" />}
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Стан</th>
-                <th className="px-4 py-3 font-medium">Chip ID</th>
-                <th className="px-4 py-3 font-medium">HW версія</th>
-                <th className="px-4 py-3 font-medium">Замовлення</th>
-                <th className="px-4 py-3 font-medium">Клієнт</th>
-                <th className="px-4 py-3 font-medium">Прошивка</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="py-16 text-center">
-                    <Spinner className="mx-auto h-6 w-6" />
-                  </td>
-                </tr>
-              ) : data && data.items.length > 0 ? (
-                data.items.map((m) => (
-                  <tr key={m.chip_id} className="border-b border-border/50 transition hover:bg-muted/40">
-                    <td className="px-4 py-3">
-                      {!m.ever_seen ? (
-                        <Badge variant="muted">не бачили</Badge>
-                      ) : m.is_online ? (
-                        <Badge variant="online">онлайн</Badge>
-                      ) : (
-                        <Badge variant="offline">офлайн</Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link to={`/devices/${m.chip_id}`} className="font-mono text-primary hover:underline">
-                        {m.chip_id}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5">
-                        {m.hw_version ?? "—"}
-                        {m.is_prototype && (
-                          <FlaskConical className="h-3.5 w-3.5 text-warning" aria-label="прототип" />
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs">{m.order_number ?? "—"}</td>
-                    <td className="max-w-[240px] truncate px-4 py-3 text-muted-foreground" title={m.customer_info ?? ""}>
-                      {m.customer_info ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                      {m.firmware ?? "—"}
-                      {m.ever_seen && m.last_seen && (
-                        <div className="text-[10px]">{timeAgo(m.last_seen)}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(m)}
-                          className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                          title="Редагувати"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Видалити ${m.chip_id} з реєстру?`)) delMut.mutate(m.chip_id);
-                          }}
-                          className="rounded-md p-1.5 text-muted-foreground transition hover:bg-danger/15 hover:text-danger"
-                          title="Видалити"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+      {/* Table wrapped in ref for scrollIntoView; dimmed + non-interactive while fetching */}
+      <div ref={tableRef}>
+        <div className={cn("transition-opacity duration-200", isFetching && "opacity-60 pointer-events-none")}>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/[0.1] text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Стан</th>
+                    <th className="px-4 py-3 font-medium">Chip ID</th>
+                    <th className="px-4 py-3 font-medium">HW версія</th>
+                    <th className="px-4 py-3 font-medium">Замовлення</th>
+                    <th className="px-4 py-3 font-medium">Клієнт</th>
+                    <th className="px-4 py-3 font-medium">Прошивка</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="py-16 text-center text-muted-foreground">
-                    Реєстр порожній
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={7} className="py-16 text-center">
+                        <Spinner className="mx-auto h-6 w-6" />
+                      </td>
+                    </tr>
+                  ) : data && data.items.length > 0 ? (
+                    data.items.map((m) => (
+                      <tr key={m.chip_id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
+                        <td className="px-4 py-3">
+                          {!m.ever_seen ? (
+                            <Badge variant="muted">не бачили</Badge>
+                          ) : m.is_online ? (
+                            <Badge variant="online">онлайн</Badge>
+                          ) : (
+                            <Badge variant="offline">офлайн</Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link to={`/devices/${m.chip_id}`} className="font-mono text-primary hover:underline">
+                            {m.chip_id}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center gap-1.5">
+                            {m.hw_version ?? "—"}
+                            {m.is_prototype && (
+                              <FlaskConical className="h-3.5 w-3.5 text-warning" aria-label="прототип" />
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs">{m.order_number ?? "—"}</td>
+                        <td className="max-w-[240px] truncate px-4 py-3 text-muted-foreground" title={m.customer_info ?? ""}>
+                          {m.customer_info ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                          {m.firmware ?? "—"}
+                          {m.ever_seen && m.last_seen && (
+                            <div className="text-[10px]">{timeAgo(m.last_seen)}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-1">
+                            <button
+                              onClick={() => openEdit(m)}
+                              className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                              title="Редагувати"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Видалити ${m.chip_id} з реєстру?`)) delMut.mutate(m.chip_id);
+                              }}
+                              disabled={delMut.isPending}
+                              className="rounded-md p-1.5 text-muted-foreground transition hover:bg-danger/15 hover:text-danger disabled:opacity-40"
+                              title="Видалити"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="py-16 text-center text-muted-foreground">
+                        Реєстр порожній
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
-      </Card>
+      </div>
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>Сторінка {page} з {totalPages}</span>
         <div className="flex gap-2">
           <button
             disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-            className="rounded-lg border border-border px-3 py-1.5 transition hover:bg-muted disabled:opacity-40"
+            onClick={(e) => goPage(-1, e)}
+            className="rounded border border-border/[0.1] px-3 py-1.5 transition hover:bg-muted hover:text-foreground disabled:opacity-40"
           >
-            Назад
+            ← Назад
           </button>
           <button
             disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-            className="rounded-lg border border-border px-3 py-1.5 transition hover:bg-muted disabled:opacity-40"
+            onClick={(e) => goPage(1, e)}
+            className="rounded border border-border/[0.1] px-3 py-1.5 transition hover:bg-muted hover:text-foreground disabled:opacity-40"
           >
-            Далі
+            Далі →
           </button>
         </div>
       </div>
@@ -283,7 +304,7 @@ export default function Inventory() {
             <button
               type="button"
               onClick={() => setModalOpen(false)}
-              className="rounded-lg border border-border px-4 py-2 text-sm transition hover:bg-muted"
+              className="rounded border border-border/[0.1] px-4 py-2 text-sm transition hover:bg-muted hover:text-foreground"
             >
               Скасувати
             </button>

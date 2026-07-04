@@ -14,6 +14,7 @@ import {
 import { Activity, Cpu, Clock, PlusCircle } from "lucide-react";
 import { api, type DeviceEvent } from "@/lib/api";
 import { Card, CardBody, CardHeader, CardTitle, Spinner, Stat } from "@/components/ui";
+import { useTheme } from "@/components/ThemeContext";
 import { fmtDateTime, timeAgo } from "@/lib/utils";
 
 interface StreamData {
@@ -32,16 +33,6 @@ function useStream(): StreamData | null {
   return data;
 }
 
-const chartAxis = { stroke: "#48526A", fontSize: 10, fontFamily: "'JetBrains Mono', monospace" };
-const tooltipStyle = {
-  background: "#0B0D14",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 4,
-  fontSize: 11,
-  fontFamily: "'JetBrains Mono', monospace",
-  color: "#C4CFDF",
-};
-
 const EVENT_LABEL: Record<string, string> = {
   online: "з'явилась",
   offline: "зникла",
@@ -51,8 +42,34 @@ const EVENT_LABEL: Record<string, string> = {
   first_seen: "нова мапа",
 };
 
+function useChartPalette() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  return {
+    axis: {
+      stroke: isDark ? "#5C6A80" : "#94A3B8",
+      fontSize: 10,
+      fontFamily: "'JetBrains Mono', monospace",
+    },
+    tooltip: {
+      background: isDark ? "#0B0D14" : "#FFFFFF",
+      border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+      borderRadius: 4,
+      fontSize: 11,
+      fontFamily: "'JetBrains Mono', monospace",
+      color: isDark ? "#DCE4F0" : "#0F172A",
+    },
+    primary:   isDark ? "#F59E0B" : "#D97706",
+    accent:    "#22D3EE",
+    gridArea:  isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+    gridBar:   isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+    cursor:    isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+  };
+}
+
 export default function Dashboard() {
   const stream = useStream();
+  const palette = useChartPalette();
   const { data, isLoading } = useQuery({
     queryKey: ["overview"],
     queryFn: api.overview,
@@ -101,15 +118,15 @@ export default function Dashboard() {
             <AreaChart data={trend}>
               <defs>
                 <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#F59E0B" stopOpacity={0} />
+                  <stop offset="0%" stopColor={palette.primary} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={palette.primary} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="t" {...chartAxis} minTickGap={40} />
-              <YAxis {...chartAxis} allowDecimals={false} width={30} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Area type="monotone" dataKey="online" stroke="#F59E0B" fill="url(#g)" strokeWidth={1.5} dot={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={palette.gridArea} />
+              <XAxis dataKey="t" {...palette.axis} minTickGap={40} />
+              <YAxis {...palette.axis} allowDecimals={false} width={30} />
+              <Tooltip contentStyle={palette.tooltip} />
+              <Area type="monotone" dataKey="online" stroke={palette.primary} fill="url(#g)" strokeWidth={1.5} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </CardBody>
@@ -131,7 +148,7 @@ export default function Dashboard() {
               <div className="py-6 text-center text-sm text-muted-foreground">Подій ще немає</div>
             )}
             {(stream?.events ?? []).map((e) => (
-              <div key={e.id} className="flex items-center justify-between border-b border-border/50 pb-2 text-sm last:border-0">
+              <div key={e.id} className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0">
                 <div className="flex items-center gap-2">
                   <span
                     className={
@@ -164,6 +181,7 @@ function DistroChart({
   items: { label: string; count: number }[];
   hideEmpty?: boolean;
 }) {
+  const palette = useChartPalette();
   const data = hideEmpty ? items.filter((i) => i.count > 0) : items;
   return (
     <Card>
@@ -176,11 +194,11 @@ function DistroChart({
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(200, data.length * 28)}>
             <BarChart data={data} layout="vertical" margin={{ left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 20% 18%)" horizontal={false} />
-              <XAxis type="number" {...chartAxis} allowDecimals={false} />
-              <YAxis type="category" dataKey="label" {...chartAxis} width={110} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "hsl(217 20% 16%)" }} />
-              <Bar dataKey="count" fill="hsl(199 89% 52%)" radius={[0, 4, 4, 0]} />
+              <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} horizontal={false} />
+              <XAxis type="number" {...palette.axis} allowDecimals={false} />
+              <YAxis type="category" dataKey="label" {...palette.axis} width={110} />
+              <Tooltip contentStyle={palette.tooltip} cursor={{ fill: palette.cursor }} />
+              <Bar dataKey="count" fill={palette.accent} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

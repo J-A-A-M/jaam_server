@@ -56,7 +56,7 @@ export default function Users() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b border-border/[0.1] text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-4 py-3 font-medium">Логін</th>
                 <th className="px-4 py-3 font-medium">Роль</th>
                 <th className="px-4 py-3 font-medium">Створено</th>
@@ -72,8 +72,8 @@ export default function Users() {
                 </tr>
               ) : (
                 data?.map((u) => (
-                  <tr key={u.id} className="border-b border-border/50 transition hover:bg-muted/40">
-                    <td className="px-4 py-3 font-medium">
+                  <tr key={u.id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
+                    <td className="px-4 py-3 font-medium text-foreground">
                       {u.username}
                       {u.username === user?.username && (
                         <span className="ml-2 text-xs text-muted-foreground">(ви)</span>
@@ -95,8 +95,9 @@ export default function Users() {
                           onClick={() => {
                             if (confirm(`Видалити користувача ${u.username}?`)) delMut.mutate(u.username);
                           }}
-                          className="rounded-md p-1.5 text-muted-foreground transition hover:bg-danger/15 hover:text-danger"
-                          title="Видалити"
+                          disabled={delMut.isPending || u.username === user?.username}
+                          className="rounded-md p-1.5 text-muted-foreground transition hover:bg-danger/15 hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={u.username === user?.username ? "Неможливо видалити себе" : "Видалити"}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -143,7 +144,7 @@ export default function Users() {
             <button
               type="button"
               onClick={() => setModalOpen(false)}
-              className="rounded-lg border border-border px-4 py-2 text-sm transition hover:bg-muted"
+              className="rounded border border-border/[0.1] px-4 py-2 text-sm transition hover:bg-muted hover:text-foreground"
             >
               Скасувати
             </button>

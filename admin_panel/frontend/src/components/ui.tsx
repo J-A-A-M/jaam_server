@@ -5,7 +5,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "rounded-md border border-white/[0.07] bg-card shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]",
+        "rounded-md border border-border/[0.08] bg-card shadow-[0_1px_0_rgb(var(--border)/0.04)_inset]",
         className,
       )}
       {...props}
@@ -43,9 +43,9 @@ export function Badge({
   children: ReactNode;
 }) {
   const styles = {
-    online: "bg-success/10 text-success border-success/20",
-    offline: "bg-white/[0.03] text-muted-foreground border-white/[0.06]",
-    muted: "bg-white/[0.03] text-foreground border-white/[0.06]",
+    online:  "bg-success/10 text-success border-success/20",
+    offline: "bg-muted/50 text-muted-foreground border-border/[0.08]",
+    muted:   "bg-muted/50 text-foreground border-border/[0.08]",
   }[variant];
 
   return (
@@ -87,7 +87,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cn(
-        "w-full rounded border border-white/[0.08] bg-muted/60 px-3 py-2 text-sm font-sans outline-none",
+        "w-full rounded border border-border/[0.08] bg-muted/60 px-3 py-2 text-sm font-sans text-foreground outline-none",
         "placeholder:text-muted-foreground/60 transition-colors",
         "focus:border-primary/60 focus:bg-muted",
         className,
@@ -101,7 +101,7 @@ export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLS
   return (
     <select
       className={cn(
-        "rounded border border-white/[0.08] bg-muted/60 px-3 py-2 text-sm outline-none",
+        "rounded border border-border/[0.08] bg-muted/60 px-3 py-2 text-sm text-foreground outline-none",
         "transition-colors focus:border-primary/60",
         className,
       )}
@@ -114,7 +114,7 @@ export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<H
   return (
     <textarea
       className={cn(
-        "w-full rounded border border-white/[0.08] bg-muted/60 px-3 py-2 text-sm outline-none",
+        "w-full rounded border border-border/[0.08] bg-muted/60 px-3 py-2 text-sm text-foreground outline-none",
         "placeholder:text-muted-foreground/60 transition-colors",
         "focus:border-primary/60 focus:bg-muted",
         className,
@@ -138,14 +138,14 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg animate-fade-in rounded-md border border-white/[0.1] bg-card shadow-[0_24px_64px_rgba(0,0,0,0.7)]"
+        className="w-full max-w-lg animate-fade-in rounded-md border border-border/[0.1] bg-card shadow-[0_24px_64px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-3">
+        <div className="flex items-center justify-between border-b border-border/[0.07] px-5 py-3">
           <span className="text-sm font-semibold text-foreground">{title}</span>
           <button
             onClick={onClose}
@@ -164,7 +164,7 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "h-4 w-4 animate-spin rounded-full border-2 border-white/10 border-t-primary",
+        "h-4 w-4 animate-spin rounded-full border-2 border-border/[0.12] border-t-primary",
         className,
       )}
     />

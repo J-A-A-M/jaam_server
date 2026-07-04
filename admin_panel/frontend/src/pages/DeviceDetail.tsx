@@ -4,6 +4,7 @@ import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner } from "@/components/ui";
+import { useTheme } from "@/components/ThemeContext";
 import { fmtDateTime, fmtDuration, timeAgo } from "@/lib/utils";
 
 const EVENT_LABEL: Record<string, string> = {
@@ -18,14 +19,15 @@ const EVENT_LABEL: Record<string, string> = {
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-sm">{value ?? "—"}</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-sm text-foreground">{value ?? "—"}</div>
     </div>
   );
 }
 
 export default function DeviceDetail() {
   const { chipId } = useParams();
+  const { theme } = useTheme();
   const { data, isLoading } = useQuery({
     queryKey: ["device", chipId],
     queryFn: () => api.device(chipId!),
@@ -40,6 +42,9 @@ export default function DeviceDetail() {
     );
 
   const d = data.device;
+  const tileUrl = theme === "dark"
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   return (
     <div className="space-y-6 p-6">
@@ -55,7 +60,7 @@ export default function DeviceDetail() {
             Офіційна JAAM{d.is_prototype ? " · прототип" : ""}
           </span>
         ) : (
-          <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
+          <span className="rounded-full border border-border/[0.1] bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
             Самозбірка
           </span>
         )}
@@ -113,10 +118,7 @@ export default function DeviceDetail() {
             {d.lat != null && d.lon != null ? (
               <div className="h-[260px]">
                 <MapContainer center={[d.lat, d.lon]} zoom={9} className="h-full w-full" scrollWheelZoom={false}>
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution="© OpenStreetMap"
-                  />
+                  <TileLayer url={tileUrl} attribution="© OpenStreetMap" />
                   <Marker position={[d.lat, d.lon]} />
                 </MapContainer>
               </div>
@@ -137,9 +139,9 @@ export default function DeviceDetail() {
           <CardBody className="space-y-2">
             {data.sessions.length === 0 && <div className="text-sm text-muted-foreground">Немає сесій</div>}
             {data.sessions.map((s) => (
-              <div key={s.id} className="flex items-center justify-between border-b border-border/50 pb-2 text-sm last:border-0">
+              <div key={s.id} className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0">
                 <div>
-                  <div>{fmtDateTime(s.started_at)}</div>
+                  <div className="text-foreground">{fmtDateTime(s.started_at)}</div>
                   <div className="text-xs text-muted-foreground">
                     {s.ended_at ? `завершено ${fmtDateTime(s.ended_at)}` : "триває"} · {s.server_name ?? "—"}
                     {s.ip && <span className="ml-1 font-mono">· {s.ip}</span>}
@@ -158,8 +160,8 @@ export default function DeviceDetail() {
           <CardBody className="space-y-2">
             {data.events.length === 0 && <div className="text-sm text-muted-foreground">Немає подій</div>}
             {data.events.map((e) => (
-              <div key={e.id} className="flex items-center justify-between border-b border-border/50 pb-2 text-sm last:border-0">
-                <span>{EVENT_LABEL[e.type] ?? e.type}</span>
+              <div key={e.id} className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0">
+                <span className="text-foreground">{EVENT_LABEL[e.type] ?? e.type}</span>
                 <span className="text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>
                   {timeAgo(e.ts)}
                 </span>

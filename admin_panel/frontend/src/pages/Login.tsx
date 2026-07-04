@@ -48,11 +48,11 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Amber separator */}
+        {/* Separator */}
         <div className="mb-7 flex items-center gap-3">
-          <div className="h-px flex-1 bg-white/[0.06]" />
+          <div className="h-px flex-1 bg-border/[0.07]" />
           <div className="h-px w-8 bg-primary/60" />
-          <div className="h-px flex-1 bg-white/[0.06]" />
+          <div className="h-px flex-1 bg-border/[0.07]" />
         </div>
 
         {/* Form */}
@@ -64,7 +64,7 @@ export default function Login() {
               onChange={(e) => setUsername(e.target.value)}
               autoFocus
               autoComplete="username"
-              className="w-full border-0 border-b border-white/[0.1] bg-transparent pb-2 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 transition-colors focus:border-primary/70"
+              className="w-full border-0 border-b border-border/[0.15] bg-transparent pb-2 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 transition-colors focus:border-primary/70"
             />
           </div>
           <div className="pt-1">
@@ -74,7 +74,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              className="w-full border-0 border-b border-white/[0.1] bg-transparent pb-2 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 transition-colors focus:border-primary/70"
+              className="w-full border-0 border-b border-border/[0.15] bg-transparent pb-2 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 transition-colors focus:border-primary/70"
             />
           </div>
 
