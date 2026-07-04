@@ -9,8 +9,9 @@
 #
 # Формат: список правил {"source": regionId, "targets": [regionId, ...]}.
 # Для кожного правила, якщо source присутній у наборі даних — його значення
-# створюється (або перезаписується) для кожного regionId зі списку targets.
-# Наявність власних даних у цільових регіонах НЕ перевіряється.
+# створюється для кожного regionId зі списку targets. Target з власним
+# значенням у даних НЕ перезаписується (напр., Вишгородський район отримує
+# окреме значення від сенсорів Чорнобильської зони).
 #
 # REGION_CORRECTIONS: для кожної області копіюємо її значення в усі її райони
 # (targets — regionId районів). Міста окремо не додаємо: більшість міст ділять
@@ -52,8 +53,8 @@ def apply_region_corrections(data, corrections):
     """Мутує і повертає `data` ({regionId: value}).
 
     Для кожного правила {"source": id, "targets": [id, ...]}: якщо source є в
-    `data` — його значення створюється/перезаписується для кожного target.
-    Наявність даних у цільових регіонах не перевіряється.
+    `data` — його значення створюється для кожного target, який ще не має
+    власного значення в `data`. Наявні значення targets не перезаписуються.
     """
     for rule in corrections:
         source = rule["source"]
@@ -61,5 +62,6 @@ def apply_region_corrections(data, corrections):
             continue
         value = data[source]
         for target in rule["targets"]:
-            data[target] = value
+            if target not in data:
+                data[target] = value
     return data
