@@ -9,15 +9,8 @@ RUN wget -qO /tmp/rclone.zip \
     && mv /tmp/rclone-*/rclone /usr/local/bin/ \
     && rm -rf /tmp/rclone*
 
-# supercronic — надійний cron для контейнерів (логи в stdout, не /dev/null)
-ARG SUPERCRONIC_VERSION=v0.2.33
-RUN wget -qO /usr/local/bin/supercronic \
-      "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-amd64" \
-    && chmod +x /usr/local/bin/supercronic
-
 COPY entrypoint.sh /entrypoint.sh
 COPY backup.sh     /backup.sh
-COPY crontab       /etc/backup_crontab
 RUN chmod +x /entrypoint.sh /backup.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

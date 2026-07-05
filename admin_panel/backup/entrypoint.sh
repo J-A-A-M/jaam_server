@@ -17,5 +17,12 @@ secret_access_key = ${R2_SECRET_ACCESS_KEY}
 endpoint = https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
 EOF
 
-echo "$(date -u) Backup container started. Cron schedule: twice daily at 06:00 and 18:00 UTC."
-exec supercronic /etc/backup_crontab
+# Setup busybox crond (built into Alpine, no extra packages needed)
+mkdir -p /var/spool/cron/crontabs
+printf '0 6,18 * * *\t/backup.sh\n' > /var/spool/cron/crontabs/root
+chmod 0600 /var/spool/cron/crontabs/root
+
+echo "$(date -u) Backup container started. Schedule: 06:00 and 18:00 UTC."
+
+# -f: foreground, -l 8: log level (8=debug, shows job execution)
+exec busybox crond -f -l 8

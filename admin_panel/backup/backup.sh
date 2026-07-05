@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Redirect all output to PID 1 stdout so it appears in docker logs
+exec > /proc/1/fd/1 2>&1
+
 set -euo pipefail
 
 FILENAME="jaam_admin_$(date -u +%Y-%m-%d_%H-%M).sql.gz"
