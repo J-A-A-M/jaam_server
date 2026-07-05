@@ -21,8 +21,7 @@ async def get_session() -> AsyncSession:
         yield session
 
 
-_MIGRATIONS = text(
-    """
+_MIGRATIONS = text("""
 DO $$
 BEGIN
     -- devices: custom_id → firmware_id
@@ -75,8 +74,7 @@ BEGIN
         ALTER TABLE jaam_maps ADD COLUMN map_id VARCHAR(128);
     END IF;
 END $$;
-"""
-)
+""")
 
 
 async def init_models() -> None:

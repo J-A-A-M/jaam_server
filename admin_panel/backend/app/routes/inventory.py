@@ -32,7 +32,9 @@ async def list_maps(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     q: str | None = Query(None, description="Пошук за chip_id / order / customer_info"),
-    status_: str | None = Query(None, alias="status", description="online|offline|never"),
+    status_: str | None = Query(
+        None, alias="status", description="online|offline|never"
+    ),
     is_prototype: bool | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
@@ -41,12 +43,18 @@ async def list_maps(
     if q:
         like = f"%{q}%"
         filters.append(
-            or_(JaamMap.chip_id.ilike(like), JaamMap.order_number.ilike(like), JaamMap.customer_info.ilike(like))
+            or_(
+                JaamMap.chip_id.ilike(like),
+                JaamMap.order_number.ilike(like),
+                JaamMap.customer_info.ilike(like),
+            )
         )
     if is_prototype is not None:
         filters.append(JaamMap.is_prototype.is_(is_prototype))
 
-    total = await session.scalar(select(func.count()).select_from(JaamMap).where(*filters))
+    total = await session.scalar(
+        select(func.count()).select_from(JaamMap).where(*filters)
+    )
     result = await session.execute(
         select(JaamMap)
         .where(*filters)
@@ -59,7 +67,9 @@ async def list_maps(
     chip_ids = [m.chip_id for m in maps]
     devices: dict[str, Device] = {}
     if chip_ids:
-        dev_res = await session.execute(select(Device).where(Device.chip_id.in_(chip_ids)))
+        dev_res = await session.execute(
+            select(Device).where(Device.chip_id.in_(chip_ids))
+        )
         devices = {d.chip_id: d for d in dev_res.scalars().all()}
 
     items = [_to_out(m, devices.get(m.chip_id)) for m in maps]
@@ -84,7 +94,9 @@ async def create_map(
     if not chip_id:
         raise HTTPException(status_code=400, detail="chip_id обов'язковий")
     if await session.get(JaamMap, chip_id):
-        raise HTTPException(status_code=409, detail="Мапа з таким chip_id вже є в реєстрі")
+        raise HTTPException(
+            status_code=409, detail="Мапа з таким chip_id вже є в реєстрі"
+        )
 
     m = JaamMap(
         chip_id=chip_id,

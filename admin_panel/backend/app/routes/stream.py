@@ -20,14 +20,22 @@ STREAM_INTERVAL = 5
 
 async def _snapshot() -> dict:
     async with SessionLocal() as session:
-        online = await session.scalar(select(func.count()).select_from(Device).where(Device.is_online.is_(True)))
+        online = await session.scalar(
+            select(func.count()).select_from(Device).where(Device.is_online.is_(True))
+        )
         total = await session.scalar(select(func.count()).select_from(Device))
-        events_res = await session.execute(select(DeviceEvent).order_by(DeviceEvent.ts.desc()).limit(15))
+        events_res = await session.execute(
+            select(DeviceEvent).order_by(DeviceEvent.ts.desc()).limit(15)
+        )
         events = [
             {
                 "chip_id": e.chip_id,
                 "type": e.type,
-                "ts": (e.ts.replace(tzinfo=datetime.timezone.utc) if e.ts.tzinfo is None else e.ts).isoformat(),
+                "ts": (
+                    e.ts.replace(tzinfo=datetime.timezone.utc)
+                    if e.ts.tzinfo is None
+                    else e.ts
+                ).isoformat(),
                 "details": e.details,
             }
             for e in events_res.scalars().all()

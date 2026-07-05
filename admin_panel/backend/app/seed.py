@@ -17,6 +17,15 @@ async def seed_admin() -> None:
         count = await session.scalar(select(func.count()).select_from(User))
         if count:
             return
-        session.add(User(username=ADMIN_USER, password_hash=hash_password(ADMIN_PASSWORD), role="admin"))
+        session.add(
+            User(
+                username=ADMIN_USER,
+                password_hash=hash_password(ADMIN_PASSWORD),
+                role="admin",
+            )
+        )
         await session.commit()
-        logger.warning("Створено адміністратора '%s' (змініть пароль через ADMIN_PASSWORD)", ADMIN_USER)
+        logger.warning(
+            "Створено адміністратора '%s' (змініть пароль через ADMIN_PASSWORD)",
+            ADMIN_USER,
+        )

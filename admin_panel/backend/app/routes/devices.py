@@ -45,7 +45,9 @@ async def list_devices(
     region: str | None = None,
     country: str | None = None,
     server: str | None = None,
-    type_: str | None = Query(None, alias="type", description="jaam|self — офіційна JAAM чи самозбірка"),
+    type_: str | None = Query(
+        None, alias="type", description="jaam|self — офіційна JAAM чи самозбірка"
+    ),
     sort: str = "last_seen",
     order: str = "desc",
     page: int = Query(1, ge=1),
@@ -54,7 +56,13 @@ async def list_devices(
     filters = []
     if q:
         like = f"%{q}%"
-        filters.append(or_(Device.chip_id.ilike(like), Device.firmware_id.ilike(like), Device.city.ilike(like)))
+        filters.append(
+            or_(
+                Device.chip_id.ilike(like),
+                Device.firmware_id.ilike(like),
+                Device.city.ilike(like),
+            )
+        )
     if status_ == "online":
         filters.append(Device.is_online.is_(True))
     elif status_ == "offline":
@@ -74,13 +82,19 @@ async def list_devices(
     elif type_ == "self":
         filters.append(Device.chip_id.not_in(select(JaamMap.chip_id)))
 
-    total = await session.scalar(select(func.count()).select_from(Device).where(*filters))
+    total = await session.scalar(
+        select(func.count()).select_from(Device).where(*filters)
+    )
 
     sort_col = _SORT_COLUMNS.get(sort, Device.last_seen)
     sort_col = sort_col.desc() if order == "desc" else sort_col.asc()
 
     result = await session.execute(
-        select(Device).where(*filters).order_by(sort_col).offset((page - 1) * page_size).limit(page_size)
+        select(Device)
+        .where(*filters)
+        .order_by(sort_col)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     devices = result.scalars().all()
 
@@ -88,7 +102,9 @@ async def list_devices(
     chip_ids = [d.chip_id for d in devices]
     registry: dict[str, JaamMap] = {}
     if chip_ids:
-        reg_res = await session.execute(select(JaamMap).where(JaamMap.chip_id.in_(chip_ids)))
+        reg_res = await session.execute(
+            select(JaamMap).where(JaamMap.chip_id.in_(chip_ids))
+        )
         registry = {m.chip_id: m for m in reg_res.scalars().all()}
 
     items = [_device_out(d, registry.get(d.chip_id)) for d in devices]
@@ -112,14 +128,25 @@ async def device_detail(
         # Мапа є в реєстрі, але ще жодного разу не виходила онлайн
         stub = DeviceOut(
             chip_id=reg.chip_id,
-            firmware=None, firmware_id=None, hw_type=None,
+            firmware=None,
+            firmware_id=None,
+            hw_type=None,
             is_online=False,
             first_seen=reg.created_at,
             last_seen=reg.created_at,
-            last_online_at=None, connect_time=None, last_ip=None,
-            city=None, region=None, country=None, org=None,
-            location=None, lat=None, lon=None,
-            latency=None, secure_connection=None, last_server=None,
+            last_online_at=None,
+            connect_time=None,
+            last_ip=None,
+            city=None,
+            region=None,
+            country=None,
+            org=None,
+            location=None,
+            lat=None,
+            lon=None,
+            latency=None,
+            secure_connection=None,
+            last_server=None,
             is_jaam=True,
             map_id=reg.map_id,
             hw_version=reg.hw_version,
@@ -136,7 +163,10 @@ async def device_detail(
         .limit(100)
     )
     events_res = await session.execute(
-        select(DeviceEvent).where(DeviceEvent.chip_id == chip_id).order_by(DeviceEvent.ts.desc()).limit(100)
+        select(DeviceEvent)
+        .where(DeviceEvent.chip_id == chip_id)
+        .order_by(DeviceEvent.ts.desc())
+        .limit(100)
     )
     return DeviceDetailOut(
         device=_device_out(device, reg),

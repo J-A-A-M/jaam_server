@@ -62,12 +62,16 @@ def dedup_by_chip_id(records: list[tuple[str, dict]]) -> dict[str, dict]:
             continue
         value = {**value, "_server": server_name}
         prev = best.get(chip_id)
-        if prev is None or (value.get("connect_time") or "") > (prev.get("connect_time") or ""):
+        if prev is None or (value.get("connect_time") or "") > (
+            prev.get("connect_time") or ""
+        ):
             best[chip_id] = value
     return best
 
 
-async def _add_event(session, chip_id: str, event_type: str, details: dict | None = None) -> None:
+async def _add_event(
+    session, chip_id: str, event_type: str, details: dict | None = None
+) -> None:
     session.add(
         DeviceEvent(
             chip_id=chip_id,
@@ -77,7 +81,9 @@ async def _add_event(session, chip_id: str, event_type: str, details: dict | Non
     )
 
 
-async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.datetime) -> None:
+async def _apply_snapshot(
+    session, chip_id: str, value: dict, now: datetime.datetime
+) -> None:
     firmware, firmware_id = _split_firmware(value.get("firmware"))
     server_name = value.get("_server")
     connect_time = value.get("connect_time")
@@ -113,7 +119,11 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
     latency = value.get("latency")
     device.latency = latency if isinstance(latency, int) else device.latency
     sc = value.get("secure_connection")
-    device.secure_connection = (sc.lower() == "true") if isinstance(sc, str) else bool(sc) if sc is not None else None
+    device.secure_connection = (
+        (sc.lower() == "true")
+        if isinstance(sc, str)
+        else bool(sc) if sc is not None else None
+    )
     device.last_server = server_name
 
     # Події
@@ -122,9 +132,21 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
     if was_offline:
         await _add_event(session, chip_id, "online", {"server": server_name})
     if not is_new and prev_firmware and firmware and prev_firmware != firmware:
-        await _add_event(session, chip_id, "firmware_change", {"from": prev_firmware, "to": firmware})
-    if not is_new and prev_location and device.location and prev_location != device.location:
-        await _add_event(session, chip_id, "geo_change", {"from": prev_location, "to": device.location})
+        await _add_event(
+            session, chip_id, "firmware_change", {"from": prev_firmware, "to": firmware}
+        )
+    if (
+        not is_new
+        and prev_location
+        and device.location
+        and prev_location != device.location
+    ):
+        await _add_event(
+            session,
+            chip_id,
+            "geo_change",
+            {"from": prev_location, "to": device.location},
+        )
     new_ip = value.get("ip")
     if not is_new and not was_offline and prev_ip and new_ip and prev_ip != new_ip:
         await _add_event(session, chip_id, "ip_change", {"from": prev_ip, "to": new_ip})
@@ -150,7 +172,9 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
 
 async def _close_open_sessions(session, chip_id: str, now: datetime.datetime) -> None:
     result = await session.execute(
-        select(DeviceSession).where(DeviceSession.chip_id == chip_id, DeviceSession.ended_at.is_(None))
+        select(DeviceSession).where(
+            DeviceSession.chip_id == chip_id, DeviceSession.ended_at.is_(None)
+        )
     )
     for s in result.scalars().all():
         s.ended_at = now
@@ -160,10 +184,14 @@ async def _close_open_sessions(session, chip_id: str, now: datetime.datetime) ->
         s.duration_sec = int((now - started).total_seconds()) if started else None
 
 
-async def _mark_stale_offline(session, seen_chip_ids: set[str], now: datetime.datetime) -> int:
+async def _mark_stale_offline(
+    session, seen_chip_ids: set[str], now: datetime.datetime
+) -> int:
     """Позначає офлайн ті пристрої, яких не бачили довше за поріг."""
     threshold = now - datetime.timedelta(seconds=OFFLINE_AFTER_SECONDS)
-    result = await session.execute(select(Device).where(Device.is_online.is_(True), Device.last_seen < threshold))
+    result = await session.execute(
+        select(Device).where(Device.is_online.is_(True), Device.last_seen < threshold)
+    )
     count = 0
     for device in result.scalars().all():
         if device.chip_id in seen_chip_ids:
@@ -178,7 +206,9 @@ async def _mark_stale_offline(session, seen_chip_ids: set[str], now: datetime.da
 
 async def collect_once(servers: list[RedisServer]) -> dict:
     now = utcnow()
-    scans = await asyncio.gather(*[scan_clients(s.client) for s in servers], return_exceptions=True)
+    scans = await asyncio.gather(
+        *[scan_clients(s.client) for s in servers], return_exceptions=True
+    )
     records: list[tuple[str, dict]] = []
     per_server: dict[str, int] = {}
     for server, result in zip(servers, scans):
@@ -198,7 +228,11 @@ async def collect_once(servers: list[RedisServer]) -> dict:
         offline = await _mark_stale_offline(session, set(deduped.keys()), now)
         await session.commit()
 
-    stats = {"online_unique": len(deduped), "marked_offline": offline, "per_server": per_server}
+    stats = {
+        "online_unique": len(deduped),
+        "marked_offline": offline,
+        "per_server": per_server,
+    }
     logger.info("Цикл збору: %s", stats)
     return stats
 

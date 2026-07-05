@@ -37,7 +37,12 @@ def build_servers() -> list[RedisServer]:
             health_check_interval=30,
         )
         servers.append(RedisServer(redis_name(cfg, idx), client))
-        logger.info("Redis-сервер налаштовано: %s (%s:%s)", redis_name(cfg, idx), cfg.get("host"), cfg.get("port"))
+        logger.info(
+            "Redis-сервер налаштовано: %s (%s:%s)",
+            redis_name(cfg, idx),
+            cfg.get("host"),
+            cfg.get("port"),
+        )
     return servers
 
 

@@ -17,7 +17,9 @@ from .redis_util import build_servers
 from .routes import auth, devices, geo, inventory, overview, servers, stream, users
 from .seed import seed_admin
 
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
+logging.basicConfig(
+    level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s : %(message)s"
+)
 logger = logging.getLogger("admin_panel")
 
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/app/static"))
@@ -30,7 +32,9 @@ async def lifespan(app: FastAPI):
     app.state.redis_servers = build_servers()
     stop_event = asyncio.Event()
     app.state.stop_event = stop_event
-    app.state.collector_task = asyncio.create_task(run_collector(app.state.redis_servers, stop_event))
+    app.state.collector_task = asyncio.create_task(
+        run_collector(app.state.redis_servers, stop_event)
+    )
     logger.info("Адмін-панель запущена на порту %s", PORT)
     try:
         yield
@@ -73,4 +77,6 @@ if STATIC_DIR.exists():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=PORT, proxy_headers=True, forwarded_allow_ips=["*"])
+    uvicorn.run(
+        app, host="0.0.0.0", port=PORT, proxy_headers=True, forwarded_allow_ips=["*"]
+    )

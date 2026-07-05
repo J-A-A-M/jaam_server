@@ -37,7 +37,9 @@ async def create_user(
     if exists:
         raise HTTPException(status_code=409, detail="Користувач із таким логіном вже є")
 
-    user = User(username=username, password_hash=hash_password(body.password), role=body.role)
+    user = User(
+        username=username, password_hash=hash_password(body.password), role=body.role
+    )
     session.add(user)
     await session.commit()
     await session.refresh(user)
@@ -56,7 +58,9 @@ async def delete_user(
 
     total = await session.scalar(select(func.count()).select_from(User))
     if total <= 1:
-        raise HTTPException(status_code=400, detail="Не можна видалити останнього користувача")
+        raise HTTPException(
+            status_code=400, detail="Не можна видалити останнього користувача"
+        )
 
     await session.delete(user)
     await session.commit()

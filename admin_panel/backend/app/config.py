@@ -61,7 +61,9 @@ def parse_redis_hosts() -> list[dict]:
             if isinstance(hosts, list) and hosts:
                 return hosts
         except json.JSONDecodeError:
-            logger.error("REDIS_HOSTS не є валідним JSON, використовую одиночний REDIS_HOST")
+            logger.error(
+                "REDIS_HOSTS не є валідним JSON, використовую одиночний REDIS_HOST"
+            )
     return [
         {
             "host": _redis_host,

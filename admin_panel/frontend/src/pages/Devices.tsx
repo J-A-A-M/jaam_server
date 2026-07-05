@@ -99,11 +99,13 @@ export default function Devices() {
                         <td className="hidden px-4 py-3 sm:table-cell">
                           {d.is_jaam ? (
                             <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary" title={d.customer_info ?? undefined}>
-                              JAAM{d.hw_version ? ` ${d.hw_version}` : ""}
+                              {d.hw_version ?? "JAAM"}
                               {d.is_prototype ? " · прот." : ""}
                             </span>
                           ) : (
-                            <span className="text-xs text-muted-foreground">самозбірка</span>
+                            <span className="inline-flex items-center rounded-full border border-border/[0.15] bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                              SELF
+                            </span>
                           )}
                         </td>
                         <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">{d.firmware ?? "—"}</td>
