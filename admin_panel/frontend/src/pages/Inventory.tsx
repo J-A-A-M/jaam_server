@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, FlaskConical } from "lucide-react";
 import { api, type JaamMap, type JaamMapInput } from "@/lib/api";
 import { Badge, Button, Card, Input, Modal, Select, Spinner, SortTh, Textarea } from "@/components/ui";
@@ -11,17 +11,38 @@ const EMPTY: JaamMapInput = { chip_id: "", map_id: "", hw_version: "JAAM3.2", is
 
 export default function Inventory() {
   const qc = useQueryClient();
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
-  const [sort, setSort] = useState("chip_id");
-  const [dir, setDir] = useState<"asc" | "desc">("asc");
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const q      = searchParams.get("q") ?? "";
+  const status = searchParams.get("status") ?? "";
+  const sort   = searchParams.get("sort") ?? "chip_id";
+  const dir    = (searchParams.get("dir") ?? "asc") as "asc" | "desc";
+  const page   = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = 50;
 
+  const set = (updates: Record<string, string>, resetPage = true) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(updates)) {
+        if (v) next.set(k, v); else next.delete(k);
+      }
+      if (resetPage) next.delete("page");
+      return next;
+    }, { replace: true });
+  };
+
   const onSort = (col: string) => {
-    if (col === sort) setDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSort(col); setDir("asc"); }
-    setPage(1);
+    if (col === sort) set({ sort: col, dir: dir === "asc" ? "desc" : "asc" });
+    else set({ sort: col, dir: "asc" });
+  };
+
+  const goPage = (delta: number) => {
+    const p = page + delta;
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (p <= 1) next.delete("page"); else next.set("page", String(p));
+      return next;
+    }, { replace: true });
   };
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -59,7 +80,6 @@ export default function Inventory() {
   };
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
-  const goPage = (dir: number) => setPage((p) => p + dir);
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
@@ -82,10 +102,10 @@ export default function Inventory() {
             className="pl-9"
             placeholder="Пошук за chip_id, замовленням…"
             value={q}
-            onChange={(e) => { setQ(e.target.value); setPage(1); }}
+            onChange={(e) => set({ q: e.target.value })}
           />
         </div>
-        <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+        <Select value={status} onChange={(e) => set({ status: e.target.value })}>
           <option value="">Будь-який стан</option>
           <option value="online">Онлайн</option>
           <option value="offline">Офлайн</option>

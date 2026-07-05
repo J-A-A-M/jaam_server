@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import { ArrowLeft, FlaskConical } from "lucide-react";
 import { api } from "@/lib/api";
@@ -59,6 +59,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function DeviceDetail() {
   const { chipId } = useParams();
+  const navigate = useNavigate();
   const { theme } = useTheme();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["device", chipId],
@@ -76,9 +77,9 @@ export default function DeviceDetail() {
   if (isError || !data)
     return (
       <div className="space-y-4 p-4 sm:p-6">
-        <Link to="/devices" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> До списку
-        </Link>
+        </button>
         <div className="rounded-lg border border-border/[0.1] bg-card px-6 py-12 text-center text-muted-foreground">
           {(error as { status?: number })?.status === 404
             ? "Мапу не знайдено"
@@ -94,9 +95,9 @@ export default function DeviceDetail() {
 
   return (
     <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
-      <Link to="/devices" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> До списку
-      </Link>
+      </button>
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <h1 className="break-all font-mono text-xl font-bold sm:text-2xl">{d.chip_id}</h1>

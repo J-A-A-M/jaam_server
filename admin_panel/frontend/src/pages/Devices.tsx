@@ -1,36 +1,54 @@
-import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Search, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
 import { api } from "@/lib/api";
 import { Badge, Card, Input, Select, Spinner, SortTh } from "@/components/ui";
 import { cn, timeAgo } from "@/lib/utils";
 
 export default function Devices() {
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
-  const [type_, setType] = useState("");
-  const [sort, setSort] = useState("last_seen");
-  const [dir, setDir] = useState<"asc" | "desc">("desc");
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const q      = searchParams.get("q") ?? "";
+  const status = searchParams.get("status") ?? "";
+  const type_  = searchParams.get("type") ?? "";
+  const sort   = searchParams.get("sort") ?? "last_seen";
+  const dir    = (searchParams.get("dir") ?? "desc") as "asc" | "desc";
+  const page   = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = 50;
 
+  const set = (updates: Record<string, string>, resetPage = true) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(updates)) {
+        if (v) next.set(k, v); else next.delete(k);
+      }
+      if (resetPage) next.delete("page");
+      return next;
+    }, { replace: true });
+  };
+
   const onSort = (col: string) => {
-    if (col === sort) setDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSort(col); setDir("asc"); }
-    setPage(1);
+    if (col === sort) set({ sort: col, dir: dir === "asc" ? "desc" : "asc" });
+    else set({ sort: col, dir: "asc" });
+  };
+
+  const goPage = (delta: number) => {
+    const p = page + delta;
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (p <= 1) next.delete("page"); else next.set("page", String(p));
+      return next;
+    }, { replace: true });
   };
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["devices", q, status, type_, sort, dir, page],
-    queryFn: () =>
-      api.devices({ q, status, type: type_, page, page_size: pageSize, sort, order: dir }),
+    queryFn: () => api.devices({ q, status, type: type_, page, page_size: pageSize, sort, order: dir }),
     refetchInterval: 15000,
     placeholderData: keepPreviousData,
   });
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
-  const goPage = (dir: number) => setPage((p) => p + dir);
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
@@ -48,14 +66,14 @@ export default function Devices() {
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input className="pl-9" placeholder="Пошук за chip_id або містом…" value={q}
-            onChange={(e) => { setQ(e.target.value); setPage(1); }} />
+            onChange={(e) => set({ q: e.target.value })} />
         </div>
-        <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+        <Select value={status} onChange={(e) => set({ status: e.target.value })}>
           <option value="">Усі статуси</option>
           <option value="online">Онлайн</option>
           <option value="offline">Офлайн</option>
         </Select>
-        <Select value={type_} onChange={(e) => { setType(e.target.value); setPage(1); }}>
+        <Select value={type_} onChange={(e) => set({ type: e.target.value })}>
           <option value="">Усі типи</option>
           <option value="jaam">Офіційні JAAM</option>
           <option value="self">Самозбірки</option>
