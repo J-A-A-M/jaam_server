@@ -21,6 +21,7 @@ async def get_session() -> AsyncSession:
         yield session
 
 
+# fmt: off
 _MIGRATIONS = text("""
 DO $$
 BEGIN
@@ -83,6 +84,7 @@ BEGIN
         WHERE firmware ~* '[-_](c3|s3)$';
 END $$;
 """)
+# fmt: on
 
 
 async def init_models() -> None:
