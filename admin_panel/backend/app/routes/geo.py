@@ -32,9 +32,7 @@ async def geo_points(
         filters.append(JaamMap.chip_id.is_(None))
 
     j = outerjoin(Device, JaamMap, Device.chip_id == JaamMap.chip_id)
-    result = await session.execute(
-        select(Device, JaamMap).select_from(j).where(*filters)
-    )
+    result = await session.execute(select(Device, JaamMap).select_from(j).where(*filters))
     points = []
     for d, reg in result.all():
         last_seen = d.last_seen

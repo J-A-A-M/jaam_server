@@ -43,12 +43,8 @@ def _to_out(m: JaamMap, device: Device | None) -> JaamMapOut:
 async def list_maps(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-    q: str | None = Query(
-        None, description="Пошук за chip_id / map_id / order / customer_info"
-    ),
-    status_: str | None = Query(
-        None, alias="status", description="online|offline|never"
-    ),
+    q: str | None = Query(None, description="Пошук за chip_id / map_id / order / customer_info"),
+    status_: str | None = Query(None, alias="status", description="online|offline|never"),
     is_prototype: bool | None = None,
     sort: str = "chip_id",
     order: str = "asc",
@@ -77,16 +73,11 @@ async def list_maps(
         filters.append(Device.chip_id.is_(None))
 
     total = await session.scalar(
-        select(func.count())
-        .select_from(JaamMap)
-        .outerjoin(Device, JaamMap.chip_id == Device.chip_id)
-        .where(*filters)
+        select(func.count()).select_from(JaamMap).outerjoin(Device, JaamMap.chip_id == Device.chip_id).where(*filters)
     )
 
     sort_col = _SORT_COLUMNS.get(sort, JaamMap.chip_id)
-    sort_expr = (
-        sort_col.desc().nulls_last() if order == "desc" else sort_col.asc().nulls_last()
-    )
+    sort_expr = sort_col.desc().nulls_last() if order == "desc" else sort_col.asc().nulls_last()
 
     result = await session.execute(
         select(JaamMap, Device)
@@ -111,9 +102,7 @@ async def create_map(
     if not chip_id:
         raise HTTPException(status_code=400, detail="chip_id обов'язковий")
     if await session.get(JaamMap, chip_id):
-        raise HTTPException(
-            status_code=409, detail="Мапа з таким chip_id вже є в реєстрі"
-        )
+        raise HTTPException(status_code=409, detail="Мапа з таким chip_id вже є в реєстрі")
 
     m = JaamMap(
         chip_id=chip_id,

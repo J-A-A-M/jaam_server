@@ -19,11 +19,7 @@ async def servers(request: Request, user: dict = Depends(get_current_user)):
         try:
             await server.client.ping()
             online = await count_clients(server.client)
-            out.append(
-                ServerStatus(name=server.name, ok=True, online=online, checked_at=now)
-            )
+            out.append(ServerStatus(name=server.name, ok=True, online=online, checked_at=now))
         except Exception:  # noqa: BLE001
-            out.append(
-                ServerStatus(name=server.name, ok=False, online=0, checked_at=now)
-            )
+            out.append(ServerStatus(name=server.name, ok=False, online=0, checked_at=now))
     return out

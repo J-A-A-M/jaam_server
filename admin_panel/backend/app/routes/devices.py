@@ -48,9 +48,7 @@ async def list_devices(
     region: str | None = None,
     country: str | None = None,
     server: str | None = None,
-    type_: str | None = Query(
-        None, alias="type", description="jaam|self — офіційна JAAM чи самозбірка"
-    ),
+    type_: str | None = Query(None, alias="type", description="jaam|self — офіційна JAAM чи самозбірка"),
     sort: str = "last_seen",
     order: str = "desc",
     page: int = Query(1, ge=1),
@@ -85,19 +83,13 @@ async def list_devices(
     elif type_ == "self":
         filters.append(Device.chip_id.not_in(select(JaamMap.chip_id)))
 
-    total = await session.scalar(
-        select(func.count()).select_from(Device).where(*filters)
-    )
+    total = await session.scalar(select(func.count()).select_from(Device).where(*filters))
 
     sort_col = _SORT_COLUMNS.get(sort, Device.last_seen)
     sort_col = sort_col.desc() if order == "desc" else sort_col.asc()
 
     result = await session.execute(
-        select(Device)
-        .where(*filters)
-        .order_by(sort_col)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        select(Device).where(*filters).order_by(sort_col).offset((page - 1) * page_size).limit(page_size)
     )
     devices = result.scalars().all()
 
@@ -105,9 +97,7 @@ async def list_devices(
     chip_ids = [d.chip_id for d in devices]
     registry: dict[str, JaamMap] = {}
     if chip_ids:
-        reg_res = await session.execute(
-            select(JaamMap).where(JaamMap.chip_id.in_(chip_ids))
-        )
+        reg_res = await session.execute(select(JaamMap).where(JaamMap.chip_id.in_(chip_ids)))
         registry = {m.chip_id: m for m in reg_res.scalars().all()}
 
     items = [_device_out(d, registry.get(d.chip_id)) for d in devices]
@@ -166,10 +156,7 @@ async def device_detail(
         .limit(100)
     )
     events_res = await session.execute(
-        select(DeviceEvent)
-        .where(DeviceEvent.chip_id == chip_id)
-        .order_by(DeviceEvent.ts.desc())
-        .limit(100)
+        select(DeviceEvent).where(DeviceEvent.chip_id == chip_id).order_by(DeviceEvent.ts.desc()).limit(100)
     )
     return DeviceDetailOut(
         device=_device_out(device, reg),

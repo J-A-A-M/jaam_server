@@ -23,15 +23,9 @@ class Device(Base):
     hw_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
 
     is_online: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    first_seen: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow
-    )
-    last_seen: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, index=True
-    )
-    last_online_at: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    first_seen: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    last_online_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     connect_time: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     last_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -46,16 +40,10 @@ class Device(Base):
 
     latency: Mapped[int | None] = mapped_column(Integer, nullable=True)
     secure_connection: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    last_server: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, index=True
-    )
+    last_server: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
-    sessions: Mapped[list["DeviceSession"]] = relationship(
-        back_populates="device", cascade="all, delete-orphan"
-    )
-    events: Mapped[list["DeviceEvent"]] = relationship(
-        back_populates="device", cascade="all, delete-orphan"
-    )
+    sessions: Mapped[list["DeviceSession"]] = relationship(back_populates="device", cascade="all, delete-orphan")
+    events: Mapped[list["DeviceEvent"]] = relationship(back_populates="device", cascade="all, delete-orphan")
 
 
 class DeviceSession(Base):
@@ -64,17 +52,11 @@ class DeviceSession(Base):
     __tablename__ = "device_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    chip_id: Mapped[str] = mapped_column(
-        ForeignKey("devices.chip_id", ondelete="CASCADE"), index=True
-    )
+    chip_id: Mapped[str] = mapped_column(ForeignKey("devices.chip_id", ondelete="CASCADE"), index=True)
     server_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     connect_time: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    started_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, index=True
-    )
-    ended_at: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    started_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    ended_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
     firmware: Mapped[str | None] = mapped_column(String(64), nullable=True)
     firmware_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -91,13 +73,9 @@ class DeviceEvent(Base):
     __tablename__ = "device_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    chip_id: Mapped[str] = mapped_column(
-        ForeignKey("devices.chip_id", ondelete="CASCADE"), index=True
-    )
+    chip_id: Mapped[str] = mapped_column(ForeignKey("devices.chip_id", ondelete="CASCADE"), index=True)
     type: Mapped[str] = mapped_column(String(32), index=True)
-    ts: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, index=True
-    )
+    ts: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON-рядок
 
     device: Mapped[Device] = relationship(back_populates="events")
@@ -114,20 +92,12 @@ class JaamMap(Base):
 
     chip_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     map_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    hw_version: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, index=True
-    )
+    hw_version: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     is_prototype: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    order_number: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, index=True
-    )
+    order_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     customer_info: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow
-    )
-    updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class User(Base):
@@ -139,6 +109,4 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(256))
     role: Mapped[str] = mapped_column(String(16), default="admin")
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

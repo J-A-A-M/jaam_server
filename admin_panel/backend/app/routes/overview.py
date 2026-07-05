@@ -80,9 +80,7 @@ async def overview(
     now = utcnow()
     day_ago = now - datetime.timedelta(hours=24)
 
-    online_now = await session.scalar(
-        select(func.count()).select_from(Device).where(Device.is_online.is_(True))
-    )
+    online_now = await session.scalar(select(func.count()).select_from(Device).where(Device.is_online.is_(True)))
     total_registered = await session.scalar(select(func.count()).select_from(Device))
     registry_total = await session.scalar(select(func.count()).select_from(JaamMap))
     jaam_online = await session.scalar(
@@ -91,17 +89,11 @@ async def overview(
         .where(Device.is_online.is_(True), Device.chip_id.in_(select(JaamMap.chip_id)))
     )
     self_online = (online_now or 0) - (jaam_online or 0)
-    unique_24h = await session.scalar(
-        select(func.count()).select_from(Device).where(Device.last_seen >= day_ago)
-    )
-    new_24h = await session.scalar(
-        select(func.count()).select_from(Device).where(Device.first_seen >= day_ago)
-    )
+    unique_24h = await session.scalar(select(func.count()).select_from(Device).where(Device.last_seen >= day_ago))
+    new_24h = await session.scalar(select(func.count()).select_from(Device).where(Device.first_seen >= day_ago))
 
     # Тривалості поточного онлайну — з connect_time мап (реальна тривалість, як у maps_online)
-    online_rows = await session.execute(
-        select(Device.connect_time).where(Device.is_online.is_(True))
-    )
+    online_rows = await session.execute(select(Device.connect_time).where(Device.is_online.is_(True)))
     durations_min = []
     for (raw,) in online_rows.all():
         ct = _connect_time_to_utc(raw)
@@ -117,15 +109,11 @@ async def overview(
             older += 1
         else:
             hist[int(d // BUCKET_MINUTES)] += 1
-    hist_labels = [
-        _duration_label((i + 1) * BUCKET_MINUTES) for i in range(total_buckets)
-    ]
+    hist_labels = [_duration_label((i + 1) * BUCKET_MINUTES) for i in range(total_buckets)]
     if older:
         hist_labels[-1] = f">{HISTORY_HOURS}г"
         hist[-1] += older
-    duration_histogram = [
-        CountItem(label=l, count=c) for l, c in zip(hist_labels, hist)
-    ]
+    duration_histogram = [CountItem(label=l, count=c) for l, c in zip(hist_labels, hist)]
 
     # Тренд онлайну за 24 год з історії сесій (сесія активна в момент t, якщо started<=t<ended|now)
     sess_res = await session.execute(

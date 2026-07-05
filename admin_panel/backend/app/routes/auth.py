@@ -15,15 +15,11 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=UserOut)
-async def login(
-    body: LoginRequest, response: Response, session: AsyncSession = Depends(get_session)
-):
+async def login(body: LoginRequest, response: Response, session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(User).where(User.username == body.username))
     user = result.scalar_one_or_none()
     if not user or not verify_password(body.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Невірний логін або пароль"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Невірний логін або пароль")
 
     token = create_token(user.username, user.role)
     response.set_cookie(
