@@ -89,7 +89,7 @@ export default function MapPage() {
     : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   return (
-    <div className="relative" style={{ height: "calc(100vh - 53px)" }}>
+    <div className="relative isolate" style={{ height: "calc(100vh - 53px)" }}>
       {/* On desktop (no mobile header), use full vh */}
       <style>{`@media (min-width: 768px) { .map-root { height: 100vh !important; } }`}</style>
       <div className="map-root absolute inset-0">
