@@ -21,8 +21,7 @@ async def get_session() -> AsyncSession:
         yield session
 
 
-_MIGRATIONS = text(
-    """
+_MIGRATIONS = text("""
 DO $$
 BEGIN
     -- devices: custom_id → firmware_id
@@ -74,9 +73,16 @@ BEGIN
                   WHERE table_name='jaam_maps' AND column_name='map_id') THEN
         ALTER TABLE jaam_maps ADD COLUMN map_id VARCHAR(128);
     END IF;
+
+    -- strip -c3/-s3 chip suffixes from firmware versions (hw_type stores this separately)
+    UPDATE devices
+        SET firmware = regexp_replace(firmware, '[-_](c3|s3)$', '', 'i')
+        WHERE firmware ~* '[-_](c3|s3)$';
+    UPDATE device_sessions
+        SET firmware = regexp_replace(firmware, '[-_](c3|s3)$', '', 'i')
+        WHERE firmware ~* '[-_](c3|s3)$';
 END $$;
-"""
-)
+""")
 
 
 async def init_models() -> None:

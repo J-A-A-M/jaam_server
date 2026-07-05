@@ -8,6 +8,7 @@
 import asyncio
 import datetime
 import json
+import re
 import logging
 
 from sqlalchemy import select, update
@@ -30,12 +31,17 @@ def _parse_location(loc: str | None) -> tuple[float | None, float | None]:
         return None, None
 
 
+def _strip_chip_suffix(version: str) -> str:
+    """Прибирає суфікси -c3/-s3 з версії прошивки (вони зберігаються окремо в hw_type)."""
+    return re.sub(r"[-_](c3|s3)$", "", version, flags=re.IGNORECASE)
+
+
 def _split_firmware(raw: str | None) -> tuple[str | None, str | None]:
     """Розбиває 'version_id' → (version, id). Якщо '_' немає — (raw, None)."""
     if raw and "_" in raw:
         version, fid = raw.split("_", 1)
-        return version, fid
-    return raw, None
+        return _strip_chip_suffix(version), fid
+    return (_strip_chip_suffix(raw) if raw else raw), None
 
 
 def _hw_type(value: dict) -> str | None:
