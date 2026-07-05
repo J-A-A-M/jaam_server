@@ -177,6 +177,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     } catch { /* ignore */ }
     throw new ApiError(res.status, detail);
   }
+  if (res.status === 204 || res.headers.get("Content-Length") === "0") return undefined as T;
   return res.json() as Promise<T>;
 }
 
