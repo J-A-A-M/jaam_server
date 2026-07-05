@@ -59,6 +59,15 @@ BEGIN
                            THEN substring(firmware FROM 1 FOR position('_' IN firmware) - 1)
                            ELSE firmware END
     WHERE firmware IS NOT NULL AND position('_' IN firmware) > 0;
+
+    -- Backfill hw_type from firmware name for devices that have no hw_type yet
+    UPDATE devices
+    SET hw_type = CASE
+        WHEN lower(firmware) LIKE '%c3%' THEN 'ESP32-C3'
+        WHEN lower(firmware) LIKE '%s3%' THEN 'ESP32-S3'
+        ELSE 'ESP32'
+    END
+    WHERE firmware IS NOT NULL AND hw_type IS NULL;
 END $$;
 """
 )

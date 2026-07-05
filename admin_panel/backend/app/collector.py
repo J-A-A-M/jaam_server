@@ -43,6 +43,13 @@ def _hw_type(value: dict) -> str | None:
         v = value.get(key)
         if v not in (None, ""):
             return str(v)
+    firmware = (value.get("firmware") or "").lower()
+    if firmware:
+        if "c3" in firmware:
+            return "ESP32-C3"
+        if "s3" in firmware:
+            return "ESP32-S3"
+        return "ESP32"
     return None
 
 
