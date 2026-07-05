@@ -151,6 +151,13 @@ export interface PanelUserInput {
   role: string;
 }
 
+export interface PasskeyCredential {
+  id: number;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -219,4 +226,24 @@ export const api = {
     req<PanelUser>("/api/users", { method: "POST", body: JSON.stringify(body) }),
   deleteUser: (username: string) =>
     req<void>(`/api/users/${encodeURIComponent(username)}`, { method: "DELETE" }),
+
+  webauthn: {
+    registerBegin: (name: string) =>
+      req<object>("/api/webauthn/register/begin", { method: "POST", body: JSON.stringify({ name }) }),
+    registerComplete: (credential: object) =>
+      req<{ ok: boolean; id: number; name: string }>("/api/webauthn/register/complete", {
+        method: "POST",
+        body: JSON.stringify(credential),
+      }),
+    authBegin: () =>
+      req<{ session_id: string; options: object }>("/api/webauthn/auth/begin", { method: "POST" }),
+    authComplete: (session_id: string, credential: object) =>
+      req<{ username: string; role: string }>("/api/webauthn/auth/complete", {
+        method: "POST",
+        body: JSON.stringify({ session_id, credential }),
+      }),
+    credentials: () => req<PasskeyCredential[]>("/api/webauthn/credentials"),
+    deleteCredential: (id: number) =>
+      req<void>(`/api/webauthn/credentials/${id}`, { method: "DELETE" }),
+  },
 };

@@ -15,6 +15,8 @@ ADMIN_PASSWORD="jaam_rocks"
 COLLECT_INTERVAL="20"
 COOKIE_SECURE="false"
 LOGGING="INFO"
+APP_ORIGIN="https://admin.jaam.net.ua"
+RP_ID="admin.jaam.net.ua"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -30,6 +32,8 @@ while [[ $# -gt 0 ]]; do
         -ci|--collect-interval) COLLECT_INTERVAL="$2"; shift 2;;
         -cs|--cookie-secure) COOKIE_SECURE="$2"; shift 2;;
         -l|--logging) LOGGING="$2"; shift 2;;
+        --app-origin) APP_ORIGIN="$2"; shift 2;;
+        --rp-id) RP_ID="$2"; shift 2;;
         *) echo "Unknown argument: $1"; exit 1;;
     esac
 done
@@ -71,6 +75,8 @@ docker run --name jaam_admin_panel \
     --env COLLECT_INTERVAL="$COLLECT_INTERVAL" \
     --env COOKIE_SECURE="$COOKIE_SECURE" \
     --env LOGGING="$LOGGING" \
+    --env APP_ORIGIN="$APP_ORIGIN" \
+    --env RP_ID="$RP_ID" \
     jaam_admin_panel
 
 echo "Container deployed successfully!"

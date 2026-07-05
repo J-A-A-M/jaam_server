@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { startAuthentication } from "@simplewebauthn/browser";
 import { useAuth } from "@/components/AuthContext";
+import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui";
 
 export default function Login() {
@@ -10,6 +12,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +25,25 @@ export default function Login() {
       setError("Невірний логін або пароль");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loginWithPasskey = async () => {
+    setError("");
+    setPasskeyLoading(true);
+    try {
+      const { session_id, options } = await api.webauthn.authBegin();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const credential = await startAuthentication({ optionsJSON: options as any });
+      await api.webauthn.authComplete(session_id, credential);
+      navigate("/");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes("cancel") && !msg.includes("abort") && !msg.includes("NotAllowed")) {
+        setError("Не вдалося увійти з ключем доступу");
+      }
+    } finally {
+      setPasskeyLoading(false);
     }
   };
 
@@ -92,6 +114,39 @@ export default function Login() {
             </button>
           </div>
         </form>
+
+        {/* Passkey divider */}
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border/[0.07]" />
+          <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground/40">або</span>
+          <div className="h-px flex-1 bg-border/[0.07]" />
+        </div>
+
+        <button
+          onClick={loginWithPasskey}
+          disabled={passkeyLoading}
+          className="flex w-full items-center justify-center gap-2 rounded border border-border/[0.15] py-2.5 text-sm text-muted-foreground transition-all duration-150 hover:border-primary/40 hover:text-foreground active:scale-[0.98] disabled:opacity-40"
+        >
+          {passkeyLoading ? (
+            <Spinner className="h-4 w-4" />
+          ) : (
+            <>
+              {/* Fingerprint icon */}
+              <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+                <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+                <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
+                <path d="M2 12a10 10 0 0 1 18-6" />
+                <path d="M2 17c2 2.2 3.9 3 6 3" />
+                <path d="M5 12v-.5C5 8.358 7.358 6 10.5 6a5.5 5.5 0 0 1 5.5 5.5v.5" />
+                <path d="M8 16a8.37 8.37 0 0 1-.34-2" />
+                <path d="M20 13.5c0 4.46-1.95 7.5-5 8" />
+                <path d="M20 9a1 1 0 0 1 0-2" />
+              </svg>
+              Увійти з ключем доступу
+            </>
+          )}
+        </button>
 
         {/* Footer */}
         <p className="mt-8 text-center font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/40">

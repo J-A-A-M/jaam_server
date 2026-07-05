@@ -14,7 +14,7 @@ from .collector import run_collector
 from .config import LOG_LEVEL, PORT
 from .db import init_models
 from .redis_util import build_servers
-from .routes import auth, devices, geo, inventory, overview, servers, stream, users
+from .routes import auth, devices, geo, inventory, overview, servers, stream, users, webauthn
 from .seed import seed_admin
 
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="JAAM Admin Panel", lifespan=lifespan)
 
 app.include_router(auth.router)
+app.include_router(webauthn.router)
 app.include_router(overview.router)
 app.include_router(devices.router)
 app.include_router(inventory.router)

@@ -30,6 +30,12 @@ JWT_TTL_SECONDS = int(_env("JWT_TTL_SECONDS", str(7 * 24 * 3600)))
 COOKIE_NAME = "jaam_admin_token"
 COOKIE_SECURE = _env("COOKIE_SECURE", "false").lower() == "true"
 
+# --- WebAuthn (Passkeys) ---
+# APP_ORIGIN: повний URL origin панелі (https://admin.jaam.net.ua або http://localhost:5173)
+APP_ORIGIN = _env("APP_ORIGIN", "http://localhost:5173")
+# RP_ID: тільки hostname без порту та протоколу (admin.jaam.net.ua або localhost)
+RP_ID = _env("RP_ID", "localhost")
+
 # Сідовий адміністратор (створюється при старті, якщо користувачів немає)
 ADMIN_USER = _env("ADMIN_USER", "admin")
 ADMIN_PASSWORD = _env("ADMIN_PASSWORD", "jaam_rocks")
