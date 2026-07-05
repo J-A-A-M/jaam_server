@@ -100,9 +100,32 @@ async def device_detail(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    import datetime
+
     device = await session.get(Device, chip_id)
+    reg = await session.get(JaamMap, chip_id)
+
     if not device:
-        raise HTTPException(status_code=404, detail="Мапу не знайдено")
+        if reg is None:
+            raise HTTPException(status_code=404, detail="Мапу не знайдено")
+        # Мапа є в реєстрі, але ще жодного разу не виходила онлайн
+        stub = DeviceOut(
+            chip_id=reg.chip_id,
+            firmware=None, firmware_id=None, hw_type=None,
+            is_online=False,
+            first_seen=reg.created_at,
+            last_seen=reg.created_at,
+            last_online_at=None, connect_time=None, last_ip=None,
+            city=None, region=None, country=None, org=None,
+            location=None, lat=None, lon=None,
+            latency=None, secure_connection=None, last_server=None,
+            is_jaam=True,
+            hw_version=reg.hw_version,
+            is_prototype=reg.is_prototype,
+            order_number=reg.order_number,
+            customer_info=reg.customer_info,
+        )
+        return DeviceDetailOut(device=stub, sessions=[], events=[])
 
     sessions_res = await session.execute(
         select(DeviceSession)
@@ -113,7 +136,6 @@ async def device_detail(
     events_res = await session.execute(
         select(DeviceEvent).where(DeviceEvent.chip_id == chip_id).order_by(DeviceEvent.ts.desc()).limit(100)
     )
-    reg = await session.get(JaamMap, chip_id)
     return DeviceDetailOut(
         device=_device_out(device, reg),
         sessions=[SessionOut.model_validate(s) for s in sessions_res.scalars().all()],

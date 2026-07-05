@@ -28,16 +28,30 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 export default function DeviceDetail() {
   const { chipId } = useParams();
   const { theme } = useTheme();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["device", chipId],
     queryFn: () => api.device(chipId!),
     refetchInterval: 15000,
   });
 
-  if (isLoading || !data)
+  if (isLoading)
     return (
       <div className="flex items-center justify-center py-40">
         <Spinner className="h-8 w-8" />
+      </div>
+    );
+
+  if (isError || !data)
+    return (
+      <div className="space-y-4 p-4 sm:p-6">
+        <Link to="/devices" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> До списку
+        </Link>
+        <div className="rounded-lg border border-border/[0.1] bg-card px-6 py-12 text-center text-muted-foreground">
+          {(error as { status?: number })?.status === 404
+            ? "Мапу не знайдено"
+            : "Не вдалося завантажити дані"}
+        </div>
       </div>
     );
 
