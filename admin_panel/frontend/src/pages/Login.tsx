@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, refresh } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -36,6 +36,7 @@ export default function Login() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const credential = await startAuthentication({ optionsJSON: options as any });
       await api.webauthn.authComplete(session_id, credential);
+      await refresh();
       navigate("/");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

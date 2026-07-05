@@ -8,6 +8,7 @@ interface AuthState {
   loading: boolean;
   login: (u: string, p: string) => Promise<void>;
   logout: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const AuthCtx = createContext<AuthState>(null!);
@@ -30,7 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  return <AuthCtx.Provider value={{ user, loading, login, logout }}>{children}</AuthCtx.Provider>;
+  const refresh = async () => {
+    const u = await api.me();
+    setUser(u);
+  };
+
+  return <AuthCtx.Provider value={{ user, loading, login, logout, refresh }}>{children}</AuthCtx.Provider>;
 }
 
 export const useAuth = () => useContext(AuthCtx);
