@@ -1,0 +1,58 @@
+name: 💾 Deploy Backup
+on:
+  workflow_dispatch:
+    inputs:
+      server_choice:
+        type: choice
+        default: 'Server 2'
+        description: Choose server
+        options:
+          - 'Server 1'
+          - 'Server 2'
+
+run-name: Deploy Backup from '${{ github.ref_name }}' branch
+permissions:
+  contents: read
+jobs:
+    deploy_backup:
+        runs-on: ubuntu-latest
+        env:
+          SERVER_IP: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_IP || secrets.CLOUD_SERVER_2_IP }}
+          SERVER_USER: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_USER || secrets.CLOUD_SERVER_2_USER }}
+          SERVER_SSH_KEY: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_SSH_KEY || secrets.CLOUD_SERVER_2_SSH_KEY }}
+        steps:
+          - name: Deploy Backup Container
+            uses: appleboy/ssh-action@v1.2.0
+            env:
+              DB_PASSWORD: ${{ secrets.ADMIN_PANEL_DB_PASSWORD }}
+              R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+              R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+              R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+              R2_BUCKET: ${{ secrets.R2_BUCKET }}
+              REF_NAME: ${{ github.ref_name }}
+              REPO: ${{ github.repository }}
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              envs: DB_PASSWORD,R2_ACCOUNT_ID,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,R2_BUCKET,REF_NAME,REPO
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch "$REF_NAME" "https://github.com/$REPO.git" .
+                bash redeploy_backup.sh \
+                  -p  "$DB_PASSWORD" \
+                  -id "$R2_ACCOUNT_ID" \
+                  -ak "$R2_ACCESS_KEY_ID" \
+                  -sk "$R2_SECRET_ACCESS_KEY" \
+                  -b  "$R2_BUCKET"
+          - name: Clear unused images
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                docker image prune -f
