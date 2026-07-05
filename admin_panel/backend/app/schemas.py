@@ -179,6 +179,12 @@ class GeoPoint(BaseModel):
     region: str | None
     org: str | None
     last_seen: datetime.datetime
+    is_jaam: bool = False
+    map_id: str | None = None
+    hw_version: str | None = None
+    is_prototype: bool = False
+    order_number: str | None = None
+    customer_info: str | None = None
 
 
 class ServerStatus(BaseModel):

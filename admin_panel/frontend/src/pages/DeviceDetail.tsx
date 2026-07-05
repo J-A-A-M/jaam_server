@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FlaskConical } from "lucide-react";
 import { api } from "@/lib/api";
 import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
@@ -68,10 +68,10 @@ export default function DeviceDetail() {
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <h1 className="break-all font-mono text-xl font-bold sm:text-2xl">{d.chip_id}</h1>
-        <Badge variant={d.is_online ? "online" : "offline"}>{d.is_online ? "онлайн" : "офлайн"}</Badge>
+        <Badge variant={d.is_online ? "online" : "offline"}>{d.is_online ? "online" : "offline"}</Badge>
         {d.is_jaam ? (
           <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-            Офіційна JAAM{d.is_prototype ? " · прототип" : ""}
+            Офіційна JAAM{d.is_prototype && <FlaskConical className="ml-1 inline h-3.5 w-3.5 text-warning" />}
           </span>
         ) : (
           <span className="rounded-full border border-border/[0.1] bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">

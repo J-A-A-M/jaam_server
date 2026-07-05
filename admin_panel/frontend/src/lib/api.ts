@@ -123,6 +123,12 @@ export interface GeoPoint {
   region: string | null;
   org: string | null;
   last_seen: string;
+  is_jaam: boolean;
+  map_id: string | null;
+  hw_version: string | null;
+  is_prototype: boolean;
+  order_number: string | null;
+  customer_info: string | null;
 }
 
 export interface ServerStatus {
@@ -184,7 +190,13 @@ export const api = {
     return req<DeviceList>(`/api/devices?${qs.toString()}`);
   },
   device: (chipId: string) => req<DeviceDetail>(`/api/devices/${encodeURIComponent(chipId)}`),
-  geo: (status?: string) => req<GeoPoint[]>(`/api/geo${status ? `?status=${status}` : ""}`),
+  geo: (status?: string, type?: string) => {
+    const qs = new URLSearchParams();
+    if (status) qs.set("status", status);
+    if (type) qs.set("type", type);
+    const q = qs.toString();
+    return req<GeoPoint[]>(`/api/geo${q ? `?${q}` : ""}`);
+  },
   servers: () => req<ServerStatus[]>("/api/servers"),
   inventory: (params: Record<string, string | number | undefined>) => {
     const qs = new URLSearchParams();

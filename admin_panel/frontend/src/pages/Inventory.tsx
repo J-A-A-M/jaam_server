@@ -3,17 +3,26 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tansta
 import { Link } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, FlaskConical } from "lucide-react";
 import { api, type JaamMap, type JaamMapInput } from "@/lib/api";
-import { Badge, Button, Card, Input, Modal, Select, Spinner, Textarea } from "@/components/ui";
+import { Badge, Button, Card, Input, Modal, Select, Spinner, SortTh, Textarea } from "@/components/ui";
 import { cn, timeAgo } from "@/lib/utils";
 
-const EMPTY: JaamMapInput = { chip_id: "", hw_version: "", is_prototype: false, order_number: "", customer_info: "" };
+const HW_VERSIONS = ["JAAM3.2", "JAAM3.1", "JAAM3.0", "JAAM2", "JAAM1", ""];
+const EMPTY: JaamMapInput = { chip_id: "", map_id: "", hw_version: "JAAM3.2", is_prototype: false, order_number: "", customer_info: "" };
 
 export default function Inventory() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [sort, setSort] = useState("chip_id");
+  const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
   const pageSize = 50;
+
+  const onSort = (col: string) => {
+    if (col === sort) setDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSort(col); setDir("asc"); }
+    setPage(1);
+  };
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<JaamMap | null>(null);
@@ -24,8 +33,8 @@ export default function Inventory() {
   const isFirstRender = useRef(true);
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["inventory", q, status, page],
-    queryFn: () => api.inventory({ q, status, page, page_size: pageSize }),
+    queryKey: ["inventory", q, status, sort, dir, page],
+    queryFn: () => api.inventory({ q, status, sort, order: dir, page, page_size: pageSize }),
     refetchInterval: 20000,
     placeholderData: keepPreviousData,
   });
@@ -52,7 +61,7 @@ export default function Inventory() {
   const openAdd = () => { setEditing(null); setForm(EMPTY); setError(""); setModalOpen(true); };
   const openEdit = (m: JaamMap) => {
     setEditing(m);
-    setForm({ chip_id: m.chip_id, hw_version: m.hw_version ?? "", is_prototype: m.is_prototype, order_number: m.order_number ?? "", customer_info: m.customer_info ?? "" });
+    setForm({ chip_id: m.chip_id, map_id: m.map_id ?? "", hw_version: m.hw_version ?? "", is_prototype: m.is_prototype, order_number: m.order_number ?? "", customer_info: m.customer_info ?? "" });
     setError("");
     setModalOpen(true);
   };
@@ -99,13 +108,13 @@ export default function Inventory() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border/[0.1] text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-3 py-3 font-medium sm:px-4">Стан</th>
-                    <th className="px-3 py-3 font-medium sm:px-4">Chip ID</th>
-                    <th className="hidden px-4 py-3 font-medium sm:table-cell">HW версія</th>
-                    <th className="hidden px-4 py-3 font-medium md:table-cell">Замовлення</th>
-                    <th className="px-3 py-3 font-medium sm:px-4">Клієнт</th>
-                    <th className="hidden px-4 py-3 font-medium lg:table-cell">Прошивка</th>
+                  <tr className="border-b border-border/[0.1] text-left">
+                    <SortTh col="is_online" label="Стан" sort={sort} dir={dir} onSort={onSort} />
+                    <SortTh col="chip_id" label="Chip ID" sort={sort} dir={dir} onSort={onSort} />
+                    <SortTh col="hw_version" label="HW версія" sort={sort} dir={dir} onSort={onSort} className="hidden sm:table-cell" />
+                    <SortTh col="order_number" label="Замовлення" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
+                    <SortTh col="customer_info" label="Клієнт" sort={sort} dir={dir} onSort={onSort} />
+                    <SortTh col="firmware" label="Прошивка" sort={sort} dir={dir} onSort={onSort} className="hidden lg:table-cell" />
                     <th className="px-3 py-3 sm:px-4"></th>
                   </tr>
                 </thead>
@@ -117,11 +126,11 @@ export default function Inventory() {
                       <tr key={m.chip_id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
                         <td className="px-3 py-3 sm:px-4">
                           {!m.ever_seen ? (
-                            <Badge variant="muted">не бачили</Badge>
+                            <Badge variant="muted">unseen</Badge>
                           ) : m.is_online ? (
-                            <Badge variant="online">онлайн</Badge>
+                            <Badge variant="online">online</Badge>
                           ) : (
-                            <Badge variant="offline">офлайн</Badge>
+                            <Badge variant="offline">offline</Badge>
                           )}
                         </td>
                         <td className="px-3 py-3 sm:px-4">
@@ -186,14 +195,22 @@ export default function Inventory() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Редагувати ${editing.chip_id}` : "Нова JAAM-мапа"}>
         <form onSubmit={(e) => { e.preventDefault(); saveMut.mutate(form); }} className="space-y-3">
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Chip ID *</label>
-            <Input value={form.chip_id} onChange={(e) => setForm({ ...form, chip_id: e.target.value })} disabled={!!editing} required className="font-mono" placeholder="напр. a1b2c3d4e5f6" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">Chip ID *</label>
+              <Input value={form.chip_id} onChange={(e) => setForm({ ...form, chip_id: e.target.value })} disabled={!!editing} required className="font-mono" placeholder="напр. a1b2c3d4e5f6" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">ID (мітка)</label>
+              <Input value={form.map_id ?? ""} onChange={(e) => setForm({ ...form, map_id: e.target.value })} placeholder="напр. JAAM3-0029" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">HW версія</label>
-              <Input value={form.hw_version ?? ""} onChange={(e) => setForm({ ...form, hw_version: e.target.value })} placeholder="напр. JAAM2" />
+              <Select value={form.hw_version ?? ""} onChange={(e) => setForm({ ...form, hw_version: e.target.value })}>
+                {HW_VERSIONS.map((v) => <option key={v} value={v}>{v || "—"}</option>)}
+              </Select>
             </div>
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">Номер замовлення</label>

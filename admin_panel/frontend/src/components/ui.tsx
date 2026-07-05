@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { HTMLAttributes, InputHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes, InputHTMLAttributes, ButtonHTMLAttributes, ReactNode, ThHTMLAttributes } from "react";
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
@@ -157,6 +157,38 @@ export function Modal({
         <div className="p-5">{children}</div>
       </div>
     </div>
+  );
+}
+
+export function SortTh({
+  col, label, sort, dir, onSort, className, ...props
+}: {
+  col: string;
+  label: ReactNode;
+  sort: string;
+  dir: "asc" | "desc";
+  onSort: (col: string) => void;
+} & ThHTMLAttributes<HTMLTableCellElement>) {
+  const active = sort === col;
+  return (
+    <th
+      onClick={() => onSort(col)}
+      className={cn(
+        "cursor-pointer select-none px-3 py-3 font-medium sm:px-4",
+        "text-xs uppercase tracking-wide",
+        active ? "text-foreground" : "text-muted-foreground",
+        "transition-colors hover:text-foreground",
+        className,
+      )}
+      {...props}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className={cn("text-[10px] transition-opacity", active ? "opacity-70" : "opacity-25")}>
+          {active ? (dir === "asc" ? "↑" : "↓") : "↕"}
+        </span>
+      </span>
+    </th>
   );
 }
 

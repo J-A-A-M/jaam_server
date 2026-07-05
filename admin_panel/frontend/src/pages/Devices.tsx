@@ -1,25 +1,33 @@
 import { useRef, useEffect, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
 import { api } from "@/lib/api";
-import { Badge, Card, Input, Select, Spinner } from "@/components/ui";
+import { Badge, Card, Input, Select, Spinner, SortTh } from "@/components/ui";
 import { cn, timeAgo } from "@/lib/utils";
 
 export default function Devices() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [type_, setType] = useState("");
+  const [sort, setSort] = useState("last_seen");
+  const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const pageSize = 50;
+
+  const onSort = (col: string) => {
+    if (col === sort) setDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSort(col); setDir("asc"); }
+    setPage(1);
+  };
 
   const tableRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["devices", q, status, type_, page],
+    queryKey: ["devices", q, status, type_, sort, dir, page],
     queryFn: () =>
-      api.devices({ q, status, type: type_, page, page_size: pageSize, sort: "last_seen", order: "desc" }),
+      api.devices({ q, status, type: type_, page, page_size: pageSize, sort, order: dir }),
     refetchInterval: 15000,
     placeholderData: keepPreviousData,
   });
@@ -68,15 +76,15 @@ export default function Devices() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border/[0.1] text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-3 py-3 font-medium sm:px-4">Статус</th>
-                    <th className="px-3 py-3 font-medium sm:px-4">Chip ID</th>
-                    <th className="hidden px-4 py-3 font-medium sm:table-cell">Тип</th>
-                    <th className="hidden px-4 py-3 font-medium md:table-cell">Прошивка</th>
-                    <th className="hidden px-4 py-3 font-medium lg:table-cell">HW</th>
-                    <th className="px-3 py-3 font-medium sm:px-4">Локація</th>
-                    <th className="hidden px-4 py-3 font-medium lg:table-cell">Сервер</th>
-                    <th className="px-3 py-3 font-medium sm:px-4">Остання акт.</th>
+                  <tr className="border-b border-border/[0.1] text-left">
+                    <SortTh col="is_online" label="Статус" sort={sort} dir={dir} onSort={onSort} />
+                    <SortTh col="chip_id" label="Chip ID" sort={sort} dir={dir} onSort={onSort} />
+                    <th className="hidden px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:table-cell">Тип</th>
+                    <SortTh col="firmware" label="Прошивка" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
+                    <SortTh col="hw_type" label="HW" sort={sort} dir={dir} onSort={onSort} className="hidden lg:table-cell" />
+                    <SortTh col="region" label="Локація" sort={sort} dir={dir} onSort={onSort} />
+                    <SortTh col="last_server" label="Сервер" sort={sort} dir={dir} onSort={onSort} className="hidden lg:table-cell" />
+                    <SortTh col="last_seen" label="Остання акт." sort={sort} dir={dir} onSort={onSort} />
                   </tr>
                 </thead>
                 <tbody>
@@ -87,7 +95,7 @@ export default function Devices() {
                       <tr key={d.chip_id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
                         <td className="px-3 py-3 sm:px-4">
                           <Badge variant={d.is_online ? "online" : "offline"}>
-                            {d.is_online ? "онлайн" : "офлайн"}
+                            {d.is_online ? "online" : "offline"}
                           </Badge>
                         </td>
                         <td className="px-3 py-3 sm:px-4">
@@ -99,8 +107,8 @@ export default function Devices() {
                         <td className="hidden px-4 py-3 sm:table-cell">
                           {d.is_jaam ? (
                             <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary" title={d.customer_info ?? undefined}>
+                              {d.is_prototype && <FlaskConical className="h-3 w-3 shrink-0" />}
                               {d.hw_version ?? "JAAM"}
-                              {d.is_prototype ? " · прот." : ""}
                             </span>
                           ) : (
                             <span className="inline-flex items-center rounded-full border border-border/[0.15] bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">

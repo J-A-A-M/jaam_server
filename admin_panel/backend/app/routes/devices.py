@@ -31,6 +31,9 @@ _SORT_COLUMNS = {
     "firmware": Device.firmware,
     "region": Device.region,
     "country": Device.country,
+    "is_online": Device.is_online,
+    "hw_type": Device.hw_type,
+    "last_server": Device.last_server,
 }
 
 

@@ -3,7 +3,7 @@
 import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, outerjoin, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
@@ -12,6 +12,18 @@ from ..models import Device, JaamMap
 from ..schemas import BulkResult, JaamMapIn, JaamMapListOut, JaamMapOut
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
+
+_SORT_COLUMNS = {
+    "chip_id": JaamMap.chip_id,
+    "map_id": JaamMap.map_id,
+    "hw_version": JaamMap.hw_version,
+    "order_number": JaamMap.order_number,
+    "customer_info": JaamMap.customer_info,
+    "is_prototype": JaamMap.is_prototype,
+    "is_online": Device.is_online,
+    "last_seen": Device.last_seen,
+    "firmware": Device.firmware,
+}
 
 
 def _to_out(m: JaamMap, device: Device | None) -> JaamMapOut:
@@ -31,56 +43,61 @@ def _to_out(m: JaamMap, device: Device | None) -> JaamMapOut:
 async def list_maps(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-    q: str | None = Query(None, description="Пошук за chip_id / order / customer_info"),
+    q: str | None = Query(
+        None, description="Пошук за chip_id / map_id / order / customer_info"
+    ),
     status_: str | None = Query(
         None, alias="status", description="online|offline|never"
     ),
     is_prototype: bool | None = None,
+    sort: str = "chip_id",
+    order: str = "asc",
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
 ):
+    j = outerjoin(JaamMap, Device, JaamMap.chip_id == Device.chip_id)
     filters = []
     if q:
         like = f"%{q}%"
         filters.append(
             or_(
                 JaamMap.chip_id.ilike(like),
+                JaamMap.map_id.ilike(like),
                 JaamMap.order_number.ilike(like),
                 JaamMap.customer_info.ilike(like),
             )
         )
     if is_prototype is not None:
         filters.append(JaamMap.is_prototype.is_(is_prototype))
+    if status_ == "online":
+        filters.append(Device.is_online.is_(True))
+    elif status_ == "offline":
+        filters.append(Device.is_online.is_(False))
+    elif status_ == "never":
+        filters.append(Device.chip_id.is_(None))
 
     total = await session.scalar(
-        select(func.count()).select_from(JaamMap).where(*filters)
-    )
-    result = await session.execute(
-        select(JaamMap)
+        select(func.count())
+        .select_from(JaamMap)
+        .outerjoin(Device, JaamMap.chip_id == Device.chip_id)
         .where(*filters)
-        .order_by(JaamMap.created_at.desc())
+    )
+
+    sort_col = _SORT_COLUMNS.get(sort, JaamMap.chip_id)
+    sort_expr = (
+        sort_col.desc().nulls_last() if order == "desc" else sort_col.asc().nulls_last()
+    )
+
+    result = await session.execute(
+        select(JaamMap, Device)
+        .select_from(j)
+        .where(*filters)
+        .order_by(sort_expr)
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
-    maps = result.scalars().all()
 
-    chip_ids = [m.chip_id for m in maps]
-    devices: dict[str, Device] = {}
-    if chip_ids:
-        dev_res = await session.execute(
-            select(Device).where(Device.chip_id.in_(chip_ids))
-        )
-        devices = {d.chip_id: d for d in dev_res.scalars().all()}
-
-    items = [_to_out(m, devices.get(m.chip_id)) for m in maps]
-    # Фільтр за статусом онлайну застосовуємо після склейки
-    if status_ == "online":
-        items = [i for i in items if i.is_online]
-    elif status_ == "offline":
-        items = [i for i in items if i.ever_seen and not i.is_online]
-    elif status_ == "never":
-        items = [i for i in items if not i.ever_seen]
-
+    items = [_to_out(m, d) for m, d in result.all()]
     return JaamMapListOut(total=total or 0, page=page, page_size=page_size, items=items)
 
 

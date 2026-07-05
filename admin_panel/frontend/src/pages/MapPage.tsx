@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
@@ -26,37 +26,58 @@ function Clusters({ points }: { points: GeoPoint[] }) {
   const groupRef = useRef<L.MarkerClusterGroup | null>(null);
 
   useEffect(() => {
-    if (!groupRef.current) {
-      groupRef.current = (L as any).markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 40 });
-      map.addLayer(groupRef.current);
-    }
-    const group = groupRef.current!;
+    const group = (L as any).markerClusterGroup({
+      showCoverageOnHover: false,
+      maxClusterRadius: 40,
+      removeOutsideVisibleBounds: false,
+    });
+    groupRef.current = group;
+    map.addLayer(group);
+    return () => {
+      map.removeLayer(group);
+      groupRef.current = null;
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
     group.clearLayers();
     points.forEach((p) => {
       const marker = L.marker([p.lat, p.lon], { icon: pinIcon(p.is_online) });
+      const jaamRow = p.is_jaam ? `
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,0.12)">
+          <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;opacity:.6">Реєстр JAAM</span><br/>
+          ${p.map_id ? `🏷 <b style="font-family:monospace">${p.map_id}</b>${p.is_prototype ? ` <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:text-bottom"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>` : ""}<br/>` : ""}
+          ${p.hw_version ? `🔩 ${p.hw_version}<br/>` : ""}
+          ${p.order_number ? `📦 замовл. ${p.order_number}<br/>` : ""}
+          ${p.customer_info ? `👤 ${p.customer_info}` : ""}
+        </div>` : "";
       marker.bindPopup(
-        `<div style="font-size:13px;line-height:1.6;font-family:system-ui">
+        `<div style="font-size:13px;line-height:1.6;font-family:system-ui;min-width:180px">
           <b style="font-family:monospace">${p.chip_id}</b><br/>
           ${p.is_online ? "🟢 онлайн" : "⚪ офлайн"}<br/>
           📍 ${[p.city, p.region].filter(Boolean).join(", ") || "—"}<br/>
           🔧 ${p.firmware ?? "—"}<br/>
           📡 ${p.org ?? "—"}<br/>
           ⏱ ${fmtDateTime(p.last_seen)}
+          ${jaamRow}
         </div>`,
       );
       group.addLayer(marker);
     });
-  }, [points, map]);
+  }, [points]);
 
   return null;
 }
 
 export default function MapPage() {
   const [status, setStatus] = useState("");
+  const [type_, setType] = useState("");
   const { theme } = useTheme();
   const { data, isLoading } = useQuery({
-    queryKey: ["geo", status],
-    queryFn: () => api.geo(status || undefined),
+    queryKey: ["geo", status, type_],
+    queryFn: () => api.geo(status || undefined, type_ || undefined),
     refetchInterval: 20000,
   });
 
@@ -81,16 +102,22 @@ export default function MapPage() {
           </div>
           <div className="flex items-center gap-2">
             {isLoading && <Spinner className="h-4 w-4" />}
+            <Select value={type_} onChange={(e) => setType(e.target.value)} className="bg-card/95 backdrop-blur-sm text-xs sm:text-sm">
+              <option value="">Всі типи</option>
+              <option value="jaam">JAAM</option>
+              <option value="self">Самозбірка</option>
+            </Select>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="bg-card/95 backdrop-blur-sm text-xs sm:text-sm">
-              <option value="">Усі</option>
-              <option value="online">Тільки онлайн</option>
-              <option value="offline">Тільки офлайн</option>
+              <option value="">Усі статуси</option>
+              <option value="online">Онлайн</option>
+              <option value="offline">Офлайн</option>
             </Select>
           </div>
         </div>
 
-        <MapContainer center={[49, 32]} zoom={6} className="h-full w-full" scrollWheelZoom>
+        <MapContainer center={[49, 32]} zoom={6} className="h-full w-full" scrollWheelZoom zoomControl={false}>
           <TileLayer url={tileUrl} attribution="© OpenStreetMap contributors" />
+          <ZoomControl position="bottomright" />
           <Clusters points={points} />
         </MapContainer>
       </div>
