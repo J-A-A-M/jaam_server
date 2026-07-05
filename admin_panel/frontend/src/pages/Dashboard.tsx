@@ -144,7 +144,7 @@ export default function Dashboard() {
                 to={e.chip_id ? `/devices/${encodeURIComponent(e.chip_id)}` : "#"}
                 className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0 hover:bg-muted/40 -mx-4 px-4 rounded transition-colors"
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex flex-1 min-w-0 items-center gap-2 overflow-hidden">
                   <span className={e.type === "offline" ? "h-2 w-2 shrink-0 rounded-full bg-muted-foreground" : "h-2 w-2 shrink-0 rounded-full bg-success"} />
                   <span className="font-mono text-xs text-muted-foreground truncate">{e.chip_id}</span>
                   <span className="hidden sm:inline">{EVENT_LABEL[e.type] ?? e.type}</span>
