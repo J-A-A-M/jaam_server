@@ -122,7 +122,10 @@ export default function Dashboard() {
         </CardBody>
       </Card>
 
-      <DistroChart title="Версії прошивок" items={data.by_firmware} />
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <DistroChart title="Версії прошивок" items={data.by_firmware} />
+        <DistroChart title="Типи HW" items={data.by_hw} />
+      </div>
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
         <DistroChart title="Топ країн" items={data.by_country} />
