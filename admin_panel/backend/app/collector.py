@@ -94,6 +94,8 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
     was_offline = is_new or not device.is_online
     prev_firmware = None if is_new else device.firmware
     prev_location = None if is_new else device.location
+    prev_city = None if is_new else device.city
+    prev_region = None if is_new else device.region
     prev_connect = None if is_new else device.connect_time
     prev_ip = None if is_new else device.last_ip
 
@@ -130,11 +132,16 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
     if not is_new and prev_firmware and firmware and prev_firmware != firmware:
         await _add_event(session, chip_id, "firmware_change", {"from": prev_firmware, "to": firmware})
     if not is_new and prev_location and device.location and prev_location != device.location:
+
+        def _geo_label(city, region):
+            parts = [p for p in (city, region) if p]
+            return ", ".join(parts) if parts else None
+
         await _add_event(
             session,
             chip_id,
             "geo_change",
-            {"from": prev_location, "to": device.location},
+            {"from": _geo_label(prev_city, prev_region), "to": _geo_label(value.get("city"), value.get("region"))},
         )
     new_ip = value.get("ip")
     if not is_new and not was_offline and prev_ip and new_ip and prev_ip != new_ip:

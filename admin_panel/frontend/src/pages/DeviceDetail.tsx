@@ -31,6 +31,23 @@ const EVENT_LABEL: Record<string, string> = {
   first_seen: "Перша поява",
 };
 
+function eventDetail(type: string, details: string | null): string | null {
+  if (!details) return null;
+  try {
+    const d = JSON.parse(details) as Record<string, string | null>;
+    switch (type) {
+      case "first_seen":      return d.firmware ?? null;
+      case "online":          return d.server ?? null;
+      case "firmware_change": return d.from && d.to ? `${d.from} → ${d.to}` : null;
+      case "geo_change":      return d.from && d.to ? `${d.from} → ${d.to}` : null;
+      case "ip_change":       return d.from && d.to ? `${d.from} → ${d.to}` : null;
+      default:                return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
@@ -178,12 +195,18 @@ export default function DeviceDetail() {
           <CardHeader><CardTitle>Події ({data.events.length})</CardTitle></CardHeader>
           <CardBody className="space-y-2">
             {data.events.length === 0 && <div className="text-sm text-muted-foreground">Немає подій</div>}
-            {data.events.map((e) => (
-              <div key={e.id} className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0">
-                <span className="flex-1 min-w-0 truncate text-foreground">{EVENT_LABEL[e.type] ?? e.type}</span>
-                <span className="ml-2 shrink-0 text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>{timeAgo(e.ts)}</span>
-              </div>
-            ))}
+            {data.events.map((e) => {
+              const detail = eventDetail(e.type, e.details);
+              return (
+                <div key={e.id} className="flex items-start justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-foreground">{EVENT_LABEL[e.type] ?? e.type}</div>
+                    {detail && <div className="truncate font-mono text-xs text-muted-foreground">{detail}</div>}
+                  </div>
+                  <span className="ml-2 shrink-0 text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>{timeAgo(e.ts)}</span>
+                </div>
+              );
+            })}
           </CardBody>
         </Card>
       </div>
