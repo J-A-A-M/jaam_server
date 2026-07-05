@@ -91,6 +91,7 @@ class JaamMap(Base):
     __tablename__ = "jaam_maps"
 
     chip_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    map_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     hw_version: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     is_prototype: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     order_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)

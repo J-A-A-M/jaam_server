@@ -56,6 +56,7 @@ class DeviceOut(BaseModel):
 
     # Склейка з реєстром JAAM (заповнюється, якщо chip_id є в sold_maps)
     is_jaam: bool = False
+    map_id: str | None = None
     hw_version: str | None = None
     is_prototype: bool | None = None
     order_number: str | None = None
@@ -112,6 +113,7 @@ class TrendPoint(BaseModel):
 
 class JaamMapIn(BaseModel):
     chip_id: str
+    map_id: str | None = None
     hw_version: str | None = None
     is_prototype: bool = False
     order_number: str | None = None
@@ -122,6 +124,7 @@ class JaamMapOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     chip_id: str
+    map_id: str | None
     hw_version: str | None
     is_prototype: bool
     order_number: str | None

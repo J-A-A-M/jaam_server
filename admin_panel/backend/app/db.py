@@ -68,6 +68,12 @@ BEGIN
         ELSE 'ESP32'
     END
     WHERE firmware IS NOT NULL AND hw_type IS NULL;
+
+    -- jaam_maps: add map_id column if missing
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_name='jaam_maps' AND column_name='map_id') THEN
+        ALTER TABLE jaam_maps ADD COLUMN map_id VARCHAR(128);
+    END IF;
 END $$;
 """
 )

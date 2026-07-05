@@ -16,6 +16,7 @@ def _device_out(d: Device, reg: JaamMap | None) -> DeviceOut:
     out = DeviceOut.model_validate(d)
     if reg is not None:
         out.is_jaam = True
+        out.map_id = reg.map_id
         out.hw_version = reg.hw_version
         out.is_prototype = reg.is_prototype
         out.order_number = reg.order_number
@@ -120,6 +121,7 @@ async def device_detail(
             location=None, lat=None, lon=None,
             latency=None, secure_connection=None, last_server=None,
             is_jaam=True,
+            map_id=reg.map_id,
             hw_version=reg.hw_version,
             is_prototype=reg.is_prototype,
             order_number=reg.order_number,

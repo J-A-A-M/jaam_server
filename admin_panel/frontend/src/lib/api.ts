@@ -20,6 +20,7 @@ export interface Device {
   secure_connection: boolean | null;
   last_server: string | null;
   is_jaam: boolean;
+  map_id: string | null;
   hw_version: string | null;
   is_prototype: boolean | null;
   order_number: string | null;
@@ -28,6 +29,7 @@ export interface Device {
 
 export interface JaamMap {
   chip_id: string;
+  map_id: string | null;
   hw_version: string | null;
   is_prototype: boolean;
   order_number: string | null;
@@ -49,6 +51,7 @@ export interface JaamMapList {
 
 export interface JaamMapInput {
   chip_id: string;
+  map_id?: string | null;
   hw_version?: string | null;
   is_prototype: boolean;
   order_number?: string | null;

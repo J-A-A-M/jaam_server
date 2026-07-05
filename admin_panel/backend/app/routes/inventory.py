@@ -88,6 +88,7 @@ async def create_map(
 
     m = JaamMap(
         chip_id=chip_id,
+        map_id=body.map_id,
         hw_version=body.hw_version,
         is_prototype=body.is_prototype,
         order_number=body.order_number,
@@ -110,6 +111,7 @@ async def update_map(
     m = await session.get(JaamMap, chip_id)
     if not m:
         raise HTTPException(status_code=404, detail="Запис не знайдено")
+    m.map_id = body.map_id
     m.hw_version = body.hw_version
     m.is_prototype = body.is_prototype
     m.order_number = body.order_number
@@ -147,6 +149,7 @@ async def bulk_upsert(
             continue
         m = await session.get(JaamMap, chip_id)
         if m:
+            m.map_id = row.map_id
             m.hw_version = row.hw_version
             m.is_prototype = row.is_prototype
             m.order_number = row.order_number
@@ -156,6 +159,7 @@ async def bulk_upsert(
             session.add(
                 JaamMap(
                     chip_id=chip_id,
+                    map_id=row.map_id,
                     hw_version=row.hw_version,
                     is_prototype=row.is_prototype,
                     order_number=row.order_number,
