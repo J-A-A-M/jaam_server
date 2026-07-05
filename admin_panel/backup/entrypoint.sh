@@ -15,6 +15,7 @@ provider = Cloudflare
 access_key_id = ${R2_ACCESS_KEY_ID}
 secret_access_key = ${R2_SECRET_ACCESS_KEY}
 endpoint = https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+no_check_bucket = true
 EOF
 
 # Setup busybox crond (built into Alpine, no extra packages needed)
