@@ -4,6 +4,7 @@ import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, outerjoin, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
@@ -101,8 +102,6 @@ async def create_map(
     chip_id = body.chip_id.strip()
     if not chip_id:
         raise HTTPException(status_code=400, detail="chip_id обов'язковий")
-    if await session.get(JaamMap, chip_id):
-        raise HTTPException(status_code=409, detail="Мапа з таким chip_id вже є в реєстрі")
 
     m = JaamMap(
         chip_id=chip_id,
@@ -112,8 +111,12 @@ async def create_map(
         order_number=body.order_number,
         customer_info=body.customer_info,
     )
-    session.add(m)
-    await session.commit()
+    try:
+        session.add(m)
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(status_code=409, detail="Мапа з таким chip_id вже є в реєстрі")
     await session.refresh(m)
     device = await session.get(Device, chip_id)
     return _to_out(m, device)

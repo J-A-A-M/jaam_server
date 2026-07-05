@@ -1,6 +1,7 @@
 """Точка входу: FastAPI, роути, collector, віддача SPA-статики."""
 
 import asyncio
+import contextlib
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -37,6 +38,8 @@ async def lifespan(app: FastAPI):
     finally:
         stop_event.set()
         app.state.collector_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await app.state.collector_task
         for server in app.state.redis_servers:
             await server.client.close()
 
@@ -63,12 +66,14 @@ async def health():
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
+    _static_root = STATIC_DIR.resolve()
+
     @app.get("/{full_path:path}")
     async def spa(full_path: str):
-        candidate = STATIC_DIR / full_path
-        if full_path and candidate.is_file():
+        candidate = (_static_root / full_path).resolve()
+        if full_path and candidate.is_relative_to(_static_root) and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(_static_root / "index.html")
 
 
 if __name__ == "__main__":

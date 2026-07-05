@@ -50,11 +50,11 @@ async def delete_user(
     admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
-    user = await session.scalar(select(User).where(User.username == username))
+    user = await session.scalar(select(User).where(User.username == username).with_for_update())
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
-    total = await session.scalar(select(func.count()).select_from(User))
+    total = await session.scalar(select(func.count()).select_from(User).with_for_update())
     if total <= 1:
         raise HTTPException(status_code=400, detail="Не можна видалити останнього користувача")
 

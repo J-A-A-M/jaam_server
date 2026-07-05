@@ -10,6 +10,11 @@ import { Select, Spinner } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
 import { fmtDateTime } from "@/lib/utils";
 
+function esc(s: string | null | undefined): string {
+  if (!s) return "";
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function pinIcon(online: boolean) {
   const color = online ? "#22c55e" : "#64748b";
   return L.divIcon({
@@ -48,19 +53,19 @@ function Clusters({ points }: { points: GeoPoint[] }) {
       const jaamRow = p.is_jaam ? `
         <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,0.12)">
           <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;opacity:.6">Реєстр JAAM</span><br/>
-          ${p.map_id ? `🏷 <b style="font-family:monospace">${p.map_id}</b>${p.is_prototype ? ` <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:text-bottom"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>` : ""}<br/>` : ""}
-          ${p.hw_version ? `🔩 ${p.hw_version}<br/>` : ""}
-          ${p.order_number ? `📦 замовл. ${p.order_number}<br/>` : ""}
-          ${p.customer_info ? `👤 ${p.customer_info}` : ""}
+          ${p.map_id ? `🏷 <b style="font-family:monospace">${esc(p.map_id)}</b>${p.is_prototype ? ` <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:text-bottom"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>` : ""}<br/>` : ""}
+          ${p.hw_version ? `🔩 ${esc(p.hw_version)}<br/>` : ""}
+          ${p.order_number ? `📦 замовл. ${esc(p.order_number)}<br/>` : ""}
+          ${p.customer_info ? `👤 ${esc(p.customer_info)}` : ""}
         </div>` : "";
       marker.bindPopup(
         `<div style="font-size:13px;line-height:1.6;font-family:system-ui;min-width:180px">
-          <b style="font-family:monospace">${p.chip_id}</b><br/>
+          <b style="font-family:monospace">${esc(p.chip_id)}</b><br/>
           ${p.is_online ? "🟢 онлайн" : "⚪ офлайн"}<br/>
-          📍 ${[p.city, p.region].filter(Boolean).join(", ") || "—"}<br/>
-          🔧 ${p.firmware ?? "—"}<br/>
-          📡 ${p.org ?? "—"}<br/>
-          ⏱ ${fmtDateTime(p.last_seen)}
+          📍 ${esc([p.city, p.region].filter(Boolean).join(", ")) || "—"}<br/>
+          🔧 ${esc(p.firmware) || "—"}<br/>
+          📡 ${esc(p.org) || "—"}<br/>
+          ⏱ ${esc(fmtDateTime(p.last_seen))}
           ${jaamRow}
         </div>`,
       );

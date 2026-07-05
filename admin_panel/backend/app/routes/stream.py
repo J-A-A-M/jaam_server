@@ -3,6 +3,7 @@
 import asyncio
 import datetime
 import json
+import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import func, select
@@ -14,6 +15,7 @@ from ..models import Device, DeviceEvent
 from ..security import decode_token
 
 router = APIRouter(prefix="/api/stream", tags=["stream"])
+logger = logging.getLogger(__name__)
 
 STREAM_INTERVAL = 5
 
@@ -47,8 +49,11 @@ async def stream(request: Request):
         while True:
             if await request.is_disconnected():
                 break
-            data = await _snapshot()
-            yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+            try:
+                data = await _snapshot()
+                yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+            except Exception:
+                logger.exception("SSE snapshot failed")
             await asyncio.sleep(STREAM_INTERVAL)
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")

@@ -59,7 +59,8 @@ jobs:
                 trap 'rm -rf "$TEMP_DIR"' EXIT
                 cd "$TEMP_DIR"
                 git clone --branch "$REF_NAME" "https://github.com/$REPO.git" .
-                DB_URL="postgresql+asyncpg://jaam:${DB_PASSWORD}@postgres:5432/jaam_admin"
+                DB_PASSWORD_ENC=$(python3 -c "import urllib.parse,os; print(urllib.parse.quote(os.environ['DB_PASSWORD'],safe=''))")
+                DB_URL="postgresql+asyncpg://jaam:${DB_PASSWORD_ENC}@postgres:5432/jaam_admin"
                 if [ -n "$REDIS_HOSTS" ]; then
                   bash redeploy_admin_panel.sh \
                     -rh "$REDIS_HOSTS" \
