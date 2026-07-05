@@ -26,6 +26,8 @@ from webauthn import (
 from webauthn.helpers import base64url_to_bytes
 from webauthn.helpers.structs import (
     AuthenticationCredential,
+    AuthenticatorAssertionResponse,
+    AuthenticatorAttestationResponse,
     AuthenticatorSelectionCriteria,
     PublicKeyCredentialDescriptor,
     RegistrationCredential,
@@ -34,6 +36,37 @@ from webauthn.helpers.structs import (
 )
 
 router = APIRouter(prefix="/api/webauthn", tags=["webauthn"])
+
+
+def _parse_registration(body: dict) -> RegistrationCredential:
+    resp = body["response"]
+    return RegistrationCredential(
+        id=body["id"],
+        raw_id=base64url_to_bytes(body.get("rawId") or body["id"]),
+        response=AuthenticatorAttestationResponse(
+            client_data_json=base64url_to_bytes(resp["clientDataJSON"]),
+            attestation_object=base64url_to_bytes(resp["attestationObject"]),
+            transports=resp.get("transports"),
+        ),
+        type=body.get("type", "public-key"),
+    )
+
+
+def _parse_authentication(body: dict) -> AuthenticationCredential:
+    resp = body["response"]
+    user_handle = resp.get("userHandle")
+    return AuthenticationCredential(
+        id=body["id"],
+        raw_id=base64url_to_bytes(body.get("rawId") or body["id"]),
+        response=AuthenticatorAssertionResponse(
+            client_data_json=base64url_to_bytes(resp["clientDataJSON"]),
+            authenticator_data=base64url_to_bytes(resp["authenticatorData"]),
+            signature=base64url_to_bytes(resp["signature"]),
+            user_handle=base64url_to_bytes(user_handle) if user_handle else None,
+        ),
+        type=body.get("type", "public-key"),
+    )
+
 
 # In-memory challenge stores (username → (challenge, timestamp) for reg; session_id → ... for auth)
 _reg_challenges: dict[str, tuple[bytes, float, str]] = {}  # username → (challenge, ts, cred_name)
@@ -102,7 +135,7 @@ async def register_complete(
 
     try:
         verification = verify_registration_response(
-            credential=RegistrationCredential.model_validate(body),
+            credential=_parse_registration(body),
             expected_challenge=challenge,
             expected_rp_id=RP_ID,
             expected_origin=APP_ORIGIN,
@@ -175,7 +208,7 @@ async def auth_complete(
 
     try:
         verification = verify_authentication_response(
-            credential=AuthenticationCredential.model_validate(body.credential),
+            credential=_parse_authentication(body.credential),
             expected_challenge=challenge,
             expected_rp_id=RP_ID,
             expected_origin=APP_ORIGIN,
