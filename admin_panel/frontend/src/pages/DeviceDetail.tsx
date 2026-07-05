@@ -147,8 +147,8 @@ export default function DeviceDetail() {
                   <div className="truncate text-foreground">{fmtDateTime(s.started_at)}</div>
                   <div className="truncate text-xs text-muted-foreground">
                     {s.ended_at ? `завершено ${fmtDateTime(s.ended_at)}` : "триває"} · {s.server_name ?? "—"}
-                    {s.ip && <span className="ml-1 font-mono hidden sm:inline">· {s.ip}</span>}
                   </div>
+                  {s.ip && <div className="truncate font-mono text-xs text-muted-foreground">{s.ip}</div>}
                 </div>
                 <Badge variant={s.ended_at ? "offline" : "online"} className="ml-2 shrink-0">{fmtDuration(s.duration_sec)}</Badge>
               </div>
