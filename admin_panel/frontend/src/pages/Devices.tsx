@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Search, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
@@ -21,9 +21,6 @@ export default function Devices() {
     setPage(1);
   };
 
-  const tableRef = useRef<HTMLDivElement>(null);
-  const isFirstRender = useRef(true);
-
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["devices", q, status, type_, sort, dir, page],
     queryFn: () =>
@@ -32,13 +29,8 @@ export default function Devices() {
     placeholderData: keepPreviousData,
   });
 
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return; }
-    tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [page]);
-
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
-  const goPage = (dir: number, e: React.MouseEvent<HTMLButtonElement>) => { setPage((p) => p + dir); e.currentTarget.blur(); };
+  const goPage = (dir: number) => setPage((p) => p + dir);
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
@@ -70,7 +62,7 @@ export default function Devices() {
         </Select>
       </div>
 
-      <div ref={tableRef}>
+      <div>
         <div className={cn("transition-opacity duration-200", isFetching && "opacity-60 pointer-events-none")}>
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
@@ -140,11 +132,11 @@ export default function Devices() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>Стор. {page} з {totalPages}</span>
         <div className="flex gap-2">
-          <button disabled={page <= 1} onClick={(e) => goPage(-1, e)}
+          <button disabled={page <= 1} onClick={() => goPage(-1)}
             className="flex items-center gap-1 rounded border border-border/[0.1] px-3 py-1.5 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
             <ChevronLeft className="h-4 w-4" /> Назад
           </button>
-          <button disabled={page >= totalPages} onClick={(e) => goPage(1, e)}
+          <button disabled={page >= totalPages} onClick={() => goPage(1)}
             className="flex items-center gap-1 rounded border border-border/[0.1] px-3 py-1.5 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
             Далі <ChevronRight className="h-4 w-4" />
           </button>

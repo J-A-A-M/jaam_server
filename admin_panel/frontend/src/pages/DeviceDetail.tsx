@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import { ArrowLeft, FlaskConical } from "lucide-react";
@@ -6,6 +7,20 @@ import { api } from "@/lib/api";
 import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
 import { fmtDateTime, fmtDuration, timeAgo } from "@/lib/utils";
+
+function LiveDuration({ startedAt }: { startedAt: string }) {
+  const [sec, setSec] = useState(() => Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
+  useEffect(() => {
+    const id = setInterval(() => setSec(Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return <>{h}г {m}хв {String(s).padStart(2, "0")}с</>;
+  if (m > 0) return <>{m}хв {String(s).padStart(2, "0")}с</>;
+  return <>{s}с</>;
+}
 
 const EVENT_LABEL: Record<string, string> = {
   online: "З'явилась онлайн",
@@ -151,7 +166,9 @@ export default function DeviceDetail() {
                   </div>
                   {s.ip && <div className="truncate font-mono text-xs text-muted-foreground">{s.ip}</div>}
                 </div>
-                <Badge variant={s.ended_at ? "offline" : "online"} className="ml-2 shrink-0">{fmtDuration(s.duration_sec)}</Badge>
+                <Badge variant={s.ended_at ? "offline" : "online"} className="ml-2 shrink-0 font-mono">
+                  {s.ended_at ? fmtDuration(s.duration_sec) : <LiveDuration startedAt={s.started_at} />}
+                </Badge>
               </div>
             ))}
           </CardBody>

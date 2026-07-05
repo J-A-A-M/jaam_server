@@ -93,7 +93,7 @@ export default function Dashboard() {
           value={<span className="text-primary">{onlineNow}</span>}
           hint={<span className="inline-flex items-center gap-1"><Activity className="h-3 w-3" /> JAAM {data.jaam_online} · самозбірки {data.self_online}</span>}
         />
-        <Stat label="Усього бачено" value={totalReg}
+        <Stat label="Усього мап" value={totalReg}
           hint={<span className="inline-flex items-center gap-1"><Cpu className="h-3 w-3" /> у реєстрі JAAM {data.registry_total}</span>} />
         <Stat label="Активні за 24 год" value={data.unique_24h}
           hint={<span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> медіана {data.median_online}</span>} />
@@ -128,7 +128,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
-        <DistroChart title="Топ країн" items={data.by_country} />
+        <DistroChart title="Топ країн" items={data.by_country} labelFmt={countryLabel} />
         <DistroChart title="Топ регіонів" items={data.by_region} />
         <DistroChart title="Топ міст" items={data.by_city} />
       </div>
@@ -150,7 +150,7 @@ export default function Dashboard() {
                 <div className="flex flex-1 min-w-0 items-center gap-2 overflow-hidden">
                   <span className={e.type === "offline" ? "h-2 w-2 shrink-0 rounded-full bg-muted-foreground" : "h-2 w-2 shrink-0 rounded-full bg-success"} />
                   <span className="font-mono text-xs text-muted-foreground truncate">{e.chip_id}</span>
-                  <span className="hidden sm:inline">{EVENT_LABEL[e.type] ?? e.type}</span>
+                  <span className="shrink-0">{EVENT_LABEL[e.type] ?? e.type}</span>
                 </div>
                 <span className="ml-2 shrink-0 text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>
                   {timeAgo(e.ts)}
@@ -164,9 +164,15 @@ export default function Dashboard() {
   );
 }
 
-function DistroChart({ title, items, hideEmpty }: { title: string; items: { label: string; count: number }[]; hideEmpty?: boolean }) {
+const _displayNames = new Intl.DisplayNames(["en"], { type: "region" });
+function countryLabel(code: string): string {
+  try { return _displayNames.of(code) ?? code; } catch { return code; }
+}
+
+function DistroChart({ title, items, hideEmpty, labelFmt }: { title: string; items: { label: string; count: number }[]; hideEmpty?: boolean; labelFmt?: (l: string) => string }) {
   const palette = useChartPalette();
-  const data = hideEmpty ? items.filter((i) => i.count > 0) : items;
+  const raw = hideEmpty ? items.filter((i) => i.count > 0) : items;
+  const data = labelFmt ? raw.map((i) => ({ ...i, label: labelFmt(i.label) })) : raw;
   return (
     <Card>
       <CardHeader><CardTitle>{title}</CardTitle></CardHeader>

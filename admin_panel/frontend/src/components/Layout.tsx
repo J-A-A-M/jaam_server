@@ -114,7 +114,7 @@ export default function Layout() {
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex w-[210px] shrink-0 flex-col border-r border-border/[0.07] bg-sidebar",
           "transition-transform duration-200 ease-in-out",
-          "md:relative md:translate-x-0 md:transition-none",
+          "md:sticky md:top-0 md:h-screen md:translate-x-0 md:transition-none",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >

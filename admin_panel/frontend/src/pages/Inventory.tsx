@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, FlaskConical } from "lucide-react";
@@ -29,20 +29,12 @@ export default function Inventory() {
   const [form, setForm] = useState<JaamMapInput>(EMPTY);
   const [error, setError] = useState("");
 
-  const tableRef = useRef<HTMLDivElement>(null);
-  const isFirstRender = useRef(true);
-
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["inventory", q, status, sort, dir, page],
     queryFn: () => api.inventory({ q, status, sort, order: dir, page, page_size: pageSize }),
     refetchInterval: 20000,
     placeholderData: keepPreviousData,
   });
-
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return; }
-    tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [page]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["inventory"] });
 
@@ -67,7 +59,7 @@ export default function Inventory() {
   };
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
-  const goPage = (dir: number, e: React.MouseEvent<HTMLButtonElement>) => { setPage((p) => p + dir); e.currentTarget.blur(); };
+  const goPage = (dir: number) => setPage((p) => p + dir);
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
@@ -102,7 +94,7 @@ export default function Inventory() {
         {isFetching && <Spinner className="h-5 w-5 self-center" />}
       </div>
 
-      <div ref={tableRef}>
+      <div>
         <div className={cn("transition-opacity duration-200", isFetching && "opacity-60 pointer-events-none")}>
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
@@ -182,11 +174,11 @@ export default function Inventory() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>Стор. {page} з {totalPages}</span>
         <div className="flex gap-2">
-          <button disabled={page <= 1} onClick={(e) => goPage(-1, e)}
+          <button disabled={page <= 1} onClick={() => goPage(-1)}
             className="rounded border border-border/[0.1] px-3 py-1.5 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
             ← Назад
           </button>
-          <button disabled={page >= totalPages} onClick={(e) => goPage(1, e)}
+          <button disabled={page >= totalPages} onClick={() => goPage(1)}
             className="rounded border border-border/[0.1] px-3 py-1.5 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
             Далі →
           </button>
