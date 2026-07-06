@@ -48,7 +48,7 @@ function eventDetail(type: string, details: string | null): string | null {
   }
 }
 
-const _countryNames = new Intl.DisplayNames(["uk"], { type: "region" });
+const _countryNames = new Intl.DisplayNames(["en"], { type: "region" });
 function countryName(code: string | null): string | null {
   if (!code) return null;
   try { return _countryNames.of(code) ?? code; } catch { return code; }

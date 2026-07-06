@@ -128,11 +128,11 @@ export default function Devices() {
                         </td>
                         <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">{d.firmware ?? "—"}</td>
                         <td className="hidden px-4 py-3 lg:table-cell">{d.hw_type ?? "—"}</td>
-                        <td className="max-w-[120px] truncate px-3 py-3 text-xs text-muted-foreground sm:max-w-none sm:px-4 sm:text-sm">
+                        <td className="max-w-[140px] truncate px-3 py-3 text-muted-foreground sm:max-w-[240px] sm:px-4">
                           {[d.city, d.region].filter(Boolean).join(", ") || "—"}
                         </td>
-                        <td className="hidden px-4 py-3 text-xs text-muted-foreground lg:table-cell">{d.last_server ?? "—"}</td>
-                        <td className="px-3 py-3 text-xs text-muted-foreground sm:px-4 sm:text-sm" title={d.last_seen}>
+                        <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{d.last_server ?? "—"}</td>
+                        <td className="px-3 py-3 text-muted-foreground sm:px-4" title={d.last_seen}>
                           {timeAgo(d.last_seen)}
                         </td>
                       </tr>

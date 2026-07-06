@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, FlaskConical } from "lucide-react";
 import { api, type JaamMap, type JaamMapInput } from "@/lib/api";
 import { Badge, Button, Card, Input, Modal, Select, Spinner, SortTh, Textarea } from "@/components/ui";
-import { cn, timeAgo } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const HW_VERSIONS = ["JAAM3.2", "JAAM3.1", "JAAM3.0", "JAAM2", "JAAM1", ""];
 const EMPTY: JaamMapInput = { chip_id: "", map_id: "", hw_version: "JAAM3.2", is_prototype: false, order_number: "", customer_info: "" };
@@ -121,18 +121,17 @@ export default function Inventory() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/[0.1] text-left">
-                    <SortTh col="is_online" label="Стан" sort={sort} dir={dir} onSort={onSort} />
+                    <SortTh col="is_online" label="Статус" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="chip_id" label="Chip ID" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="hw_version" label="Тип" sort={sort} dir={dir} onSort={onSort} className="hidden sm:table-cell" />
                     <SortTh col="order_number" label="Замовлення" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
                     <SortTh col="customer_info" label="Клієнт" sort={sort} dir={dir} onSort={onSort} />
-                    <SortTh col="firmware" label="Прошивка" sort={sort} dir={dir} onSort={onSort} className="hidden lg:table-cell" />
                     <th className="px-3 py-3 sm:px-4"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={7} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
+                    <tr><td colSpan={6} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
                   ) : data && data.items.length > 0 ? (
                     data.items.map((m) => (
                       <tr key={m.chip_id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
@@ -161,10 +160,6 @@ export default function Inventory() {
                         <td className="max-w-[140px] truncate px-3 py-3 text-muted-foreground sm:max-w-[240px] sm:px-4" title={m.customer_info ?? ""}>
                           {m.customer_info ?? "—"}
                         </td>
-                        <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground lg:table-cell">
-                          {m.firmware ?? "—"}
-                          {m.ever_seen && m.last_seen && <div className="text-[10px]">{timeAgo(m.last_seen)}</div>}
-                        </td>
                         <td className="px-3 py-3 sm:px-4">
                           <div className="flex justify-end gap-1">
                             <button onClick={() => openEdit(m)} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground" title="Редагувати">
@@ -183,7 +178,7 @@ export default function Inventory() {
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={7} className="py-16 text-center text-muted-foreground">Реєстр порожній</td></tr>
+                    <tr><td colSpan={6} className="py-16 text-center text-muted-foreground">Реєстр порожній</td></tr>
                   )}
                 </tbody>
               </table>
