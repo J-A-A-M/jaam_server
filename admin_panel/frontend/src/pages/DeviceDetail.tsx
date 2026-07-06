@@ -191,7 +191,7 @@ export default function DeviceDetail() {
         <Card>
           <CardHeader><CardTitle>Дані реєстру JAAM</CardTitle></CardHeader>
           <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {d.map_id && <Field label="ID" value={<span className="font-mono">{d.map_id}</span>} />}
+            {d.map_id && <Field label="Мітка" value={<span className="font-mono">{d.map_id}</span>} />}
             <Field label="Тип" value={d.hw_version} />
             <Field label="Прототип" value={d.is_prototype ? "так" : "ні"} />
             {d.order_number && <Field label="№ замовлення" value={d.order_number} />}

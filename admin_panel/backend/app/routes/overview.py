@@ -150,8 +150,8 @@ async def overview(
             """
             SELECT gs.day::date AS day, COUNT(d.chip_id) AS count
             FROM generate_series(
-                :day_start::date::timestamptz,
-                :today::date::timestamptz,
+                CAST(CAST(:day_start AS date) AS timestamptz),
+                CAST(CAST(:today AS date) AS timestamptz),
                 '1 day'::interval
             ) AS gs(day)
             LEFT JOIN devices d
@@ -170,8 +170,8 @@ async def overview(
             """
             SELECT gs.day::date AS day, COUNT(DISTINCT s.chip_id) AS count
             FROM generate_series(
-                :day_start::date::timestamptz,
-                :today::date::timestamptz,
+                CAST(CAST(:day_start AS date) AS timestamptz),
+                CAST(CAST(:today AS date) AS timestamptz),
                 '1 day'::interval
             ) AS gs(day)
             LEFT JOIN device_sessions s

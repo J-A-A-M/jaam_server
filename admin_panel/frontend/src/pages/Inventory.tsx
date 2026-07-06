@@ -124,6 +124,7 @@ export default function Inventory() {
                     <SortTh col="is_online" label="Статус" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="chip_id" label="Chip ID" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="hw_version" label="Тип" sort={sort} dir={dir} onSort={onSort} className="hidden sm:table-cell" />
+                    <SortTh col="map_id" label="Мітка" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
                     <SortTh col="order_number" label="Замовлення" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
                     <SortTh col="customer_info" label="Клієнт" sort={sort} dir={dir} onSort={onSort} />
                     <th className="px-3 py-3 sm:px-4"></th>
@@ -131,7 +132,7 @@ export default function Inventory() {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={6} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
+                    <tr><td colSpan={7} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
                   ) : data && data.items.length > 0 ? (
                     data.items.map((m) => (
                       <tr key={m.chip_id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
@@ -148,7 +149,7 @@ export default function Inventory() {
                           <Link to={`/devices/${m.chip_id}`} className="font-mono text-xs text-primary hover:underline sm:text-sm">
                             {m.chip_id}
                           </Link>
-                          {m.map_id && <div className="font-mono text-[11px] text-muted-foreground">{m.map_id}</div>}
+                          {m.firmware_id && <div className="font-mono text-[11px] text-muted-foreground">{m.firmware_id}</div>}
                         </td>
                         <td className="hidden px-4 py-3 sm:table-cell">
                           <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary" title={m.customer_info ?? undefined}>
@@ -156,6 +157,7 @@ export default function Inventory() {
                             {m.hw_version ?? "JAAM"}
                           </span>
                         </td>
+                        <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">{m.map_id ?? "—"}</td>
                         <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">{m.order_number ?? "—"}</td>
                         <td className="max-w-[140px] truncate px-3 py-3 text-muted-foreground sm:max-w-[240px] sm:px-4" title={m.customer_info ?? ""}>
                           {m.customer_info ?? "—"}
@@ -178,7 +180,7 @@ export default function Inventory() {
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={6} className="py-16 text-center text-muted-foreground">Реєстр порожній</td></tr>
+                    <tr><td colSpan={7} className="py-16 text-center text-muted-foreground">Реєстр порожній</td></tr>
                   )}
                 </tbody>
               </table>
@@ -209,7 +211,7 @@ export default function Inventory() {
               <Input value={form.chip_id} onChange={(e) => setForm({ ...form, chip_id: e.target.value })} disabled={!!editing} required className="font-mono" placeholder="напр. a1b2c3d4e5f6" />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">ID (мітка)</label>
+              <label className="mb-1 block text-xs text-muted-foreground">Мітка</label>
               <Input value={form.map_id ?? ""} onChange={(e) => setForm({ ...form, map_id: e.target.value })} placeholder="напр. JAAM3-0029" />
             </div>
           </div>

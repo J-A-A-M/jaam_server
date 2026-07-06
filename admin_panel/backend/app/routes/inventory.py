@@ -42,6 +42,7 @@ def _to_out(m: JaamMap, device: Device | None) -> JaamMapOut:
             last_seen = last_seen.replace(tzinfo=datetime.timezone.utc)
         out.last_seen = last_seen
         out.firmware = device.firmware
+        out.firmware_id = device.firmware_id
     return out
 
 

@@ -146,6 +146,7 @@ class JaamMapOut(BaseModel):
     is_online: bool = False
     last_seen: datetime.datetime | None = None
     firmware: str | None = None
+    firmware_id: str | None = None
 
 
 class JaamMapListOut(BaseModel):
