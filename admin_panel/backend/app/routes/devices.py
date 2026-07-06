@@ -69,6 +69,7 @@ async def list_devices(
             or_(
                 Device.chip_id.ilike(like),
                 Device.firmware_id.ilike(like),
+                Device.firmware.ilike(like),
                 Device.city.ilike(like),
             )
         )
