@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { Search } from "lucide-react";
@@ -155,35 +156,44 @@ export default function Events() {
                     const detail = eventDetail(e.type, e.details);
                     const dot = DOT[e.type] ?? "bg-primary/40";
                     return (
-                      <tr key={e.id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
-                        <td className="px-3 py-3 sm:px-4">
-                          <div className="flex items-center gap-2">
-                            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />
-                            <span className="text-xs">{EVENT_LABEL[e.type] ?? e.type}</span>
-                          </div>
-                          {detail && (
-                            <div className="mt-0.5 font-mono text-[11px] text-muted-foreground md:hidden">{detail}</div>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 sm:px-4">
-                          {e.chip_id ? (
-                            <Link
-                              to={`/devices/${encodeURIComponent(e.chip_id)}`}
-                              className="font-mono text-xs text-primary hover:underline"
-                            >
-                              {e.chip_id}
-                            </Link>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
-                        <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground md:table-cell">
-                          {detail ?? "—"}
-                        </td>
-                        <td className="px-3 py-3 sm:px-4 text-right">
-                          <RelativeTime ts={e.ts} className="text-xs text-muted-foreground" />
-                        </td>
-                      </tr>
+                      <Fragment key={e.id}>
+                        <tr className={cn(
+                          "transition hover:bg-muted/40",
+                          detail ? "md:border-b md:border-border/[0.07]" : "border-b border-border/[0.07]",
+                        )}>
+                          <td className="px-3 py-3 sm:px-4">
+                            <div className="flex items-center gap-2">
+                              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />
+                              <span className="text-xs">{EVENT_LABEL[e.type] ?? e.type}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 sm:px-4">
+                            {e.chip_id ? (
+                              <Link
+                                to={`/devices/${encodeURIComponent(e.chip_id)}`}
+                                className="font-mono text-xs text-primary hover:underline"
+                              >
+                                {e.chip_id}
+                              </Link>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground md:table-cell">
+                            {detail ?? "—"}
+                          </td>
+                          <td className="px-3 py-3 sm:px-4 text-right">
+                            <RelativeTime ts={e.ts} className="text-xs text-muted-foreground" />
+                          </td>
+                        </tr>
+                        {detail && (
+                          <tr className="border-b border-border/[0.07] transition hover:bg-muted/40 md:hidden">
+                            <td colSpan={4} className="px-3 pb-2.5 pt-0 font-mono text-[11px] text-muted-foreground">
+                              {detail}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     );
                   })
                 ) : (
