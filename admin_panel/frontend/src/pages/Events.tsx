@@ -2,8 +2,8 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { Search } from "lucide-react";
 import { api } from "@/lib/api";
-import { Card, Input, Select, Spinner, SortTh } from "@/components/ui";
-import { cn, fmtDateTime, timeAgo } from "@/lib/utils";
+import { Card, Input, RelativeTime, Select, Spinner, SortTh } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 const EVENT_LABEL: Record<string, string> = {
   online:             "з'явилась онлайн",
@@ -178,9 +178,7 @@ export default function Events() {
                           {detail ?? "—"}
                         </td>
                         <td className="px-3 py-3 sm:px-4 text-right">
-                          <span className="text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>
-                            {timeAgo(e.ts)}
-                          </span>
+                          <RelativeTime ts={e.ts} className="text-xs text-muted-foreground" />
                         </td>
                       </tr>
                     );

@@ -7,9 +7,9 @@ import {
 } from "recharts";
 import { Activity, Cpu, Clock, PlusCircle } from "lucide-react";
 import { api, type DeviceEvent } from "@/lib/api";
-import { Card, CardBody, CardHeader, CardTitle, Spinner, Stat } from "@/components/ui";
+import { Card, CardBody, CardHeader, CardTitle, RelativeTime, Spinner, Stat } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
-import { fmtDateTime, timeAgo } from "@/lib/utils";
+import { fmtDateTime } from "@/lib/utils";
 
 const _EVENTS_PAGE_SIZE = 20;
 
@@ -180,9 +180,7 @@ export default function Dashboard() {
                   <span className="font-mono text-xs text-muted-foreground truncate">{e.chip_id}</span>
                   <span className="shrink-0">{EVENT_LABEL[e.type] ?? e.type}</span>
                 </div>
-                <span className="ml-2 shrink-0 text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>
-                  {timeAgo(e.ts)}
-                </span>
+                <RelativeTime ts={e.ts} className="ml-2 shrink-0 text-xs text-muted-foreground" />
               </Link>
             ))}
           </CardBody>

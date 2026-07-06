@@ -4,9 +4,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import { ArrowLeft, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
 import { api, type Device } from "@/lib/api";
-import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner } from "@/components/ui";
+import { Badge, Card, CardBody, CardHeader, CardTitle, RelativeTime, Spinner } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
-import { fmtDateTime, fmtDuration, timeAgo } from "@/lib/utils";
+import { fmtDateTime, fmtDuration } from "@/lib/utils";
 
 function LiveDuration({ startedAt }: { startedAt: string }) {
   const [sec, setSec] = useState(() => Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
@@ -113,7 +113,7 @@ function SameIpCard({ ip, devices }: { ip: string; devices: Device[] }) {
                   </td>
                   <td className="hidden px-4 py-2.5 font-mono text-xs text-muted-foreground md:table-cell">{dev.firmware ?? "—"}</td>
                   <td className="hidden px-4 py-2.5 text-muted-foreground lg:table-cell">{dev.city ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground" title={fmtDateTime(dev.last_seen)}>{timeAgo(dev.last_seen)}</td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground"><RelativeTime ts={dev.last_seen} /></td>
                 </tr>
               ))}
             </tbody>
@@ -219,7 +219,7 @@ export default function DeviceDetail() {
             <Field label="Провайдер" value={d.ever_seen ? d.org : null} />
             <Field label="Latency" value={d.ever_seen && d.latency != null && d.latency >= 0 ? `${d.latency} мс` : null} />
             <Field label="Перша поява" value={d.ever_seen ? fmtDateTime(d.first_seen) : null} />
-            <Field label="Остання активність" value={d.ever_seen ? timeAgo(d.last_seen) : null} />
+            <Field label="Остання активність" value={d.ever_seen ? <RelativeTime ts={d.last_seen} /> : null} />
             <Field label="Захищене з'єднання" value={d.ever_seen ? (d.secure_connection ? "так" : "ні") : null} />
           </CardBody>
         </Card>
@@ -296,7 +296,7 @@ export default function DeviceDetail() {
                     <div className="truncate text-foreground">{EVENT_LABEL[e.type] ?? e.type}</div>
                     {detail && <div className="truncate font-mono text-xs text-muted-foreground">{detail}</div>}
                   </div>
-                  <span className="ml-2 shrink-0 text-xs text-muted-foreground" title={fmtDateTime(e.ts)}>{timeAgo(e.ts)}</span>
+                  <RelativeTime ts={e.ts} className="ml-2 shrink-0 text-xs text-muted-foreground" />
                 </div>
               );
             })}

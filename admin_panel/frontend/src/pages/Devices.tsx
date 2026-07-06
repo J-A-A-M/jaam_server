@@ -2,8 +2,8 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { Search, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
 import { api } from "@/lib/api";
-import { Badge, Card, Input, Select, Spinner, SortTh } from "@/components/ui";
-import { cn, timeAgo } from "@/lib/utils";
+import { Badge, Card, Input, RelativeTime, Select, Spinner, SortTh } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 export default function Devices() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -134,8 +134,8 @@ export default function Devices() {
                         </td>
                         <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{d.last_server ?? "—"}</td>
                         <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground xl:table-cell">{d.last_ip ?? "—"}</td>
-                        <td className="px-3 py-3 text-muted-foreground sm:px-4" title={d.last_seen}>
-                          {timeAgo(d.last_seen)}
+                        <td className="px-3 py-3 text-muted-foreground sm:px-4">
+                          <RelativeTime ts={d.last_seen} />
                         </td>
                       </tr>
                     ))

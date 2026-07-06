@@ -4,8 +4,8 @@ import { Plus, Trash2, Shield, Eye, KeyRound } from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
 import { api, type PanelUserInput } from "@/lib/api";
 import { useAuth } from "@/components/AuthContext";
-import { Badge, Button, Card, Input, Modal, Select, Spinner } from "@/components/ui";
-import { fmtDateTime, timeAgo } from "@/lib/utils";
+import { Badge, Button, Card, Input, Modal, RelativeTime, Select, Spinner } from "@/components/ui";
+import { fmtDateTime } from "@/lib/utils";
 
 const EMPTY: PanelUserInput = { username: "", password: "", role: "admin" };
 
@@ -72,8 +72,8 @@ function PasskeysSection() {
               <div>
                 <div className="text-sm text-foreground">{c.name}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  Додано {timeAgo(c.created_at)}
-                  {c.last_used_at && <> · Використано {timeAgo(c.last_used_at)}</>}
+                  Додано <RelativeTime ts={c.created_at} />
+                  {c.last_used_at && <> · Використано <RelativeTime ts={c.last_used_at} /></>}
                 </div>
               </div>
               <button

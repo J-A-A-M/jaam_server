@@ -1,5 +1,13 @@
-import { cn } from "@/lib/utils";
+import { cn, fmtDateTime, timeAgo } from "@/lib/utils";
 import type { HTMLAttributes, InputHTMLAttributes, ButtonHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode, ThHTMLAttributes } from "react";
+
+export function RelativeTime({ ts, className }: { ts: string | null | undefined; className?: string }) {
+  return (
+    <span title={fmtDateTime(ts)} className={className}>
+      {timeAgo(ts)}
+    </span>
+  );
+}
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
