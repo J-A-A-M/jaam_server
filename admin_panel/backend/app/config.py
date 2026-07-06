@@ -30,6 +30,15 @@ JWT_TTL_SECONDS = int(_env("JWT_TTL_SECONDS", str(7 * 24 * 3600)))
 COOKIE_NAME = "jaam_admin_token"
 COOKIE_SECURE = _env("COOKIE_SECURE", "false").lower() == "true"
 
+
+def check_secrets() -> None:
+    """Перевіряє небезпечні дефолти при старті."""
+    if JWT_SECRET == "change-me-in-production":
+        raise RuntimeError("JWT_SECRET не змінено! Виставте змінну оточення JWT_SECRET перед запуском.")
+    if _env("ADMIN_PASSWORD", "jaam_rocks") == "jaam_rocks":
+        logger.warning("ADMIN_PASSWORD не змінено — використовується дефолтний пароль 'jaam_rocks'")
+
+
 # --- WebAuthn (Passkeys) ---
 # APP_ORIGIN: повний URL origin панелі (https://admin.jaam.net.ua або http://localhost:5173)
 APP_ORIGIN = _env("APP_ORIGIN", "http://localhost:5173")

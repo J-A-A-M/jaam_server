@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .collector import run_collector
-from .config import LOG_LEVEL, PORT
+from .config import LOG_LEVEL, PORT, check_secrets
 from .db import SessionLocal, init_models
 from .models import RedisServerConfig
 from .redis_util import build_server_from_config
@@ -28,6 +28,7 @@ STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/app/static"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    check_secrets()
     await init_models()
     await seed_admin()
     await seed_redis_configs()

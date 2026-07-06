@@ -92,5 +92,5 @@ async def init_models() -> None:
     from . import models  # noqa: F401 — реєстрація моделей у метаданих
 
     async with engine.begin() as conn:
-        await conn.execute(_MIGRATIONS)
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(_MIGRATIONS)
