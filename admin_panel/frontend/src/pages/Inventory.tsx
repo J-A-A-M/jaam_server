@@ -118,7 +118,7 @@ export default function Inventory() {
         <div className={cn("transition-opacity duration-200", isFetching && "opacity-60 pointer-events-none")}>
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm [&_tbody_td]:align-top">
+              <table className="w-full text-sm [&_tbody_td]:align-middle">
                 <thead>
                   <tr className="border-b border-border/[0.1] text-left">
                     <SortTh col="is_online" label="Статус" sort={sort} dir={dir} onSort={onSort} />
