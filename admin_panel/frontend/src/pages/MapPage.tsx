@@ -90,7 +90,7 @@ export default function MapPage() {
   const online = points.filter((p) => p.is_online).length;
 
   const tileUrl = theme === "dark"
-    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+    ? "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png"
     : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   return (
