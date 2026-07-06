@@ -17,7 +17,7 @@ function LiveDuration({ startedAt }: { startedAt: string }) {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  if (h > 0) return <>{h}г {m}хв {String(s).padStart(2, "0")}с</>;
+  if (h > 0) return <>{h}г {m}хв</>;
   if (m > 0) return <>{m}хв {String(s).padStart(2, "0")}с</>;
   return <>{s}с</>;
 }
@@ -174,7 +174,7 @@ export default function DeviceDetail() {
       </div>
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader><CardTitle>Сесії ({data.sessions_total})</CardTitle></CardHeader>
           <CardBody className="space-y-2">
             {data.sessions.length === 0 && <div className="text-sm text-muted-foreground">Немає сесій</div>}
@@ -198,11 +198,11 @@ export default function DeviceDetail() {
                 <div className="flex gap-1">
                   <button disabled={sessionsPage <= 1} onClick={() => setSessionsPage(p => p - 1)}
                     className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
-                    <ChevronLeft className="h-3 w-3" /> Назад
+                    <ChevronLeft className="h-3 w-3" /><span className="hidden sm:inline"> Назад</span>
                   </button>
                   <button disabled={sessionsPage >= Math.ceil(data.sessions_total / _PAGE_SIZE)} onClick={() => setSessionsPage(p => p + 1)}
                     className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
-                    Далі <ChevronRight className="h-3 w-3" />
+                    <span className="hidden sm:inline">Далі </span><ChevronRight className="h-3 w-3" />
                   </button>
                 </div>
               </div>
@@ -210,7 +210,7 @@ export default function DeviceDetail() {
           </CardBody>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader><CardTitle>Події ({data.events_total})</CardTitle></CardHeader>
           <CardBody className="space-y-2">
             {data.events.length === 0 && <div className="text-sm text-muted-foreground">Немає подій</div>}
@@ -232,11 +232,11 @@ export default function DeviceDetail() {
                 <div className="flex gap-1">
                   <button disabled={eventsPage <= 1} onClick={() => setEventsPage(p => p - 1)}
                     className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
-                    <ChevronLeft className="h-3 w-3" /> Назад
+                    <ChevronLeft className="h-3 w-3" /><span className="hidden sm:inline"> Назад</span>
                   </button>
                   <button disabled={eventsPage >= Math.ceil(data.events_total / _PAGE_SIZE)} onClick={() => setEventsPage(p => p + 1)}
                     className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
-                    Далі <ChevronRight className="h-3 w-3" />
+                    <span className="hidden sm:inline">Далі </span><ChevronRight className="h-3 w-3" />
                   </button>
                 </div>
               </div>
