@@ -4,13 +4,13 @@ import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import SERVER_TZ
 from ..db import get_session
 from ..deps import get_current_user
-from ..models import Device, DeviceSession, JaamMap, utcnow
+from ..models import Device, JaamMap, utcnow
 from ..schemas import CountItem, OverviewOut, TrendPoint
 
 router = APIRouter(prefix="/api/overview", tags=["overview"])
@@ -115,19 +115,28 @@ async def overview(
         hist[-1] += older
     duration_histogram = [CountItem(label=l, count=c) for l, c in zip(hist_labels, hist)]
 
-    # Тренд онлайну за 24 год з історії сесій (сесія активна в момент t, якщо started<=t<ended|now)
-    sess_res = await session.execute(
-        select(DeviceSession.started_at, DeviceSession.ended_at).where(
-            (DeviceSession.ended_at.is_(None)) | (DeviceSession.ended_at >= day_ago)
-        )
+    # Тренд онлайну за 24 год — generate_series на стороні БД, без передачі сесій у Python
+    trend_res = await session.execute(
+        text("""
+            SELECT t, COUNT(s.id) AS online
+            FROM generate_series(
+                :day_ago::timestamptz,
+                :now::timestamptz,
+                :bucket::interval
+            ) AS t
+            LEFT JOIN device_sessions s
+                   ON s.started_at <= t
+                  AND (s.ended_at IS NULL OR s.ended_at >= t)
+            GROUP BY t
+            ORDER BY t
+        """),
+        {
+            "day_ago": day_ago,
+            "now": now,
+            "bucket": datetime.timedelta(minutes=TREND_BUCKET_MINUTES),
+        },
     )
-    sessions = [(_aware(s), _aware(e)) for s, e in sess_res.all()]
-    trend: list[TrendPoint] = []
-    steps = (HISTORY_HOURS * 60) // TREND_BUCKET_MINUTES
-    for i in range(steps + 1):
-        t = day_ago + datetime.timedelta(minutes=i * TREND_BUCKET_MINUTES)
-        count = sum(1 for s, e in sessions if s and s <= t and (e is None or e >= t))
-        trend.append(TrendPoint(ts=t, online=count))
+    trend = [TrendPoint(ts=row.t, online=row.online) for row in trend_res.mappings()]
 
     return OverviewOut(
         online_now=online_now or 0,
