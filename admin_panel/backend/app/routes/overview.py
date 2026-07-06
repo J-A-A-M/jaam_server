@@ -117,7 +117,8 @@ async def overview(
 
     # Тренд онлайну за 24 год — generate_series на стороні БД, без передачі сесій у Python
     trend_res = await session.execute(
-        text("""
+        text(
+            """
             SELECT t, COUNT(s.id) AS online
             FROM generate_series(
                 CAST(:day_ago AS timestamptz),
@@ -129,7 +130,8 @@ async def overview(
                   AND (s.ended_at IS NULL OR s.ended_at >= t)
             GROUP BY t
             ORDER BY t
-        """),
+        """
+        ),
         {
             "day_ago": day_ago,
             "now": now,
@@ -139,7 +141,9 @@ async def overview(
     trend = [TrendPoint(ts=row.t, online=row.online) for row in trend_res.mappings()]
 
     # Нові мапи по днях за 30 днів
-    new_day_res = await session.execute(text("""
+    new_day_res = await session.execute(
+        text(
+            """
             SELECT gs.day::date AS day, COUNT(d.chip_id) AS count
             FROM generate_series(
                 (CURRENT_DATE - 29)::timestamptz,
@@ -150,11 +154,15 @@ async def overview(
                    ON d.first_seen >= gs.day
                   AND d.first_seen < gs.day + '1 day'::interval
             GROUP BY gs.day ORDER BY gs.day
-        """))
+        """
+        )
+    )
     new_per_day = [DayPoint(date=row.day, count=row.count) for row in new_day_res.mappings()]
 
     # Активні мапи по днях за 30 днів (унікальні пристрої з хоча б однією сесією за добу)
-    active_day_res = await session.execute(text("""
+    active_day_res = await session.execute(
+        text(
+            """
             SELECT gs.day::date AS day, COUNT(DISTINCT s.chip_id) AS count
             FROM generate_series(
                 (CURRENT_DATE - 29)::timestamptz,
@@ -165,7 +173,9 @@ async def overview(
                    ON s.started_at >= gs.day
                   AND s.started_at < gs.day + '1 day'::interval
             GROUP BY gs.day ORDER BY gs.day
-        """))
+        """
+        )
+    )
     active_per_day = [DayPoint(date=row.day, count=row.count) for row in active_day_res.mappings()]
 
     return OverviewOut(
