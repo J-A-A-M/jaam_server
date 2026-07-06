@@ -152,9 +152,9 @@ export default function Inventory() {
                           {m.map_id && <div className="font-mono text-[11px] text-muted-foreground">{m.map_id}</div>}
                         </td>
                         <td className="hidden px-4 py-3 sm:table-cell">
-                          <span className="inline-flex items-center gap-1.5">
-                            {m.hw_version ?? "—"}
-                            {m.is_prototype && <FlaskConical className="h-3.5 w-3.5 text-warning" />}
+                          <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary" title={m.customer_info ?? undefined}>
+                            {m.is_prototype && <FlaskConical className="h-3 w-3 shrink-0" />}
+                            {m.hw_version ?? "JAAM"}
                           </span>
                         </td>
                         <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">{m.order_number ?? "—"}</td>

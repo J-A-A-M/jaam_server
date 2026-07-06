@@ -3,7 +3,7 @@
 import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_, outerjoin, select
+from sqlalchemy import Integer, case, cast, func, or_, outerjoin, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,12 +14,17 @@ from ..schemas import BulkResult, JaamMapIn, JaamMapListOut, JaamMapOut
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
+_order_num_sort = case(
+    (JaamMap.order_number.op("~")(r"^\d+$"), cast(JaamMap.order_number, Integer)),
+    else_=None,
+)
+
 _SORT_COLUMNS = {
     "chip_id": JaamMap.chip_id,
     "map_id": JaamMap.map_id,
     "hw_version": JaamMap.hw_version,
-    "order_number": JaamMap.order_number,
-    "customer_info": JaamMap.customer_info,
+    "order_number": _order_num_sort,
+    "customer_info": func.lower(JaamMap.customer_info),
     "is_prototype": JaamMap.is_prototype,
     "is_online": Device.is_online,
     "last_seen": Device.last_seen,

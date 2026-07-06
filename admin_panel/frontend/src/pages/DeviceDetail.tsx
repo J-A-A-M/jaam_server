@@ -48,6 +48,12 @@ function eventDetail(type: string, details: string | null): string | null {
   }
 }
 
+const _countryNames = new Intl.DisplayNames(["uk"], { type: "region" });
+function countryName(code: string | null): string | null {
+  if (!code) return null;
+  try { return _countryNames.of(code) ?? code; } catch { return code; }
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
@@ -133,13 +139,13 @@ export default function DeviceDetail() {
           <CardHeader><CardTitle>Інформація</CardTitle></CardHeader>
           <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Field label="Прошивка" value={<span className="font-mono">{d.firmware}</span>} />
-            <Field label="ID прошивки" value={<span className="font-mono">{d.firmware_id}</span>} />
+            <Field label="ID" value={<span className="font-mono">{d.firmware_id}</span>} />
             <Field label="HW" value={d.hw_type} />
             <Field label="Сервер" value={d.last_server} />
             <Field label="IP" value={<span className="font-mono">{d.last_ip}</span>} />
             <Field label="Місто" value={d.city} />
             <Field label="Регіон" value={d.region} />
-            <Field label="Країна" value={d.country} />
+            <Field label="Країна" value={countryName(d.country)} />
             <Field label="Провайдер" value={d.org} />
             <Field label="Latency" value={d.latency != null && d.latency >= 0 ? `${d.latency} мс` : "—"} />
             <Field label="Перша поява" value={fmtDateTime(d.first_seen)} />

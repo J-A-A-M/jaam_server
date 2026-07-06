@@ -112,7 +112,7 @@ export default function Devices() {
                           <Link to={`/devices/${d.chip_id}`} className="font-mono text-xs text-primary hover:underline sm:text-sm">
                             {d.chip_id}
                           </Link>
-                          {d.firmware_id && <span className="ml-1 hidden text-xs text-muted-foreground sm:inline">{d.firmware_id}</span>}
+                          {d.map_id && <div className="font-mono text-[11px] text-muted-foreground">{d.map_id}</div>}
                         </td>
                         <td className="hidden px-4 py-3 sm:table-cell">
                           {d.is_jaam ? (

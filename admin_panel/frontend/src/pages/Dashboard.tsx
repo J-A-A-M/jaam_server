@@ -146,7 +146,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-        <DistroChart title="Тривалість онлайн-сесій" items={data.duration_histogram} hideEmpty />
+        <DistroChart title="Тривалість онлайн-сесій" items={data.duration_histogram} hideEmpty horizontal />
         <Card>
           <CardHeader><CardTitle>Останні події</CardTitle></CardHeader>
           <CardBody className="space-y-2">
@@ -201,7 +201,7 @@ function MonthChart({ title, data, color }: { title: string; data: { day: string
   );
 }
 
-function DistroChart({ title, items, hideEmpty, labelFmt }: { title: string; items: { label: string; count: number }[]; hideEmpty?: boolean; labelFmt?: (l: string) => string }) {
+function DistroChart({ title, items, hideEmpty, labelFmt, horizontal }: { title: string; items: { label: string; count: number }[]; hideEmpty?: boolean; labelFmt?: (l: string) => string; horizontal?: boolean }) {
   const palette = useChartPalette();
   const raw = hideEmpty ? items.filter((i) => i.count > 0) : items;
   const data = labelFmt ? raw.map((i) => ({ ...i, label: labelFmt(i.label) })) : raw;
@@ -211,6 +211,16 @@ function DistroChart({ title, items, hideEmpty, labelFmt }: { title: string; ite
       <CardBody>
         {data.length === 0 ? (
           <div className="py-6 text-center text-sm text-muted-foreground">Немає даних</div>
+        ) : horizontal ? (
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={data} margin={{ left: 0, right: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} vertical={false} />
+              <XAxis dataKey="label" {...palette.axis} minTickGap={20} />
+              <YAxis {...palette.axis} allowDecimals={false} width={28} />
+              <Tooltip contentStyle={palette.tooltip} cursor={{ fill: palette.cursor }} />
+              <Bar dataKey="count" fill={palette.accent} radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(160, data.length * 26)}>
             <BarChart data={data} layout="vertical" margin={{ left: 4 }}>

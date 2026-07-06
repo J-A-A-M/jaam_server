@@ -24,6 +24,10 @@ def _device_out(d: Device, reg: JaamMap | None) -> DeviceOut:
     return out
 
 
+_hw_version_subq = (
+    select(JaamMap.hw_version).where(JaamMap.chip_id == Device.chip_id).correlate(Device).scalar_subquery()
+)
+
 _SORT_COLUMNS = {
     "last_seen": Device.last_seen,
     "first_seen": Device.first_seen,
@@ -33,6 +37,7 @@ _SORT_COLUMNS = {
     "country": Device.country,
     "is_online": Device.is_online,
     "hw_type": Device.hw_type,
+    "hw_version": _hw_version_subq,
     "last_server": Device.last_server,
 }
 
