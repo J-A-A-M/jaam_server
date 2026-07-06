@@ -148,10 +148,11 @@ async def overview(
     _ts_end = datetime.datetime.combine(_today + datetime.timedelta(days=1), datetime.time.min, tzinfo=_SERVER_ZONE)
 
     # Нові мапи по днях за 30 днів
+    # (gs.day AT TIME ZONE :tz) — конвертує timestamptz у Kyiv-дату для правильного підпису
     new_day_res = await session.execute(
         text(
             """
-            SELECT gs.day::date AS day, COUNT(d.chip_id) AS count
+            SELECT (gs.day AT TIME ZONE :tz)::date AS day, COUNT(d.chip_id) AS count
             FROM generate_series(CAST(:ts_start AS timestamptz), CAST(:ts_end AS timestamptz) - '1 day'::interval, '1 day'::interval) AS gs(day)
             LEFT JOIN devices d
                    ON d.first_seen >= gs.day
@@ -159,7 +160,7 @@ async def overview(
             GROUP BY gs.day ORDER BY gs.day
         """
         ),
-        {"ts_start": _ts_start, "ts_end": _ts_end},
+        {"ts_start": _ts_start, "ts_end": _ts_end, "tz": SERVER_TZ},
     )
     new_per_day = [DayPoint(date=row.day, count=row.count) for row in new_day_res.mappings()]
 
@@ -169,7 +170,7 @@ async def overview(
     active_day_res = await session.execute(
         text(
             """
-            SELECT gs.day::date AS day, COUNT(DISTINCT s.chip_id) AS count
+            SELECT (gs.day AT TIME ZONE :tz)::date AS day, COUNT(DISTINCT s.chip_id) AS count
             FROM generate_series(CAST(:ts_start AS timestamptz), CAST(:ts_end AS timestamptz) - '1 day'::interval, '1 day'::interval) AS gs(day)
             LEFT JOIN device_sessions s
                    ON s.started_at < gs.day + '1 day'::interval
@@ -177,7 +178,7 @@ async def overview(
             GROUP BY gs.day ORDER BY gs.day
         """
         ),
-        {"ts_start": _ts_start, "ts_end": _ts_end},
+        {"ts_start": _ts_start, "ts_end": _ts_end, "tz": SERVER_TZ},
     )
     active_per_day = [DayPoint(date=row.day, count=row.count) for row in active_day_res.mappings()]
 
