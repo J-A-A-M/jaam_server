@@ -1,23 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { Activity, Cpu, Clock, PlusCircle } from "lucide-react";
-import { api, type DeviceEvent } from "@/lib/api";
-import { Card, CardBody, CardHeader, CardTitle, RelativeTime, Spinner, Stat } from "@/components/ui";
+import { api } from "@/lib/api";
+import { Card, CardBody, CardHeader, CardTitle, Spinner, Stat } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
-import { fmtDateTime } from "@/lib/utils";
-
-const _EVENTS_PAGE_SIZE = 20;
-
 
 interface StreamData {
   online_now: number;
   total_registered: number;
-  events: DeviceEvent[];
 }
 
 function useStream(): StreamData | null {
@@ -29,16 +23,6 @@ function useStream(): StreamData | null {
   }, []);
   return data;
 }
-
-const EVENT_LABEL: Record<string, string> = {
-  online: "з'явилась",
-  offline: "зникла",
-  firmware_change: "оновлення прошивки",
-  firmware_id_change: "зміна ID мапи",
-  geo_change: "зміна локації",
-  ip_change: "зміна IP",
-  first_seen: "нова мапа",
-};
 
 function useChartPalette() {
   const { theme } = useTheme();
@@ -70,11 +54,6 @@ export default function Dashboard() {
     refetchInterval: 30000,
   });
 
-  const { data: eventsData } = useQuery({
-    queryKey: ["dashboard-events"],
-    queryFn: () => api.events({ pageSize: _EVENTS_PAGE_SIZE }),
-    refetchInterval: 15000,
-  });
 
   if (isLoading || !data)
     return (
@@ -156,36 +135,7 @@ export default function Dashboard() {
         <DistroChart title="Топ міст" items={data.by_city} />
       </div>
 
-      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-        <DistroChart title="Тривалість онлайн-сесій" items={data.duration_histogram} hideEmpty horizontal />
-        <Card className="overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Останні події</CardTitle>
-              <Link to="/events" className="text-xs text-primary hover:underline">Усі події →</Link>
-            </div>
-          </CardHeader>
-          <CardBody className="space-y-2">
-            {(!eventsData || eventsData.items.length === 0) && (
-              <div className="py-6 text-center text-sm text-muted-foreground">Подій ще немає</div>
-            )}
-            {(eventsData?.items ?? []).map((e) => (
-              <Link
-                key={e.id}
-                to={e.chip_id ? `/devices/${encodeURIComponent(e.chip_id)}` : "#"}
-                className="flex items-center justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0 hover:bg-muted/40 -mx-4 px-4 rounded transition-colors"
-              >
-                <div className="flex flex-1 min-w-0 items-center gap-2 overflow-hidden">
-                  <span className={e.type === "offline" ? "h-2 w-2 shrink-0 rounded-full bg-muted-foreground" : "h-2 w-2 shrink-0 rounded-full bg-success"} />
-                  <span className="font-mono text-xs text-muted-foreground truncate">{e.chip_id}</span>
-                  <span className="shrink-0">{EVENT_LABEL[e.type] ?? e.type}</span>
-                </div>
-                <RelativeTime ts={e.ts} className="ml-2 shrink-0 text-xs text-muted-foreground" />
-              </Link>
-            ))}
-          </CardBody>
-        </Card>
-      </div>
+      <DistroChart title="Тривалість онлайн-сесій" items={data.duration_histogram} hideEmpty horizontal />
     </div>
   );
 }

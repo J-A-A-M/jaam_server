@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { to: "/", label: "Дашборд", icon: LayoutDashboard, end: true },
+  { to: "/events", label: "Події", icon: Activity },
   { to: "/devices", label: "Мапи", icon: Cpu },
   { to: "/inventory", label: "Реєстр JAAM", icon: ClipboardList },
   { to: "/map", label: "Карта", icon: MapPin },
   { to: "/servers", label: "Сервери", icon: Server },
-  { to: "/events", label: "Події", icon: Activity },
   { to: "/users", label: "Користувачі", icon: Users, adminOnly: true },
 ];
 
@@ -83,7 +83,7 @@ export default function Layout() {
         </div>
         <button
           onClick={toggle}
-          className="flex w-full items-center gap-3 border-l-2 border-transparent rounded-r px-3 py-2 text-[13px] text-muted-foreground transition-all duration-150 hover:border-border/[0.15] hover:bg-border/[0.04] hover:text-foreground"
+          className="hidden md:flex w-full items-center gap-3 border-l-2 border-transparent rounded-r px-3 py-2 text-[13px] text-muted-foreground transition-all duration-150 hover:border-border/[0.15] hover:bg-border/[0.04] hover:text-foreground"
         >
           {theme === "dark" ? <Sun className="h-[15px] w-[15px] shrink-0" /> : <Moon className="h-[15px] w-[15px] shrink-0" />}
           {theme === "dark" ? "Світла тема" : "Темна тема"}
