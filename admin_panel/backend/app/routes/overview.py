@@ -140,47 +140,44 @@ async def overview(
     )
     trend = [TrendPoint(ts=row.t, online=row.online) for row in trend_res.mappings()]
 
-    # Межі 30-денного вікна в SERVER_TZ (Europe/Kyiv), щоб доба збігалась з дашбордом
+    # Межі 30-денного вікна в SERVER_TZ (Europe/Kyiv) як timezone-aware datetime,
+    # щоб generate_series використовував опівніч Kyiv, а не UTC
     _today = datetime.datetime.now(_SERVER_ZONE).date()
     _day_start = _today - datetime.timedelta(days=29)
+    _ts_start = datetime.datetime.combine(_day_start, datetime.time.min, tzinfo=_SERVER_ZONE)
+    _ts_end = datetime.datetime.combine(_today + datetime.timedelta(days=1), datetime.time.min, tzinfo=_SERVER_ZONE)
 
     # Нові мапи по днях за 30 днів
     new_day_res = await session.execute(
         text(
             """
             SELECT gs.day::date AS day, COUNT(d.chip_id) AS count
-            FROM generate_series(
-                CAST(CAST(:day_start AS date) AS timestamptz),
-                CAST(CAST(:today AS date) AS timestamptz),
-                '1 day'::interval
-            ) AS gs(day)
+            FROM generate_series(:ts_start, :ts_end - '1 day'::interval, '1 day'::interval) AS gs(day)
             LEFT JOIN devices d
                    ON d.first_seen >= gs.day
                   AND d.first_seen < gs.day + '1 day'::interval
             GROUP BY gs.day ORDER BY gs.day
         """
         ),
-        {"day_start": _day_start, "today": _today},
+        {"ts_start": _ts_start, "ts_end": _ts_end},
     )
     new_per_day = [DayPoint(date=row.day, count=row.count) for row in new_day_res.mappings()]
 
-    # Активні мапи по днях за 30 днів (унікальні пристрої з хоча б однією сесією за добу)
+    # Активні мапи по днях за 30 днів:
+    # рахуємо унікальні пристрої, чия сесія ПЕРЕТИНАЄТЬСЯ з добою
+    # (стартувала до кінця доби І ще не завершилась АБО завершилась після початку доби)
     active_day_res = await session.execute(
         text(
             """
             SELECT gs.day::date AS day, COUNT(DISTINCT s.chip_id) AS count
-            FROM generate_series(
-                CAST(CAST(:day_start AS date) AS timestamptz),
-                CAST(CAST(:today AS date) AS timestamptz),
-                '1 day'::interval
-            ) AS gs(day)
+            FROM generate_series(:ts_start, :ts_end - '1 day'::interval, '1 day'::interval) AS gs(day)
             LEFT JOIN device_sessions s
-                   ON s.started_at >= gs.day
-                  AND s.started_at < gs.day + '1 day'::interval
+                   ON s.started_at < gs.day + '1 day'::interval
+                  AND (s.ended_at >= gs.day OR s.ended_at IS NULL)
             GROUP BY gs.day ORDER BY gs.day
         """
         ),
-        {"day_start": _day_start, "today": _today},
+        {"ts_start": _ts_start, "ts_end": _ts_end},
     )
     active_per_day = [DayPoint(date=row.day, count=row.count) for row in active_day_res.mappings()]
 
