@@ -279,8 +279,16 @@ export const api = {
     }),
   deleteMap: (chipId: string) =>
     req<void>(`/api/inventory/${encodeURIComponent(chipId)}`, { method: "DELETE" }),
-  events: (page = 1, pageSize = 20) =>
-    req<EventList>(`/api/events?page=${page}&page_size=${pageSize}`),
+  events: (params: { page?: number; pageSize?: number; q?: string; type?: string; period?: string; sort?: string; order?: string } = {}) => {
+    const { page = 1, pageSize = 50, q, type, period, sort, order } = params;
+    const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (q)      qs.set("q", q);
+    if (type)   qs.set("type", type);
+    if (period) qs.set("period", period);
+    if (sort)   qs.set("sort", sort);
+    if (order)  qs.set("order", order);
+    return req<EventList>(`/api/events?${qs.toString()}`);
+  },
   users: () => req<PanelUser[]>("/api/users"),
   createUser: (body: PanelUserInput) =>
     req<PanelUser>("/api/users", { method: "POST", body: JSON.stringify(body) }),

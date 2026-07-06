@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { Activity, Cpu, Clock, PlusCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Activity, Cpu, Clock, PlusCircle } from "lucide-react";
 import { api, type DeviceEvent } from "@/lib/api";
 import { Card, CardBody, CardHeader, CardTitle, Spinner, Stat } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
 import { fmtDateTime, timeAgo } from "@/lib/utils";
 
 const _EVENTS_PAGE_SIZE = 20;
+
 
 interface StreamData {
   online_now: number;
@@ -33,6 +34,7 @@ const EVENT_LABEL: Record<string, string> = {
   online: "з'явилась",
   offline: "зникла",
   firmware_change: "оновлення прошивки",
+  firmware_id_change: "зміна ID мапи",
   geo_change: "зміна локації",
   ip_change: "зміна IP",
   first_seen: "нова мапа",
@@ -61,16 +63,6 @@ function useChartPalette() {
 export default function Dashboard() {
   const stream = useStream();
   const palette = useChartPalette();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const eventsPage = Math.max(1, parseInt(searchParams.get("events_page") ?? "1", 10) || 1);
-  const setEventsPage = (updater: number | ((p: number) => number)) => {
-    const next = typeof updater === "function" ? updater(eventsPage) : updater;
-    setSearchParams(prev => {
-      const p = new URLSearchParams(prev);
-      if (next <= 1) p.delete("events_page"); else p.set("events_page", String(next));
-      return p;
-    }, { replace: true });
-  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["overview"],
@@ -79,10 +71,9 @@ export default function Dashboard() {
   });
 
   const { data: eventsData } = useQuery({
-    queryKey: ["dashboard-events", eventsPage],
-    queryFn: () => api.events(eventsPage, _EVENTS_PAGE_SIZE),
+    queryKey: ["dashboard-events"],
+    queryFn: () => api.events({ pageSize: _EVENTS_PAGE_SIZE }),
     refetchInterval: 15000,
-    placeholderData: keepPreviousData,
   });
 
   if (isLoading || !data)
@@ -168,7 +159,12 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <DistroChart title="Тривалість онлайн-сесій" items={data.duration_histogram} hideEmpty horizontal />
         <Card className="overflow-hidden">
-          <CardHeader><CardTitle>Останні події {eventsData ? `(${eventsData.total})` : ""}</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Останні події</CardTitle>
+              <Link to="/events" className="text-xs text-primary hover:underline">Усі події →</Link>
+            </div>
+          </CardHeader>
           <CardBody className="space-y-2">
             {(!eventsData || eventsData.items.length === 0) && (
               <div className="py-6 text-center text-sm text-muted-foreground">Подій ще немає</div>
@@ -189,21 +185,6 @@ export default function Dashboard() {
                 </span>
               </Link>
             ))}
-            {eventsData && eventsData.total > _EVENTS_PAGE_SIZE && (
-              <div className="flex items-center justify-between border-t border-border/[0.07] pt-2 text-xs text-muted-foreground">
-                <span>{Math.min((eventsPage - 1) * _EVENTS_PAGE_SIZE + 1, eventsData.total)}–{Math.min(eventsPage * _EVENTS_PAGE_SIZE, eventsData.total)} з {eventsData.total}</span>
-                <div className="flex gap-1">
-                  <button disabled={eventsPage <= 1} onClick={() => setEventsPage(p => p - 1)}
-                    className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
-                    <ChevronLeft className="h-3 w-3" /><span className="hidden sm:inline"> Назад</span>
-                  </button>
-                  <button disabled={eventsPage >= Math.ceil(eventsData.total / _EVENTS_PAGE_SIZE)} onClick={() => setEventsPage(p => p + 1)}
-                    className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
-                    <span className="hidden sm:inline">Далі </span><ChevronRight className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            )}
           </CardBody>
         </Card>
       </div>

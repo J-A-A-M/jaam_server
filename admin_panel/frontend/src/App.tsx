@@ -9,6 +9,7 @@ import DeviceDetail from "./pages/DeviceDetail";
 import Inventory from "./pages/Inventory";
 import MapPage from "./pages/MapPage";
 import Servers from "./pages/Servers";
+import Events from "./pages/Events";
 import Users from "./pages/Users";
 import type { ReactNode } from "react";
 
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/map" element={<MapPage />} />
         <Route path="/servers" element={<Servers />} />
+        <Route path="/events" element={<Events />} />
         <Route path="/users" element={<Users />} />
       </Route>
     </Routes>

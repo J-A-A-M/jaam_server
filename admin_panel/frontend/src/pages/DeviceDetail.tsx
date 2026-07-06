@@ -26,6 +26,7 @@ const EVENT_LABEL: Record<string, string> = {
   online: "З'явилась онлайн",
   offline: "Пішла в офлайн",
   firmware_change: "Оновлення прошивки",
+  firmware_id_change: "Зміна ID мапи",
   geo_change: "Зміна локації",
   ip_change: "Зміна IP",
   first_seen: "Перша поява",
@@ -38,8 +39,9 @@ function eventDetail(type: string, details: string | null): string | null {
     switch (type) {
       case "first_seen":      return d.firmware ?? null;
       case "online":          return d.server ?? null;
-      case "firmware_change": return d.from && d.to ? `${d.from} → ${d.to}` : null;
-      case "geo_change":      return d.from && d.to ? `${d.from} → ${d.to}` : null;
+      case "firmware_change":    return d.from && d.to ? `${d.from} → ${d.to}` : null;
+      case "firmware_id_change": return `${d.from ?? "—"} → ${d.to ?? "—"}`;
+      case "geo_change":         return d.from && d.to ? `${d.from} → ${d.to}` : null;
       case "ip_change":       return d.from && d.to ? `${d.from} → ${d.to}` : null;
       default:                return null;
     }
