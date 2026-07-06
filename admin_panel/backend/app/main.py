@@ -16,7 +16,7 @@ from .config import LOG_LEVEL, PORT, check_secrets
 from .db import SessionLocal, init_models
 from .models import RedisServerConfig
 from .redis_util import build_server_from_config
-from .routes import auth, devices, geo, inventory, overview, servers, stream, users, webauthn
+from .routes import auth, devices, events, geo, inventory, overview, servers, stream, users, webauthn
 from .seed import seed_admin, seed_redis_configs
 from sqlalchemy import select
 
@@ -58,6 +58,7 @@ app.include_router(auth.router)
 app.include_router(webauthn.router)
 app.include_router(overview.router)
 app.include_router(devices.router)
+app.include_router(events.router)
 app.include_router(inventory.router)
 app.include_router(geo.router)
 app.include_router(servers.router)

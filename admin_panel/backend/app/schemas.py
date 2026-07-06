@@ -90,9 +90,17 @@ class EventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    chip_id: str | None = None
     type: str
     ts: datetime.datetime
     details: str | None
+
+
+class EventListOut(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    items: list[EventOut]
 
 
 class DeviceDetailOut(BaseModel):

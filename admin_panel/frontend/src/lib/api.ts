@@ -111,6 +111,13 @@ export interface DeviceEvent {
   details: string | null;
 }
 
+export interface EventList {
+  total: number;
+  page: number;
+  page_size: number;
+  items: DeviceEvent[];
+}
+
 export interface DeviceDetail {
   device: Device;
   sessions: DeviceSession[];
@@ -268,6 +275,8 @@ export const api = {
     }),
   deleteMap: (chipId: string) =>
     req<void>(`/api/inventory/${encodeURIComponent(chipId)}`, { method: "DELETE" }),
+  events: (page = 1, pageSize = 20) =>
+    req<EventList>(`/api/events?page=${page}&page_size=${pageSize}`),
   users: () => req<PanelUser[]>("/api/users"),
   createUser: (body: PanelUserInput) =>
     req<PanelUser>("/api/users", { method: "POST", body: JSON.stringify(body) }),

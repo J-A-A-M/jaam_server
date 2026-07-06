@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { Activity, Cpu, Clock, PlusCircle } from "lucide-react";
+import { Activity, Cpu, Clock, PlusCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { api, type DeviceEvent } from "@/lib/api";
 import { Card, CardBody, CardHeader, CardTitle, Spinner, Stat } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
 import { fmtDateTime, timeAgo } from "@/lib/utils";
+
+const _EVENTS_PAGE_SIZE = 20;
 
 interface StreamData {
   online_now: number;
@@ -59,10 +61,19 @@ function useChartPalette() {
 export default function Dashboard() {
   const stream = useStream();
   const palette = useChartPalette();
+  const [eventsPage, setEventsPage] = useState(1);
+
   const { data, isLoading } = useQuery({
     queryKey: ["overview"],
     queryFn: api.overview,
     refetchInterval: 30000,
+  });
+
+  const { data: eventsData } = useQuery({
+    queryKey: ["dashboard-events", eventsPage],
+    queryFn: () => api.events(eventsPage, _EVENTS_PAGE_SIZE),
+    refetchInterval: 15000,
+    placeholderData: keepPreviousData,
   });
 
   if (isLoading || !data)
@@ -147,13 +158,13 @@ export default function Dashboard() {
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <DistroChart title="Тривалість онлайн-сесій" items={data.duration_histogram} hideEmpty horizontal />
-        <Card>
-          <CardHeader><CardTitle>Останні події</CardTitle></CardHeader>
+        <Card className="overflow-hidden">
+          <CardHeader><CardTitle>Останні події {eventsData ? `(${eventsData.total})` : ""}</CardTitle></CardHeader>
           <CardBody className="space-y-2">
-            {(stream?.events ?? []).length === 0 && (
+            {(!eventsData || eventsData.items.length === 0) && (
               <div className="py-6 text-center text-sm text-muted-foreground">Подій ще немає</div>
             )}
-            {(stream?.events ?? []).map((e) => (
+            {(eventsData?.items ?? []).map((e) => (
               <Link
                 key={e.id}
                 to={e.chip_id ? `/devices/${encodeURIComponent(e.chip_id)}` : "#"}
@@ -169,6 +180,21 @@ export default function Dashboard() {
                 </span>
               </Link>
             ))}
+            {eventsData && eventsData.total > _EVENTS_PAGE_SIZE && (
+              <div className="flex items-center justify-between border-t border-border/[0.07] pt-2 text-xs text-muted-foreground">
+                <span>{Math.min((eventsPage - 1) * _EVENTS_PAGE_SIZE + 1, eventsData.total)}–{Math.min(eventsPage * _EVENTS_PAGE_SIZE, eventsData.total)} з {eventsData.total}</span>
+                <div className="flex gap-1">
+                  <button disabled={eventsPage <= 1} onClick={() => setEventsPage(p => p - 1)}
+                    className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
+                    <ChevronLeft className="h-3 w-3" /><span className="hidden sm:inline"> Назад</span>
+                  </button>
+                  <button disabled={eventsPage >= Math.ceil(eventsData.total / _EVENTS_PAGE_SIZE)} onClick={() => setEventsPage(p => p + 1)}
+                    className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
+                    <span className="hidden sm:inline">Далі </span><ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            )}
           </CardBody>
         </Card>
       </div>
