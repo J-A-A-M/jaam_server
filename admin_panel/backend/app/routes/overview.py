@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import SERVER_TZ
 from ..db import get_session
 from ..deps import get_current_user
-from ..models import Device, JaamMap, utcnow
-from ..schemas import CountItem, OverviewOut, TrendPoint
+from ..models import Device, DeviceSession, JaamMap, utcnow
+from ..schemas import CountItem, DayPoint, OverviewOut, TrendPoint
 
 router = APIRouter(prefix="/api/overview", tags=["overview"])
 
@@ -138,6 +138,36 @@ async def overview(
     )
     trend = [TrendPoint(ts=row.t, online=row.online) for row in trend_res.mappings()]
 
+    # Нові мапи по днях за 30 днів
+    new_day_res = await session.execute(text("""
+            SELECT gs.day::date AS day, COUNT(d.chip_id) AS count
+            FROM generate_series(
+                (CURRENT_DATE - 29)::timestamptz,
+                CURRENT_DATE::timestamptz,
+                '1 day'::interval
+            ) AS gs(day)
+            LEFT JOIN devices d
+                   ON d.first_seen >= gs.day
+                  AND d.first_seen < gs.day + '1 day'::interval
+            GROUP BY gs.day ORDER BY gs.day
+        """))
+    new_per_day = [DayPoint(date=row.day, count=row.count) for row in new_day_res.mappings()]
+
+    # Активні мапи по днях за 30 днів (унікальні пристрої з хоча б однією сесією за добу)
+    active_day_res = await session.execute(text("""
+            SELECT gs.day::date AS day, COUNT(DISTINCT s.chip_id) AS count
+            FROM generate_series(
+                (CURRENT_DATE - 29)::timestamptz,
+                CURRENT_DATE::timestamptz,
+                '1 day'::interval
+            ) AS gs(day)
+            LEFT JOIN device_sessions s
+                   ON s.started_at >= gs.day
+                  AND s.started_at < gs.day + '1 day'::interval
+            GROUP BY gs.day ORDER BY gs.day
+        """))
+    active_per_day = [DayPoint(date=row.day, count=row.count) for row in active_day_res.mappings()]
+
     return OverviewOut(
         online_now=online_now or 0,
         jaam_online=jaam_online or 0,
@@ -154,4 +184,6 @@ async def overview(
         by_city=await _grouped(session, Device.city),
         duration_histogram=duration_histogram,
         online_trend=trend,
+        new_per_day=new_per_day,
+        active_per_day=active_per_day,
     )

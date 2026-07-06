@@ -89,7 +89,7 @@ export default function Devices() {
                   <tr className="border-b border-border/[0.1] text-left">
                     <SortTh col="is_online" label="Статус" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="chip_id" label="Chip ID" sort={sort} dir={dir} onSort={onSort} />
-                    <th className="hidden px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:table-cell">Тип</th>
+                    <SortTh col="hw_version" label="Тип" sort={sort} dir={dir} onSort={onSort} className="hidden sm:table-cell" />
                     <SortTh col="firmware" label="Прошивка" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
                     <SortTh col="hw_type" label="HW" sort={sort} dir={dir} onSort={onSort} className="hidden lg:table-cell" />
                     <SortTh col="region" label="Локація" sort={sort} dir={dir} onSort={onSort} />

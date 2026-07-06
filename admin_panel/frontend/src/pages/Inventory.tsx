@@ -123,7 +123,7 @@ export default function Inventory() {
                   <tr className="border-b border-border/[0.1] text-left">
                     <SortTh col="is_online" label="Стан" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="chip_id" label="Chip ID" sort={sort} dir={dir} onSort={onSort} />
-                    <SortTh col="hw_version" label="HW версія" sort={sort} dir={dir} onSort={onSort} className="hidden sm:table-cell" />
+                    <SortTh col="hw_version" label="Тип" sort={sort} dir={dir} onSort={onSort} className="hidden sm:table-cell" />
                     <SortTh col="order_number" label="Замовлення" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
                     <SortTh col="customer_info" label="Клієнт" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="firmware" label="Прошивка" sort={sort} dir={dir} onSort={onSort} className="hidden lg:table-cell" />
@@ -149,6 +149,7 @@ export default function Inventory() {
                           <Link to={`/devices/${m.chip_id}`} className="font-mono text-xs text-primary hover:underline sm:text-sm">
                             {m.chip_id}
                           </Link>
+                          {m.map_id && <div className="font-mono text-[11px] text-muted-foreground">{m.map_id}</div>}
                         </td>
                         <td className="hidden px-4 py-3 sm:table-cell">
                           <span className="inline-flex items-center gap-1.5">

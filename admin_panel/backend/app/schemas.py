@@ -98,7 +98,9 @@ class EventOut(BaseModel):
 class DeviceDetailOut(BaseModel):
     device: DeviceOut
     sessions: list[SessionOut]
+    sessions_total: int = 0
     events: list[EventOut]
+    events_total: int = 0
 
 
 class CountItem(BaseModel):
@@ -151,6 +153,11 @@ class BulkResult(BaseModel):
     total: int
 
 
+class DayPoint(BaseModel):
+    date: datetime.date
+    count: int
+
+
 class OverviewOut(BaseModel):
     online_now: int
     jaam_online: int
@@ -167,6 +174,8 @@ class OverviewOut(BaseModel):
     by_city: list[CountItem]
     duration_histogram: list[CountItem]
     online_trend: list[TrendPoint]
+    new_per_day: list[DayPoint]
+    active_per_day: list[DayPoint]
 
 
 class GeoPoint(BaseModel):

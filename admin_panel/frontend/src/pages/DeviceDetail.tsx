@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
-import { ArrowLeft, FlaskConical } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
@@ -57,14 +57,25 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+const _PAGE_SIZE = 20;
+
 export default function DeviceDetail() {
   const { chipId } = useParams();
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const [sessionsPage, setSessionsPage] = useState(1);
+  const [eventsPage, setEventsPage] = useState(1);
+
+  useEffect(() => {
+    setSessionsPage(1);
+    setEventsPage(1);
+  }, [chipId]);
+
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["device", chipId],
-    queryFn: () => api.device(chipId!),
+    queryKey: ["device", chipId, sessionsPage, eventsPage],
+    queryFn: () => api.device(chipId!, sessionsPage, eventsPage),
     refetchInterval: 15000,
+    placeholderData: keepPreviousData,
   });
 
   if (isLoading)
@@ -102,16 +113,6 @@ export default function DeviceDetail() {
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <h1 className="break-all font-mono text-xl font-bold sm:text-2xl">{d.chip_id}</h1>
         <Badge variant={d.is_online ? "online" : "offline"}>{d.is_online ? "online" : "offline"}</Badge>
-        {d.is_jaam ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-            Офіційна JAAM{d.is_prototype && <FlaskConical className="ml-1 inline h-3.5 w-3.5 text-warning" />}
-          </span>
-        ) : (
-          <span className="rounded-full border border-border/[0.1] bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
-            Самозбірка
-          </span>
-        )}
-        {d.firmware_id && <span className="text-sm text-muted-foreground">ID: {d.firmware_id}</span>}
       </div>
 
       {d.is_jaam && (
@@ -119,7 +120,7 @@ export default function DeviceDetail() {
           <CardHeader><CardTitle>Дані реєстру JAAM</CardTitle></CardHeader>
           <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {d.map_id && <Field label="ID" value={<span className="font-mono">{d.map_id}</span>} />}
-            <Field label="HW версія" value={d.hw_version} />
+            <Field label="Тип" value={d.hw_version} />
             <Field label="Прототип" value={d.is_prototype ? "так" : "ні"} />
             {d.order_number && <Field label="№ замовлення" value={d.order_number} />}
             <Field label="Клієнт" value={d.customer_info} />
@@ -131,13 +132,9 @@ export default function DeviceDetail() {
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>Інформація</CardTitle></CardHeader>
           <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Field label="Прошивка" value={
-              <span className="font-mono">
-                {d.firmware ?? "—"}
-                {d.firmware_id && <span className="ml-1 text-muted-foreground">({d.firmware_id})</span>}
-              </span>
-            } />
-            <Field label="Тип HW" value={d.hw_type} />
+            <Field label="Прошивка" value={<span className="font-mono">{d.firmware}</span>} />
+            <Field label="ID прошивки" value={<span className="font-mono">{d.firmware_id}</span>} />
+            <Field label="HW" value={d.hw_type} />
             <Field label="Сервер" value={d.last_server} />
             <Field label="IP" value={<span className="font-mono">{d.last_ip}</span>} />
             <Field label="Місто" value={d.city} />
@@ -172,7 +169,7 @@ export default function DeviceDetail() {
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Сесії ({data.sessions.length})</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Сесії ({data.sessions_total})</CardTitle></CardHeader>
           <CardBody className="space-y-2">
             {data.sessions.length === 0 && <div className="text-sm text-muted-foreground">Немає сесій</div>}
             {data.sessions.map((s) => (
@@ -189,11 +186,26 @@ export default function DeviceDetail() {
                 </Badge>
               </div>
             ))}
+            {data.sessions_total > _PAGE_SIZE && (
+              <div className="flex items-center justify-between border-t border-border/[0.07] pt-2 text-xs text-muted-foreground">
+                <span>{Math.min((sessionsPage - 1) * _PAGE_SIZE + 1, data.sessions_total)}–{Math.min(sessionsPage * _PAGE_SIZE, data.sessions_total)} з {data.sessions_total}</span>
+                <div className="flex gap-1">
+                  <button disabled={sessionsPage <= 1} onClick={() => setSessionsPage(p => p - 1)}
+                    className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
+                    <ChevronLeft className="h-3 w-3" /> Назад
+                  </button>
+                  <button disabled={sessionsPage >= Math.ceil(data.sessions_total / _PAGE_SIZE)} onClick={() => setSessionsPage(p => p + 1)}
+                    className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
+                    Далі <ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            )}
           </CardBody>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Події ({data.events.length})</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Події ({data.events_total})</CardTitle></CardHeader>
           <CardBody className="space-y-2">
             {data.events.length === 0 && <div className="text-sm text-muted-foreground">Немає подій</div>}
             {data.events.map((e) => {
@@ -208,6 +220,21 @@ export default function DeviceDetail() {
                 </div>
               );
             })}
+            {data.events_total > _PAGE_SIZE && (
+              <div className="flex items-center justify-between border-t border-border/[0.07] pt-2 text-xs text-muted-foreground">
+                <span>{Math.min((eventsPage - 1) * _PAGE_SIZE + 1, data.events_total)}–{Math.min(eventsPage * _PAGE_SIZE, data.events_total)} з {data.events_total}</span>
+                <div className="flex gap-1">
+                  <button disabled={eventsPage <= 1} onClick={() => setEventsPage(p => p - 1)}
+                    className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
+                    <ChevronLeft className="h-3 w-3" /> Назад
+                  </button>
+                  <button disabled={eventsPage >= Math.ceil(data.events_total / _PAGE_SIZE)} onClick={() => setEventsPage(p => p + 1)}
+                    className="flex items-center gap-0.5 rounded border border-border/[0.1] px-2 py-1 transition hover:bg-muted hover:text-foreground disabled:opacity-40">
+                    Далі <ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            )}
           </CardBody>
         </Card>
       </div>

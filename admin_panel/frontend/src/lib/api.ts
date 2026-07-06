@@ -84,7 +84,11 @@ export interface Overview {
   by_city: CountItem[];
   duration_histogram: CountItem[];
   online_trend: TrendPoint[];
+  new_per_day: DayPoint[];
+  active_per_day: DayPoint[];
 }
+
+export interface DayPoint { date: string; count: number; }
 
 export interface DeviceSession {
   id: number;
@@ -110,7 +114,9 @@ export interface DeviceEvent {
 export interface DeviceDetail {
   device: Device;
   sessions: DeviceSession[];
+  sessions_total: number;
   events: DeviceEvent[];
+  events_total: number;
 }
 
 export interface GeoPoint {
@@ -227,7 +233,8 @@ export const api = {
     });
     return req<DeviceList>(`/api/devices?${qs.toString()}`);
   },
-  device: (chipId: string) => req<DeviceDetail>(`/api/devices/${encodeURIComponent(chipId)}`),
+  device: (chipId: string, sessionsPage = 1, eventsPage = 1) =>
+    req<DeviceDetail>(`/api/devices/${encodeURIComponent(chipId)}?sessions_page=${sessionsPage}&events_page=${eventsPage}`),
   geo: (status?: string, type?: string) => {
     const qs = new URLSearchParams();
     if (status) qs.set("status", status);

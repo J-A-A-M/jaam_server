@@ -36,6 +36,9 @@ _SORT_COLUMNS = {
     "last_server": Device.last_server,
 }
 
+_SESSIONS_PAGE_SIZE = 20
+_EVENTS_PAGE_SIZE = 20
+
 
 @router.get("", response_model=DeviceListOut)
 async def list_devices(
@@ -107,6 +110,8 @@ async def list_devices(
 @router.get("/{chip_id}", response_model=DeviceDetailOut)
 async def device_detail(
     chip_id: str,
+    sessions_page: int = Query(1, ge=1),
+    events_page: int = Query(1, ge=1),
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
@@ -149,17 +154,30 @@ async def device_detail(
         )
         return DeviceDetailOut(device=stub, sessions=[], events=[])
 
+    sessions_total = await session.scalar(
+        select(func.count()).select_from(DeviceSession).where(DeviceSession.chip_id == chip_id)
+    )
     sessions_res = await session.execute(
         select(DeviceSession)
         .where(DeviceSession.chip_id == chip_id)
         .order_by(DeviceSession.started_at.desc())
-        .limit(100)
+        .offset((sessions_page - 1) * _SESSIONS_PAGE_SIZE)
+        .limit(_SESSIONS_PAGE_SIZE)
+    )
+    events_total = await session.scalar(
+        select(func.count()).select_from(DeviceEvent).where(DeviceEvent.chip_id == chip_id)
     )
     events_res = await session.execute(
-        select(DeviceEvent).where(DeviceEvent.chip_id == chip_id).order_by(DeviceEvent.ts.desc()).limit(100)
+        select(DeviceEvent)
+        .where(DeviceEvent.chip_id == chip_id)
+        .order_by(DeviceEvent.ts.desc())
+        .offset((events_page - 1) * _EVENTS_PAGE_SIZE)
+        .limit(_EVENTS_PAGE_SIZE)
     )
     return DeviceDetailOut(
         device=_device_out(device, reg),
         sessions=[SessionOut.model_validate(s) for s in sessions_res.scalars().all()],
+        sessions_total=sessions_total or 0,
         events=[EventOut.model_validate(e) for e in events_res.scalars().all()],
+        events_total=events_total or 0,
     )

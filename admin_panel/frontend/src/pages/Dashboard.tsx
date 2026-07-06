@@ -80,6 +80,13 @@ export default function Dashboard() {
     online: p.online,
   }));
 
+  const fmtDay = (iso: string) => {
+    const d = new Date(iso + "T00:00:00Z");
+    return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  };
+  const newPerDay  = data.new_per_day.map((p)    => ({ day: fmtDay(p.date), count: p.count }));
+  const activePerDay = data.active_per_day.map((p) => ({ day: fmtDay(p.date), count: p.count }));
+
   return (
     <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
       <div>
@@ -114,13 +121,18 @@ export default function Dashboard() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={palette.gridArea} />
               <XAxis dataKey="t" {...palette.axis} minTickGap={40} />
-              <YAxis {...palette.axis} allowDecimals={false} width={28} />
+              <YAxis {...palette.axis} allowDecimals={false} width={28} domain={[(min: number) => Math.max(0, min - 1), (max: number) => max + 1]} />
               <Tooltip contentStyle={palette.tooltip} />
               <Area type="monotone" dataKey="online" stroke={palette.primary} fill="url(#g)" strokeWidth={1.5} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </CardBody>
       </Card>
+
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <MonthChart title="Нові мапи за 30 днів" data={newPerDay} color={palette.accent} />
+        <MonthChart title="Активні мапи за 30 днів" data={activePerDay} color={palette.primary} />
+      </div>
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <DistroChart title="Версії прошивок" items={data.by_firmware} />
@@ -167,6 +179,26 @@ export default function Dashboard() {
 const _displayNames = new Intl.DisplayNames(["en"], { type: "region" });
 function countryLabel(code: string): string {
   try { return _displayNames.of(code) ?? code; } catch { return code; }
+}
+
+function MonthChart({ title, data, color }: { title: string; data: { day: string; count: number }[]; color: string }) {
+  const palette = useChartPalette();
+  return (
+    <Card>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+      <CardBody>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={data} margin={{ left: 0, right: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} vertical={false} />
+            <XAxis dataKey="day" {...palette.axis} minTickGap={24} />
+            <YAxis {...palette.axis} allowDecimals={false} width={28} />
+            <Tooltip contentStyle={palette.tooltip} cursor={{ fill: palette.cursor }} />
+            <Bar dataKey="count" fill={color} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </CardBody>
+    </Card>
+  );
 }
 
 function DistroChart({ title, items, hideEmpty, labelFmt }: { title: string; items: { label: string; count: number }[]; hideEmpty?: boolean; labelFmt?: (l: string) => string }) {
