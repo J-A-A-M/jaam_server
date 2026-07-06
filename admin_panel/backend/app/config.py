@@ -28,7 +28,7 @@ JWT_SECRET = _env("JWT_SECRET", "change-me-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_TTL_SECONDS = int(_env("JWT_TTL_SECONDS", str(7 * 24 * 3600)))
 COOKIE_NAME = "jaam_admin_token"
-COOKIE_SECURE = _env("COOKIE_SECURE", "false").lower() == "true"
+COOKIE_SECURE = _env("COOKIE_SECURE", "true").lower() == "true"
 
 
 def check_secrets() -> None:

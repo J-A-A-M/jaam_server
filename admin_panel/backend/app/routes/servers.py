@@ -45,7 +45,7 @@ async def _reload(request: Request, session: AsyncSession) -> None:
         try:
             await server.client.aclose()
         except Exception:
-            pass
+            logger.warning("Не вдалося закрити з'єднання Redis '%s'", server.name, exc_info=True)
 
 
 # --- Статус (всі авторизовані користувачі) ---
@@ -115,9 +115,15 @@ async def update_config(
 
     fields = body.model_fields_set
     if "name" in fields and body.name is not None:
-        cfg.name = body.name.strip()
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Назва не може бути порожньою")
+        cfg.name = name
     if "host" in fields and body.host is not None:
-        cfg.host = body.host.strip()
+        host = body.host.strip()
+        if not host:
+            raise HTTPException(status_code=400, detail="Хост не може бути порожнім")
+        cfg.host = host
     if "port" in fields and body.port is not None:
         cfg.port = body.port
     if "db" in fields and body.db is not None:

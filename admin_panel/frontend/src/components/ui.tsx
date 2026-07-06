@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { HTMLAttributes, InputHTMLAttributes, ButtonHTMLAttributes, ReactNode, ThHTMLAttributes } from "react";
+import type { HTMLAttributes, InputHTMLAttributes, ButtonHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode, ThHTMLAttributes } from "react";
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
@@ -97,7 +97,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   );
 }
 
-export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       className={cn(
@@ -110,7 +110,7 @@ export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLS
   );
 }
 
-export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       className={cn(

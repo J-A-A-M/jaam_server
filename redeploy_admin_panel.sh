@@ -13,8 +13,9 @@ JWT_SECRET="change-me-in-production"
 ADMIN_USER="admin"
 ADMIN_PASSWORD="jaam_rocks"
 COLLECT_INTERVAL="20"
-COOKIE_SECURE="false"
+COOKIE_SECURE="true"
 LOGGING="INFO"
+SERVER_TZ="Europe/Kyiv"
 APP_ORIGIN="https://admin.jaam.net.ua"
 RP_ID="admin.jaam.net.ua"
 
@@ -31,6 +32,7 @@ while [[ $# -gt 0 ]]; do
         -ap|--admin-password) ADMIN_PASSWORD="$2"; shift 2;;
         -ci|--collect-interval) COLLECT_INTERVAL="$2"; shift 2;;
         -cs|--cookie-secure) COOKIE_SECURE="$2"; shift 2;;
+        -tz|--server-tz) SERVER_TZ="$2"; shift 2;;
         -l|--logging) LOGGING="$2"; shift 2;;
         --app-origin) APP_ORIGIN="$2"; shift 2;;
         --rp-id) RP_ID="$2"; shift 2;;
@@ -74,6 +76,7 @@ docker run --name jaam_admin_panel \
     --env ADMIN_PASSWORD="$ADMIN_PASSWORD" \
     --env COLLECT_INTERVAL="$COLLECT_INTERVAL" \
     --env COOKIE_SECURE="$COOKIE_SECURE" \
+    --env SERVER_TZ="$SERVER_TZ" \
     --env LOGGING="$LOGGING" \
     --env APP_ORIGIN="$APP_ORIGIN" \
     --env RP_ID="$RP_ID" \

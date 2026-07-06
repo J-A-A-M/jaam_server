@@ -140,14 +140,18 @@ async def overview(
     )
     trend = [TrendPoint(ts=row.t, online=row.online) for row in trend_res.mappings()]
 
+    # Межі 30-денного вікна в SERVER_TZ (Europe/Kyiv), щоб доба збігалась з дашбордом
+    _today = datetime.datetime.now(_SERVER_ZONE).date()
+    _day_start = _today - datetime.timedelta(days=29)
+
     # Нові мапи по днях за 30 днів
     new_day_res = await session.execute(
         text(
             """
             SELECT gs.day::date AS day, COUNT(d.chip_id) AS count
             FROM generate_series(
-                (CURRENT_DATE - 29)::timestamptz,
-                CURRENT_DATE::timestamptz,
+                :day_start::date::timestamptz,
+                :today::date::timestamptz,
                 '1 day'::interval
             ) AS gs(day)
             LEFT JOIN devices d
@@ -155,7 +159,8 @@ async def overview(
                   AND d.first_seen < gs.day + '1 day'::interval
             GROUP BY gs.day ORDER BY gs.day
         """
-        )
+        ),
+        {"day_start": _day_start, "today": _today},
     )
     new_per_day = [DayPoint(date=row.day, count=row.count) for row in new_day_res.mappings()]
 
@@ -165,8 +170,8 @@ async def overview(
             """
             SELECT gs.day::date AS day, COUNT(DISTINCT s.chip_id) AS count
             FROM generate_series(
-                (CURRENT_DATE - 29)::timestamptz,
-                CURRENT_DATE::timestamptz,
+                :day_start::date::timestamptz,
+                :today::date::timestamptz,
                 '1 day'::interval
             ) AS gs(day)
             LEFT JOIN device_sessions s
@@ -174,7 +179,8 @@ async def overview(
                   AND s.started_at < gs.day + '1 day'::interval
             GROUP BY gs.day ORDER BY gs.day
         """
-        )
+        ),
+        {"day_start": _day_start, "today": _today},
     )
     active_per_day = [DayPoint(date=row.day, count=row.count) for row in active_day_res.mappings()]
 

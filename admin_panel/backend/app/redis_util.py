@@ -32,6 +32,7 @@ def build_server_from_config(cfg) -> RedisServer:
         decode_responses=True,
         encoding="utf-8",
         socket_connect_timeout=5,
+        socket_timeout=5,
         socket_keepalive=True,
         health_check_interval=30,
     )
