@@ -179,6 +179,7 @@ async def device_detail(
             secure_connection=None,
             last_server=None,
             is_jaam=True,
+            ever_seen=False,
             map_id=reg.map_id,
             hw_version=reg.hw_version,
             is_prototype=reg.is_prototype,

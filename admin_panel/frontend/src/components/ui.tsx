@@ -38,7 +38,7 @@ export function Badge({
   className,
   children,
 }: {
-  variant?: "online" | "offline" | "muted";
+  variant?: "online" | "offline" | "muted" | "unseen";
   className?: string;
   children: ReactNode;
 }) {
@@ -46,6 +46,7 @@ export function Badge({
     online:  "bg-success/10 text-success border-success/20",
     offline: "bg-muted/50 text-muted-foreground border-border/[0.08]",
     muted:   "bg-muted/50 text-foreground border-border/[0.08]",
+    unseen:  "bg-danger/10 text-danger border-danger/20",
   }[variant];
 
   return (
@@ -63,6 +64,7 @@ export function Badge({
         </span>
       )}
       {variant === "offline" && <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />}
+      {variant === "unseen"  && <span className="h-1.5 w-1.5 rounded-full bg-danger/70" />}
       {children}
     </span>
   );

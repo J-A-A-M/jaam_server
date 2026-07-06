@@ -184,7 +184,9 @@ export default function DeviceDetail() {
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <h1 className="break-all font-mono text-xl font-bold sm:text-2xl">{d.chip_id}</h1>
-        <Badge variant={d.is_online ? "online" : "offline"}>{d.is_online ? "online" : "offline"}</Badge>
+        <Badge variant={!d.ever_seen ? "unseen" : d.is_online ? "online" : "offline"}>
+          {!d.ever_seen ? "unseen" : d.is_online ? "online" : "offline"}
+        </Badge>
       </div>
 
       {d.is_jaam && (
@@ -204,19 +206,19 @@ export default function DeviceDetail() {
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>Інформація</CardTitle></CardHeader>
           <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Field label="Прошивка" value={<span className="font-mono">{d.firmware}</span>} />
-            <Field label="ID" value={<span className="font-mono">{d.firmware_id}</span>} />
-            <Field label="HW" value={d.hw_type} />
-            <Field label="Сервер" value={d.last_server} />
-            <Field label="IP" value={<span className="font-mono">{d.last_ip}</span>} />
-            <Field label="Місто" value={d.city} />
-            <Field label="Регіон" value={d.region} />
-            <Field label="Країна" value={countryName(d.country)} />
-            <Field label="Провайдер" value={d.org} />
-            <Field label="Latency" value={d.latency != null && d.latency >= 0 ? `${d.latency} мс` : "—"} />
-            <Field label="Перша поява" value={fmtDateTime(d.first_seen)} />
-            <Field label="Остання активність" value={timeAgo(d.last_seen)} />
-            <Field label="Захищене з'єднання" value={d.secure_connection ? "так" : "ні"} />
+            <Field label="Прошивка" value={d.ever_seen ? <span className="font-mono">{d.firmware}</span> : null} />
+            <Field label="ID" value={d.ever_seen ? <span className="font-mono">{d.firmware_id}</span> : null} />
+            <Field label="HW" value={d.ever_seen ? d.hw_type : null} />
+            <Field label="Сервер" value={d.ever_seen ? d.last_server : null} />
+            <Field label="IP" value={d.ever_seen ? <span className="font-mono">{d.last_ip}</span> : null} />
+            <Field label="Місто" value={d.ever_seen ? d.city : null} />
+            <Field label="Регіон" value={d.ever_seen ? d.region : null} />
+            <Field label="Країна" value={d.ever_seen ? countryName(d.country) : null} />
+            <Field label="Провайдер" value={d.ever_seen ? d.org : null} />
+            <Field label="Latency" value={d.ever_seen && d.latency != null && d.latency >= 0 ? `${d.latency} мс` : null} />
+            <Field label="Перша поява" value={d.ever_seen ? fmtDateTime(d.first_seen) : null} />
+            <Field label="Остання активність" value={d.ever_seen ? timeAgo(d.last_seen) : null} />
+            <Field label="Захищене з'єднання" value={d.ever_seen ? (d.secure_connection ? "так" : "ні") : null} />
           </CardBody>
         </Card>
 

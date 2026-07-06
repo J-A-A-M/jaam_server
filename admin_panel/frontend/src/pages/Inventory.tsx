@@ -138,7 +138,7 @@ export default function Inventory() {
                       <tr key={m.chip_id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
                         <td className="px-3 py-3 sm:px-4">
                           {!m.ever_seen ? (
-                            <Badge variant="muted">unseen</Badge>
+                            <Badge variant="unseen">unseen</Badge>
                           ) : m.is_online ? (
                             <Badge variant="online">online</Badge>
                           ) : (

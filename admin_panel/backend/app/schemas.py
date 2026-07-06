@@ -56,6 +56,7 @@ class DeviceOut(BaseModel):
 
     # Склейка з реєстром JAAM (заповнюється, якщо chip_id є в sold_maps)
     is_jaam: bool = False
+    ever_seen: bool = True
     map_id: str | None = None
     hw_version: str | None = None
     is_prototype: bool | None = None

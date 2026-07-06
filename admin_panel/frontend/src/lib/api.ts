@@ -20,6 +20,7 @@ export interface Device {
   secure_connection: boolean | null;
   last_server: string | null;
   is_jaam: boolean;
+  ever_seen: boolean;
   map_id: string | null;
   hw_version: string | null;
   is_prototype: boolean | null;
