@@ -84,7 +84,7 @@ export default function Devices() {
         <div className={cn("transition-opacity duration-200", isFetching && "opacity-60 pointer-events-none")}>
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm [&_tbody_td]:align-top">
                 <thead>
                   <tr className="border-b border-border/[0.1] text-left">
                     <SortTh col="is_online" label="Статус" sort={sort} dir={dir} onSort={onSort} />
@@ -112,7 +112,7 @@ export default function Devices() {
                           <Link to={`/devices/${d.chip_id}`} className="font-mono text-xs text-primary hover:underline sm:text-sm">
                             {d.chip_id}
                           </Link>
-                          {d.map_id && <div className="font-mono text-[11px] text-muted-foreground">{d.map_id}</div>}
+                          {d.firmware_id && <div className="font-mono text-[11px] text-muted-foreground">{d.firmware_id}</div>}
                         </td>
                         <td className="hidden px-4 py-3 sm:table-cell">
                           {d.is_jaam ? (
