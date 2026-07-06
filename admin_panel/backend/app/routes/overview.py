@@ -120,9 +120,9 @@ async def overview(
         text("""
             SELECT t, COUNT(s.id) AS online
             FROM generate_series(
-                :day_ago::timestamptz,
-                :now::timestamptz,
-                :bucket::interval
+                CAST(:day_ago AS timestamptz),
+                CAST(:now AS timestamptz),
+                CAST(:bucket AS interval)
             ) AS t
             LEFT JOIN device_sessions s
                    ON s.started_at <= t
