@@ -161,6 +161,9 @@ export default function Events() {
                             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />
                             <span className="text-xs">{EVENT_LABEL[e.type] ?? e.type}</span>
                           </div>
+                          {detail && (
+                            <div className="mt-0.5 font-mono text-[11px] text-muted-foreground md:hidden">{detail}</div>
+                          )}
                         </td>
                         <td className="px-3 py-3 sm:px-4">
                           {e.chip_id ? (

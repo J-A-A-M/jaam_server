@@ -294,7 +294,7 @@ export default function DeviceDetail() {
                 <div key={e.id} className="flex items-start justify-between border-b border-border/[0.07] pb-2 text-sm last:border-0">
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-foreground">{EVENT_LABEL[e.type] ?? e.type}</div>
-                    {detail && <div className="truncate font-mono text-xs text-muted-foreground">{detail}</div>}
+                    {detail && <div className="break-all font-mono text-xs text-muted-foreground">{detail}</div>}
                   </div>
                   <RelativeTime ts={e.ts} className="ml-2 shrink-0 text-xs text-muted-foreground" />
                 </div>
