@@ -22,6 +22,23 @@ class RedisServer:
         self.client = client
 
 
+def build_server_from_config(cfg) -> RedisServer:
+    """Будує RedisServer з ORM-об'єкта RedisServerConfig (duck typing, без циклічного імпорту)."""
+    client = redis.Redis(
+        host=cfg.host,
+        port=cfg.port,
+        db=cfg.db,
+        password=cfg.password or None,
+        decode_responses=True,
+        encoding="utf-8",
+        socket_connect_timeout=5,
+        socket_keepalive=True,
+        health_check_interval=30,
+    )
+    logger.info("Redis-сервер: %s (%s:%s)", cfg.name, cfg.host, cfg.port)
+    return RedisServer(cfg.name, client)
+
+
 def build_servers() -> list[RedisServer]:
     servers: list[RedisServer] = []
     for idx, cfg in enumerate(parse_redis_hosts()):

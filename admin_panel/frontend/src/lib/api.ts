@@ -138,6 +138,36 @@ export interface ServerStatus {
   checked_at: string;
 }
 
+export interface RedisServerConfig {
+  id: number;
+  name: string;
+  host: string;
+  port: number;
+  db: number;
+  has_password: boolean;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RedisServerConfigInput {
+  name: string;
+  host: string;
+  port: number;
+  db: number;
+  password?: string | null;
+  enabled: boolean;
+}
+
+export interface RedisServerConfigUpdate {
+  name?: string;
+  host?: string;
+  port?: number;
+  db?: number;
+  password?: string | null;
+  enabled?: boolean;
+}
+
 export interface PanelUser {
   id: number;
   username: string;
@@ -206,6 +236,15 @@ export const api = {
     return req<GeoPoint[]>(`/api/geo${q ? `?${q}` : ""}`);
   },
   servers: () => req<ServerStatus[]>("/api/servers"),
+  serverConfigs: () => req<RedisServerConfig[]>("/api/servers/config"),
+  createServerConfig: (body: RedisServerConfigInput) =>
+    req<RedisServerConfig>("/api/servers/config", { method: "POST", body: JSON.stringify(body) }),
+  updateServerConfig: (id: number, body: RedisServerConfigUpdate) =>
+    req<RedisServerConfig>(`/api/servers/config/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteServerConfig: (id: number) =>
+    req<void>(`/api/servers/config/${id}`, { method: "DELETE" }),
+  testServerConfig: (id: number) =>
+    req<ServerStatus>(`/api/servers/config/${id}/test`, { method: "POST" }),
   inventory: (params: Record<string, string | number | undefined>) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {

@@ -114,6 +114,22 @@ class User(Base):
     credentials: Mapped[list["UserCredential"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
+class RedisServerConfig(Base):
+    """Конфігурація Redis-сервера (зберігається в БД, редагується через UI)."""
+
+    __tablename__ = "redis_server_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64))
+    host: Mapped[str] = mapped_column(String(256))
+    port: Mapped[int] = mapped_column(Integer, default=6379)
+    db: Mapped[int] = mapped_column(Integer, default=0)
+    password: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class UserCredential(Base):
     """WebAuthn (Passkey) ключ доступу конкретного користувача."""
 

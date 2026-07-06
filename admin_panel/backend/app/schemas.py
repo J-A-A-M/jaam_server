@@ -192,3 +192,33 @@ class ServerStatus(BaseModel):
     ok: bool
     online: int
     checked_at: datetime.datetime
+
+
+class RedisServerConfigIn(BaseModel):
+    name: str
+    host: str
+    port: int = 6379
+    db: int = 0
+    password: str | None = None
+    enabled: bool = True
+
+
+class RedisServerConfigUpdate(BaseModel):
+    name: str | None = None
+    host: str | None = None
+    port: int | None = None
+    db: int | None = None
+    password: str | None = None  # None/відсутнє → не змінювати; "" → очистити
+    enabled: bool | None = None
+
+
+class RedisServerConfigOut(BaseModel):
+    id: int
+    name: str
+    host: str
+    port: int
+    db: int
+    has_password: bool
+    enabled: bool
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
