@@ -40,6 +40,7 @@ export interface JaamMap {
   is_online: boolean;
   last_seen: string | null;
   firmware: string | null;
+  last_ip: string | null;
 }
 
 export interface JaamMapList {
@@ -242,6 +243,8 @@ export const api = {
   },
   device: (chipId: string, sessionsPage = 1, eventsPage = 1) =>
     req<DeviceDetail>(`/api/devices/${encodeURIComponent(chipId)}?sessions_page=${sessionsPage}&events_page=${eventsPage}`),
+  sameIp: (chipId: string) =>
+    req<Device[]>(`/api/devices/${encodeURIComponent(chipId)}/same-ip`),
   geo: (status?: string, type?: string) => {
     const qs = new URLSearchParams();
     if (status) qs.set("status", status);

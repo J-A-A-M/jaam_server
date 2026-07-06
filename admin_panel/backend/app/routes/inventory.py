@@ -42,6 +42,7 @@ def _to_out(m: JaamMap, device: Device | None) -> JaamMapOut:
             last_seen = last_seen.replace(tzinfo=datetime.timezone.utc)
         out.last_seen = last_seen
         out.firmware = device.firmware
+        out.last_ip = device.last_ip
     return out
 
 
@@ -67,6 +68,7 @@ async def list_maps(
                 JaamMap.map_id.ilike(like),
                 JaamMap.order_number.ilike(like),
                 JaamMap.customer_info.ilike(like),
+                Device.last_ip.ilike(like),
             )
         )
     if is_prototype is not None:

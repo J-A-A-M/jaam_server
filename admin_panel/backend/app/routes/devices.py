@@ -113,6 +113,32 @@ async def list_devices(
     return DeviceListOut(total=total or 0, page=page, page_size=page_size, items=items)
 
 
+@router.get("/{chip_id}/same-ip", response_model=list[DeviceOut])
+async def same_ip_devices(
+    chip_id: str,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    device = await session.get(Device, chip_id)
+    if not device or not device.last_ip:
+        return []
+
+    result = await session.execute(
+        select(Device)
+        .where(Device.last_ip == device.last_ip, Device.chip_id != chip_id)
+        .order_by(Device.is_online.desc(), Device.last_seen.desc())
+    )
+    devices = result.scalars().all()
+    if not devices:
+        return []
+
+    chip_ids = [d.chip_id for d in devices]
+    reg_res = await session.execute(select(JaamMap).where(JaamMap.chip_id.in_(chip_ids)))
+    registry = {m.chip_id: m for m in reg_res.scalars().all()}
+
+    return [_device_out(d, registry.get(d.chip_id)) for d in devices]
+
+
 @router.get("/{chip_id}", response_model=DeviceDetailOut)
 async def device_detail(
     chip_id: str,

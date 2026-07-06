@@ -100,7 +100,7 @@ export default function Inventory() {
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Пошук за chip_id, замовленням…"
+            placeholder="Пошук за chip_id, замовленням, IP…"
             value={q}
             onChange={(e) => set({ q: e.target.value })}
           />
@@ -125,13 +125,14 @@ export default function Inventory() {
                     <SortTh col="chip_id" label="Chip ID" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="hw_version" label="Тип" sort={sort} dir={dir} onSort={onSort} className="hidden sm:table-cell" />
                     <SortTh col="order_number" label="Замовлення" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
+                    <th className="hidden px-3 py-3 text-left text-xs font-medium text-muted-foreground sm:px-4 lg:table-cell">IP</th>
                     <SortTh col="customer_info" label="Клієнт" sort={sort} dir={dir} onSort={onSort} />
                     <th className="px-3 py-3 sm:px-4"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={6} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
+                    <tr><td colSpan={7} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
                   ) : data && data.items.length > 0 ? (
                     data.items.map((m) => (
                       <tr key={m.chip_id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
@@ -157,6 +158,7 @@ export default function Inventory() {
                           </span>
                         </td>
                         <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">{m.order_number ?? "—"}</td>
+                        <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground lg:table-cell">{m.last_ip ?? "—"}</td>
                         <td className="max-w-[140px] truncate px-3 py-3 text-muted-foreground sm:max-w-[240px] sm:px-4" title={m.customer_info ?? ""}>
                           {m.customer_info ?? "—"}
                         </td>
@@ -178,7 +180,7 @@ export default function Inventory() {
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={6} className="py-16 text-center text-muted-foreground">Реєстр порожній</td></tr>
+                    <tr><td colSpan={7} className="py-16 text-center text-muted-foreground">Реєстр порожній</td></tr>
                   )}
                 </tbody>
               </table>

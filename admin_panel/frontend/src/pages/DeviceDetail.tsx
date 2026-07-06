@@ -1,9 +1,9 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, type Device } from "@/lib/api";
 import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
 import { fmtDateTime, fmtDuration, timeAgo } from "@/lib/utils";
@@ -63,6 +63,58 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function SameIpCard({ ip, devices }: { ip: string; devices: Device[] }) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <CardTitle>
+          Інші мапи з IP <span className="font-mono text-primary">{ip}</span>
+          <span className="ml-2 text-sm font-normal text-muted-foreground">({devices.length})</span>
+        </CardTitle>
+      </CardHeader>
+      <CardBody className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm [&_tbody_td]:align-middle">
+            <thead>
+              <tr className="border-b border-border/[0.1] text-left">
+                <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Статус</th>
+                <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Chip ID</th>
+                <th className="hidden px-4 py-2 text-xs font-medium text-muted-foreground sm:table-cell">Тип</th>
+                <th className="hidden px-4 py-2 text-xs font-medium text-muted-foreground md:table-cell">Прошивка</th>
+                <th className="hidden px-4 py-2 text-xs font-medium text-muted-foreground lg:table-cell">Місто</th>
+                <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Остання активність</th>
+              </tr>
+            </thead>
+            <tbody>
+              {devices.map((dev) => (
+                <tr key={dev.chip_id} className="border-b border-border/[0.07] transition hover:bg-muted/40 last:border-0">
+                  <td className="px-4 py-2.5">
+                    <Badge variant={dev.is_online ? "online" : "offline"}>{dev.is_online ? "online" : "offline"}</Badge>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Link to={`/devices/${encodeURIComponent(dev.chip_id)}`} className="font-mono text-xs text-primary hover:underline">
+                      {dev.chip_id}
+                    </Link>
+                    {dev.map_id && <div className="font-mono text-[11px] text-muted-foreground">{dev.map_id}</div>}
+                  </td>
+                  <td className="hidden px-4 py-2.5 sm:table-cell">
+                    {dev.hw_version || dev.hw_type
+                      ? <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{dev.hw_version ?? dev.hw_type}</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="hidden px-4 py-2.5 font-mono text-xs text-muted-foreground md:table-cell">{dev.firmware ?? "—"}</td>
+                  <td className="hidden px-4 py-2.5 text-muted-foreground lg:table-cell">{dev.city ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground" title={fmtDateTime(dev.last_seen)}>{timeAgo(dev.last_seen)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
 const _PAGE_SIZE = 20;
 
 export default function DeviceDetail() {
@@ -82,6 +134,13 @@ export default function DeviceDetail() {
     queryFn: () => api.device(chipId!, sessionsPage, eventsPage),
     refetchInterval: 15000,
     placeholderData: keepPreviousData,
+  });
+
+  const { data: sameIpData } = useQuery({
+    queryKey: ["device-same-ip", chipId],
+    queryFn: () => api.sameIp(chipId!),
+    enabled: !!data?.device.last_ip,
+    refetchInterval: 30000,
   });
 
   if (isLoading)
@@ -172,6 +231,10 @@ export default function DeviceDetail() {
           </CardBody>
         </Card>
       </div>
+
+      {sameIpData && sameIpData.length > 0 && (
+        <SameIpCard ip={d.last_ip!} devices={sameIpData} />
+      )}
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         <Card className="overflow-hidden">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid,
@@ -61,7 +61,16 @@ function useChartPalette() {
 export default function Dashboard() {
   const stream = useStream();
   const palette = useChartPalette();
-  const [eventsPage, setEventsPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const eventsPage = Math.max(1, parseInt(searchParams.get("events_page") ?? "1", 10) || 1);
+  const setEventsPage = (updater: number | ((p: number) => number)) => {
+    const next = typeof updater === "function" ? updater(eventsPage) : updater;
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev);
+      if (next <= 1) p.delete("events_page"); else p.set("events_page", String(next));
+      return p;
+    }, { replace: true });
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["overview"],
