@@ -65,7 +65,7 @@ export default function Devices() {
       <div className="flex flex-wrap gap-2">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Пошук за chip_id, прошивкою або містом…" value={q}
+          <Input className="pl-9" placeholder="Пошук за chip_id, прошивкою, містом або IP…" value={q}
             onChange={(e) => set({ q: e.target.value })} />
         </div>
         <Select value={status} onChange={(e) => set({ status: e.target.value })}>
@@ -94,12 +94,13 @@ export default function Devices() {
                     <SortTh col="hw_type" label="HW" sort={sort} dir={dir} onSort={onSort} className="hidden lg:table-cell" />
                     <SortTh col="region" label="Локація" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="last_server" label="Сервер" sort={sort} dir={dir} onSort={onSort} className="hidden lg:table-cell" />
+                    <th className="hidden px-4 py-3 text-left text-xs font-medium text-muted-foreground xl:table-cell">IP</th>
                     <SortTh col="last_seen" label="Остання акт." sort={sort} dir={dir} onSort={onSort} />
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={8} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
+                    <tr><td colSpan={9} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
                   ) : data && data.items.length > 0 ? (
                     data.items.map((d) => (
                       <tr key={d.chip_id} className="border-b border-border/[0.07] transition hover:bg-muted/40">
@@ -132,13 +133,14 @@ export default function Devices() {
                           {[d.city, d.region].filter(Boolean).join(", ") || "—"}
                         </td>
                         <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{d.last_server ?? "—"}</td>
+                        <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground xl:table-cell">{d.last_ip ?? "—"}</td>
                         <td className="px-3 py-3 text-muted-foreground sm:px-4" title={d.last_seen}>
                           {timeAgo(d.last_seen)}
                         </td>
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={8} className="py-16 text-center text-muted-foreground">Нічого не знайдено</td></tr>
+                    <tr><td colSpan={9} className="py-16 text-center text-muted-foreground">Нічого не знайдено</td></tr>
                   )}
                 </tbody>
               </table>

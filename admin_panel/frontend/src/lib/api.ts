@@ -40,7 +40,6 @@ export interface JaamMap {
   is_online: boolean;
   last_seen: string | null;
   firmware: string | null;
-  last_ip: string | null;
 }
 
 export interface JaamMapList {

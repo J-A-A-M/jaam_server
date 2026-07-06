@@ -71,6 +71,7 @@ async def list_devices(
                 Device.firmware_id.ilike(like),
                 Device.firmware.ilike(like),
                 Device.city.ilike(like),
+                Device.last_ip.ilike(like),
             )
         )
     if status_ == "online":

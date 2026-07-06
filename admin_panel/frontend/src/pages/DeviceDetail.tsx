@@ -2,7 +2,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
 import { api, type Device } from "@/lib/api";
 import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
@@ -92,15 +92,22 @@ function SameIpCard({ ip, devices }: { ip: string; devices: Device[] }) {
                     <Badge variant={dev.is_online ? "online" : "offline"}>{dev.is_online ? "online" : "offline"}</Badge>
                   </td>
                   <td className="px-4 py-2.5">
-                    <Link to={`/devices/${encodeURIComponent(dev.chip_id)}`} className="font-mono text-xs text-primary hover:underline">
+                    <Link to={`/devices/${encodeURIComponent(dev.chip_id)}`} className="font-mono text-xs text-primary hover:underline sm:text-sm">
                       {dev.chip_id}
                     </Link>
-                    {dev.map_id && <div className="font-mono text-[11px] text-muted-foreground">{dev.map_id}</div>}
+                    {dev.firmware_id && <div className="font-mono text-[11px] text-muted-foreground">{dev.firmware_id}</div>}
                   </td>
                   <td className="hidden px-4 py-2.5 sm:table-cell">
-                    {dev.hw_version || dev.hw_type
-                      ? <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{dev.hw_version ?? dev.hw_type}</span>
-                      : <span className="text-muted-foreground">—</span>}
+                    {dev.is_jaam ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary" title={dev.customer_info ?? undefined}>
+                        {dev.is_prototype && <FlaskConical className="h-3 w-3 shrink-0" />}
+                        {dev.hw_version ?? "JAAM"}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full border border-border/[0.15] bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        SELF
+                      </span>
+                    )}
                   </td>
                   <td className="hidden px-4 py-2.5 font-mono text-xs text-muted-foreground md:table-cell">{dev.firmware ?? "—"}</td>
                   <td className="hidden px-4 py-2.5 text-muted-foreground lg:table-cell">{dev.city ?? "—"}</td>
