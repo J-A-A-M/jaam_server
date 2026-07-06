@@ -3,7 +3,7 @@
 import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Integer, case, cast, or_, outerjoin, select
+from sqlalchemy import Integer, case, cast, func, or_, outerjoin, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
