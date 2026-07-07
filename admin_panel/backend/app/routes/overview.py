@@ -115,11 +115,11 @@ async def overview(
         hist[-1] += older
     duration_histogram = [CountItem(label=l, count=c) for l, c in zip(hist_labels, hist)]
 
-    # Тренд онлайну за 24 год — generate_series на стороні БД, без передачі сесій у Python
+    # Тренд онлайну за 24 год — рахуємо УНІКАЛЬНІ пристрої, не сесії
     trend_res = await session.execute(
         text(
             """
-            SELECT t, COUNT(s.id) AS online
+            SELECT t, COUNT(DISTINCT s.chip_id) AS online
             FROM generate_series(
                 CAST(:day_ago AS timestamptz),
                 CAST(:now AS timestamptz),
