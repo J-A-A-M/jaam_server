@@ -91,7 +91,9 @@ async def _add_event(session, chip_id: str, event_type: str, details: dict | Non
     )
 
 
-async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.datetime, devices_cache: dict, server_tz: str = "Europe/Kyiv") -> bool:
+async def _apply_snapshot(
+    session, chip_id: str, value: dict, now: datetime.datetime, devices_cache: dict, server_tz: str = "Europe/Kyiv"
+) -> bool:
     firmware, firmware_id = _split_firmware(value.get("firmware"))
     server_name = value.get("_server")
     connect_time = value.get("connect_time")
