@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type JaamMap, type JaamMapInput } from "@/lib/api";
 import { Button, Input, Modal, Select, Spinner, Textarea } from "@/components/ui";
 
-const HW_VERSIONS = ["JAAM3.2", "JAAM3.1", "JAAM3.0", "JAAM2", "JAAM1", ""];
+const HW_VERSIONS = ["JAAM3.2", "JAAM3.1", "JAAM3.0", "JAAM2", "JAAM1", "NOT JAAM", ""];
 
 export interface JaamMapModalProps {
   open: boolean;
@@ -68,7 +68,7 @@ export function JaamMapModal({ open, onClose, editing, onSuccess }: JaamMapModal
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs text-muted-foreground">HW версія</label>
+            <label className="mb-1 block text-xs text-muted-foreground">Тип</label>
             <Select value={form.hw_version ?? ""} onChange={(e) => setForm({ ...form, hw_version: e.target.value })}>
               {HW_VERSIONS.map((v) => <option key={v} value={v}>{v || "—"}</option>)}
             </Select>
