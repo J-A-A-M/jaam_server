@@ -9,10 +9,11 @@ export interface JaamMapModalProps {
   open: boolean;
   onClose: () => void;
   editing?: JaamMap | null;
+  defaultChipId?: string;
   onSuccess?: () => void;
 }
 
-export function JaamMapModal({ open, onClose, editing, onSuccess }: JaamMapModalProps) {
+export function JaamMapModal({ open, onClose, editing, defaultChipId, onSuccess }: JaamMapModalProps) {
   const qc = useQueryClient();
   const empty: JaamMapInput = { chip_id: "", map_id: "", hw_version: "JAAM3.2", is_prototype: false, order_number: "", customer_info: "" };
 
@@ -30,10 +31,10 @@ export function JaamMapModal({ open, onClose, editing, onSuccess }: JaamMapModal
         customer_info: editing.customer_info ?? "",
       });
     } else {
-      setForm(empty);
+      setForm({ ...empty, chip_id: defaultChipId || "" });
     }
     setError("");
-  }, [editing, open]);
+  }, [editing, defaultChipId, open]);
 
   const saveMut = useMutation({
     mutationFn: (body: JaamMapInput) =>

@@ -343,6 +343,7 @@ export default function DeviceDetail() {
         open={jaamModalOpen}
         onClose={() => { setJaamModalOpen(false); setEditingJaam(null); }}
         editing={editingJaam}
+        defaultChipId={!editingJaam ? d.chip_id : undefined}
       />
     </div>
   );
