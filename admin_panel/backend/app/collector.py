@@ -162,6 +162,7 @@ async def _apply_snapshot(
 
     # Сесія: нова, якщо пристрій був офлайн або змінився connect_time
     new_session_needed = was_offline or (connect_time and connect_time != prev_connect)
+    should_close_sessions = was_offline
 
     # Перевірка: якщо пристрій онлайн, але немає активної сесії, створити нову
     if not new_session_needed and not was_offline:
@@ -186,7 +187,7 @@ async def _apply_snapshot(
                 region=_truncate(value.get("region"), 128),
             )
         )
-    return new_session_needed
+    return should_close_sessions
 
 
 async def _close_open_sessions(session, chip_ids: set[str], now: datetime.datetime) -> None:
