@@ -162,6 +162,16 @@ async def _apply_snapshot(
 
     # Сесія: нова, якщо пристрій був офлайн або змінився connect_time
     new_session_needed = was_offline or (connect_time and connect_time != prev_connect)
+
+    # Перевірка: якщо пристрій онлайн, але немає активної сесії, створити нову
+    if not new_session_needed and not was_offline:
+        # Перевіримо чи є активна сесія для цього пристрою
+        active_session = await session.scalar(
+            select(DeviceSession).where(DeviceSession.chip_id == chip_id, DeviceSession.ended_at.is_(None))
+        )
+        if not active_session:
+            new_session_needed = True
+
     if new_session_needed:
         session.add(
             DeviceSession(
