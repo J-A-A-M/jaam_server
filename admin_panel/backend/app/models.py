@@ -125,6 +125,7 @@ class RedisServerConfig(Base):
     port: Mapped[int] = mapped_column(Integer, default=6379)
     db: Mapped[int] = mapped_column(Integer, default=0)
     password: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    timezone: Mapped[str] = mapped_column(String(64), default="Europe/Kyiv")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

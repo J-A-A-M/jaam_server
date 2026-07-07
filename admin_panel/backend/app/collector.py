@@ -91,7 +91,7 @@ async def _add_event(session, chip_id: str, event_type: str, details: dict | Non
     )
 
 
-async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.datetime, devices_cache: dict) -> bool:
+async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.datetime, devices_cache: dict, server_tz: str = "Europe/Kyiv") -> bool:
     firmware, firmware_id = _split_firmware(value.get("firmware"))
     server_name = value.get("_server")
     connect_time = value.get("connect_time")
@@ -218,6 +218,8 @@ async def collect_once(servers: list[RedisServer]) -> dict:
     now = utcnow()
     # Snapshot the list to prevent issues if servers are mutated during collection
     servers_snapshot = list(servers)
+    # Build server_name -> timezone map for later use in _apply_snapshot
+    servers_tz = {s.name: s.timezone for s in servers_snapshot}
     scans = await asyncio.gather(*[scan_clients(s.client) for s in servers_snapshot], return_exceptions=True)
     records: list[tuple[str, dict]] = []
     per_server: dict[str, int] = {}
@@ -243,7 +245,9 @@ async def collect_once(servers: list[RedisServer]) -> dict:
         chips_needing_session_close = set()
         for chip_id, value in deduped.items():
             try:
-                needs_close = await _apply_snapshot(session, chip_id, value, now, devices_cache)
+                server_name = value.get("_server")
+                tz = servers_tz.get(server_name, "Europe/Kyiv")
+                needs_close = await _apply_snapshot(session, chip_id, value, now, devices_cache, tz)
                 if needs_close:
                     chips_needing_session_close.add(chip_id)
             except Exception:

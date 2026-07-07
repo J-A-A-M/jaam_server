@@ -134,6 +134,8 @@ async def update_config(
         cfg.db = body.db
     if "password" in fields:
         cfg.password = body.password or None  # "" → None (очистити)
+    if "timezone" in fields and body.timezone is not None:
+        cfg.timezone = body.timezone
     if "enabled" in fields and body.enabled is not None:
         cfg.enabled = body.enabled
     cfg.updated_at = utcnow()

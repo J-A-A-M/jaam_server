@@ -56,8 +56,9 @@ COLLECT_INTERVAL = int(_env("COLLECT_INTERVAL", "20"))  # секунд між с
 # Пристрій вважається офлайн, якщо його не бачили довше за цей поріг (> Redis TTL 120с)
 OFFLINE_AFTER_SECONDS = int(_env("OFFLINE_AFTER_SECONDS", "150"))
 
-# Часовий пояс, у якому websocket_server пише connect_time (без TZ-суфікса)
-SERVER_TZ = _env("SERVER_TZ", "Europe/Kyiv")
+# Часовий пояс за замовчуванням (для серверів без явного налаштування)
+# Замість глобального SERVER_TZ, кожен Redis-сервер має свій timezone в RedisServerConfig
+DEFAULT_SERVER_TZ = _env("SERVER_TZ", "Europe/Kyiv")
 
 
 # --- Redis (можливо декілька серверів) ---
