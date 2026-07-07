@@ -129,7 +129,6 @@ const _PAGE_SIZE = 20;
 export default function DeviceDetail() {
   const { chipId } = useParams();
   const navigate = useNavigate();
-  const { theme } = useTheme();
   const [sessionsPage, setSessionsPage] = useState(1);
   const [eventsPage, setEventsPage] = useState(1);
 
@@ -174,9 +173,7 @@ export default function DeviceDetail() {
     );
 
   const d = data.device;
-  const tileUrl = theme === "dark"
-    ? "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-    : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+  const tileUrl = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 
   return (
     <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
