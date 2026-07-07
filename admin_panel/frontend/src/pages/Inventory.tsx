@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData, useMutation } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, FlaskConical } from "lucide-react";
-import { api, type JaamMap, type JaamMapInput } from "@/lib/api";
-import { Badge, Button, Card, Input, Modal, Select, Spinner, SortTh, Textarea } from "@/components/ui";
+import { api, type JaamMap } from "@/lib/api";
+import { Badge, Button, Card, Input, Select, Spinner, SortTh } from "@/components/ui";
+import { JaamMapModal } from "@/components/JaamMapModal";
 import { cn } from "@/lib/utils";
-
-const HW_VERSIONS = ["JAAM3.2", "JAAM3.1", "JAAM3.0", "JAAM2", "JAAM1", ""];
-const EMPTY: JaamMapInput = { chip_id: "", map_id: "", hw_version: "JAAM3.2", is_prototype: false, order_number: "", customer_info: "" };
 
 export default function Inventory() {
   const qc = useQueryClient();
@@ -45,10 +43,7 @@ export default function Inventory() {
     }, { replace: true });
   };
 
-  const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<JaamMap | null>(null);
-  const [form, setForm] = useState<JaamMapInput>(EMPTY);
-  const [error, setError] = useState("");
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["inventory", q, status, sort, dir, page],
@@ -59,25 +54,13 @@ export default function Inventory() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["inventory"] });
 
-  const saveMut = useMutation({
-    mutationFn: (body: JaamMapInput) =>
-      editing ? api.updateMap(editing.chip_id, body) : api.createMap(body),
-    onSuccess: () => { invalidate(); setModalOpen(false); setError(""); },
-    onError: (e: Error) => setError(e.message),
-  });
-
   const delMut = useMutation({
     mutationFn: (chipId: string) => api.deleteMap(chipId),
     onSuccess: invalidate,
   });
 
-  const openAdd = () => { setEditing(null); setForm(EMPTY); setError(""); setModalOpen(true); };
-  const openEdit = (m: JaamMap) => {
-    setEditing(m);
-    setForm({ chip_id: m.chip_id, map_id: m.map_id ?? "", hw_version: m.hw_version ?? "", is_prototype: m.is_prototype, order_number: m.order_number ?? "", customer_info: m.customer_info ?? "" });
-    setError("");
-    setModalOpen(true);
-  };
+  const openAdd = () => setEditing(null);
+  const openEdit = (m: JaamMap) => setEditing(m);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
 
@@ -90,7 +73,7 @@ export default function Inventory() {
             {data ? `${data.total} офіційних мап` : "Завантаження…"}
           </p>
         </div>
-        <Button onClick={openAdd} className="shrink-0">
+        <Button onClick={() => openAdd()} className="shrink-0">
           <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Додати мапу</span>
         </Button>
       </div>
@@ -203,45 +186,11 @@ export default function Inventory() {
         </div>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Редагувати ${editing.chip_id}` : "Нова JAAM-мапа"}>
-        <form onSubmit={(e) => { e.preventDefault(); saveMut.mutate(form); }} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Chip ID *</label>
-              <Input value={form.chip_id} onChange={(e) => setForm({ ...form, chip_id: e.target.value })} disabled={!!editing} required className="font-mono" placeholder="напр. a1b2c3d4e5f6" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Мітка</label>
-              <Input value={form.map_id ?? ""} onChange={(e) => setForm({ ...form, map_id: e.target.value })} placeholder="напр. JAAM3-0029" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">HW версія</label>
-              <Select value={form.hw_version ?? ""} onChange={(e) => setForm({ ...form, hw_version: e.target.value })}>
-                {HW_VERSIONS.map((v) => <option key={v} value={v}>{v || "—"}</option>)}
-              </Select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Номер замовлення</label>
-              <Input value={form.order_number ?? ""} onChange={(e) => setForm({ ...form, order_number: e.target.value })} placeholder="опціонально" />
-            </div>
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={form.is_prototype} onChange={(e) => setForm({ ...form, is_prototype: e.target.checked })} className="h-4 w-4 accent-primary" />
-            Прототип
-          </label>
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Інформація про клієнта</label>
-            <Textarea rows={3} value={form.customer_info ?? ""} onChange={(e) => setForm({ ...form, customer_info: e.target.value })} placeholder="Ім'я, контакт, нотатки…" />
-          </div>
-          {error && <div className="text-sm text-danger">{error}</div>}
-          <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={() => setModalOpen(false)} className="rounded border border-border/[0.1] px-4 py-2 text-sm transition hover:bg-muted hover:text-foreground">Скасувати</button>
-            <Button type="submit" disabled={saveMut.isPending}>{saveMut.isPending ? <Spinner /> : "Зберегти"}</Button>
-          </div>
-        </form>
-      </Modal>
+      <JaamMapModal
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        editing={editing}
+      />
     </div>
   );
 }

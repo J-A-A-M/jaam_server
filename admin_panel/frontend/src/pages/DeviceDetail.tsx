@@ -1,10 +1,11 @@
-import { useQuery, keepPreviousData, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import { ArrowLeft, ChevronLeft, ChevronRight, FlaskConical, Pencil, Plus } from "lucide-react";
-import { api, type Device, type JaamMapInput } from "@/lib/api";
-import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Input, Modal, RelativeTime, Spinner } from "@/components/ui";
+import { api, type Device } from "@/lib/api";
+import { Badge, Card, CardBody, CardHeader, CardTitle, RelativeTime, Spinner } from "@/components/ui";
+import { JaamMapModal } from "@/components/JaamMapModal";
 import { useTheme } from "@/components/ThemeContext";
 import { fmtDateTime, fmtDuration } from "@/lib/utils";
 
@@ -130,12 +131,10 @@ export default function DeviceDetail() {
   const { chipId } = useParams();
   const navigate = useNavigate();
   const { theme } = useTheme();
-  const qc = useQueryClient();
   const [sessionsPage, setSessionsPage] = useState(1);
   const [eventsPage, setEventsPage] = useState(1);
   const [jaamModalOpen, setJaamModalOpen] = useState(false);
-  const [jaamForm, setJaamForm] = useState<JaamMapInput>({ chip_id: "", is_prototype: false });
-  const [jaamError, setJaamError] = useState("");
+  const [editingJaam, setEditingJaam] = useState<Device | null>(null);
 
   useEffect(() => {
     setSessionsPage(1);
@@ -155,53 +154,6 @@ export default function DeviceDetail() {
     enabled: !!data?.device.last_ip,
     refetchInterval: 30000,
   });
-
-  const jaamMutCreate = useMutation({
-    mutationFn: (body: JaamMapInput) => api.createMap(body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["device", chipId] });
-      setJaamModalOpen(false);
-      setJaamForm({ chip_id: "", is_prototype: false });
-    },
-    onError: (e: Error) => setJaamError(e.message),
-  });
-
-  const jaamMutUpdate = useMutation({
-    mutationFn: (body: JaamMapInput) => api.updateMap(chipId!, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["device", chipId] });
-      setJaamModalOpen(false);
-    },
-    onError: (e: Error) => setJaamError(e.message),
-  });
-
-  const openJaamCreate = () => {
-    setJaamForm({ chip_id: chipId || "", is_prototype: false });
-    setJaamError("");
-    setJaamModalOpen(true);
-  };
-
-  const openJaamEdit = (device: Device) => {
-    setJaamForm({
-      chip_id: device.chip_id,
-      map_id: device.map_id || undefined,
-      hw_version: device.hw_version || undefined,
-      is_prototype: device.is_prototype || false,
-      order_number: device.order_number || undefined,
-      customer_info: device.customer_info || undefined,
-    });
-    setJaamError("");
-    setJaamModalOpen(true);
-  };
-
-  const handleJaamSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (data?.device.is_jaam) {
-      jaamMutUpdate.mutate(jaamForm);
-    } else {
-      jaamMutCreate.mutate(jaamForm);
-    }
-  };
 
   if (isLoading)
     return (
@@ -247,7 +199,7 @@ export default function DeviceDetail() {
           <CardHeader className="flex items-center justify-between">
             <CardTitle>Дані реєстру JAAM</CardTitle>
             <button
-              onClick={() => openJaamEdit(d)}
+              onClick={() => { setEditingJaam(d); setJaamModalOpen(true); }}
               className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
               title="Редагувати"
             >
@@ -264,7 +216,7 @@ export default function DeviceDetail() {
         </Card>
       ) : (
         <button
-          onClick={openJaamCreate}
+          onClick={() => { setEditingJaam(null); setJaamModalOpen(true); }}
           className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border/[0.3] px-6 py-8 transition hover:border-primary hover:bg-primary/5"
         >
           <Plus className="h-5 w-5 text-muted-foreground" />
@@ -387,49 +339,11 @@ export default function DeviceDetail() {
         </Card>
       </div>
 
-      <Modal open={jaamModalOpen} onClose={() => setJaamModalOpen(false)} title={data?.device.is_jaam ? `Редагувати: ${d.chip_id}` : "Додати в реєстр JAAM"}>
-        <form onSubmit={handleJaamSubmit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="mb-1 block text-xs text-muted-foreground">Chip ID</label>
-              <Input value={jaamForm.chip_id} disabled className="bg-muted" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Мітка</label>
-              <Input value={jaamForm.map_id ?? ""} onChange={(e) => setJaamForm({ ...jaamForm, map_id: e.target.value || null })} placeholder="напр. JAAM-001" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Тип обладнання</label>
-              <Input value={jaamForm.hw_version ?? ""} onChange={(e) => setJaamForm({ ...jaamForm, hw_version: e.target.value || null })} placeholder="напр. V1.0" />
-            </div>
-            <div className="col-span-2">
-              <label className="mb-1 block text-xs text-muted-foreground">№ замовлення</label>
-              <Input value={jaamForm.order_number ?? ""} onChange={(e) => setJaamForm({ ...jaamForm, order_number: e.target.value || null })} placeholder="напр. ORD-2024-001" />
-            </div>
-            <div className="col-span-2">
-              <label className="mb-1 block text-xs text-muted-foreground">Інформація про клієнта</label>
-              <Input value={jaamForm.customer_info ?? ""} onChange={(e) => setJaamForm({ ...jaamForm, customer_info: e.target.value || null })} placeholder="напр. ПІБ, організація" />
-            </div>
-            <div className="col-span-2">
-              <label className="mb-2 flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                <input type="checkbox" checked={jaamForm.is_prototype} onChange={(e) => setJaamForm({ ...jaamForm, is_prototype: e.target.checked })} className="h-3.5 w-3.5" />
-                Прототип
-              </label>
-            </div>
-          </div>
-
-          {jaamError && <div className="text-sm text-danger">{jaamError}</div>}
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={() => setJaamModalOpen(false)} className="rounded border border-border/[0.1] px-4 py-2 text-sm transition hover:bg-muted hover:text-foreground">
-              Скасувати
-            </button>
-            <Button type="submit" disabled={jaamMutCreate.isPending || jaamMutUpdate.isPending}>
-              {(jaamMutCreate.isPending || jaamMutUpdate.isPending) ? <Spinner /> : data?.device.is_jaam ? "Зберегти" : "Додати"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      <JaamMapModal
+        open={jaamModalOpen}
+        onClose={() => { setJaamModalOpen(false); setEditingJaam(null); }}
+        editing={editingJaam}
+      />
     </div>
   );
 }
