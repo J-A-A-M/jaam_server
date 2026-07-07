@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import SERVER_TZ
+from ..config import DEFAULT_SERVER_TZ
 from ..db import get_session
 from ..deps import get_current_user
 from ..models import Device, DeviceSession, JaamMap, utcnow
@@ -19,7 +19,7 @@ BUCKET_MINUTES = 15
 HISTORY_HOURS = 24
 TREND_BUCKET_MINUTES = 30
 
-_SERVER_ZONE = ZoneInfo(SERVER_TZ)
+_SERVER_ZONE = ZoneInfo(DEFAULT_SERVER_TZ)
 
 
 def _aware(dt: datetime.datetime | None) -> datetime.datetime | None:
@@ -160,7 +160,7 @@ async def overview(
             GROUP BY gs.day ORDER BY gs.day
         """
         ),
-        {"ts_start": _ts_start, "ts_end": _ts_end, "tz": SERVER_TZ},
+        {"ts_start": _ts_start, "ts_end": _ts_end, "tz": DEFAULT_SERVER_TZ},
     )
     new_per_day = [DayPoint(date=row.day, count=row.count) for row in new_day_res.mappings()]
 
@@ -178,7 +178,7 @@ async def overview(
             GROUP BY gs.day ORDER BY gs.day
         """
         ),
-        {"ts_start": _ts_start, "ts_end": _ts_end, "tz": SERVER_TZ},
+        {"ts_start": _ts_start, "ts_end": _ts_end, "tz": DEFAULT_SERVER_TZ},
     )
     active_per_day = [DayPoint(date=row.day, count=row.count) for row in active_day_res.mappings()]
 

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import SERVER_TZ
+from ..config import DEFAULT_SERVER_TZ
 from ..db import get_session
 from ..deps import get_current_user
 from ..models import DeviceEvent
@@ -23,7 +23,7 @@ _SORT_COLUMNS = {
 try:
     from zoneinfo import ZoneInfo
 
-    _SERVER_ZONE = ZoneInfo(SERVER_TZ)
+    _SERVER_ZONE = ZoneInfo(DEFAULT_SERVER_TZ)
 except Exception:
     _SERVER_ZONE = datetime.timezone.utc
 
