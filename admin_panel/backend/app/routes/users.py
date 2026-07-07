@@ -1,7 +1,7 @@
 """Керування користувачами панелі (лише для ролі admin)."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
@@ -50,13 +50,13 @@ async def delete_user(
     admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
-    user = await session.scalar(select(User).where(User.username == username).with_for_update())
+    # Lock all user rows so concurrent deletes can't bypass the last-user check
+    result = await session.execute(select(User).with_for_update())
+    all_users = result.scalars().all()
+    user = next((u for u in all_users if u.username == username), None)
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
-
-    total = await session.scalar(select(func.count()).select_from(User).with_for_update())
-    if total <= 1:
+    if len(all_users) <= 1:
         raise HTTPException(status_code=400, detail="Не можна видалити останнього користувача")
-
     await session.delete(user)
     await session.commit()
