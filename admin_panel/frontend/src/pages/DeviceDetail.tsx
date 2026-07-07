@@ -175,7 +175,7 @@ export default function DeviceDetail() {
 
   const d = data.device;
   const tileUrl = theme === "dark"
-    ? "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
     : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 
   return (

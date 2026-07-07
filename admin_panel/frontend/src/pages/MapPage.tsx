@@ -90,7 +90,7 @@ export default function MapPage() {
   const online = points.filter((p) => p.is_online).length;
 
   const tileUrl = theme === "dark"
-    ? "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
     : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 
   return (
