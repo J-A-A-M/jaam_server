@@ -93,7 +93,7 @@ async def _add_event(session, chip_id: str, event_type: str, details: dict | Non
 
 async def _apply_snapshot(
     session, chip_id: str, value: dict, now: datetime.datetime, devices_cache: dict, server_tz: str = "Europe/Kyiv"
-) -> bool:
+) -> None:
     firmware, firmware_id = _split_firmware(value.get("firmware"))
     server_name = value.get("_server")
     connect_time = value.get("connect_time")
@@ -162,18 +162,8 @@ async def _apply_snapshot(
 
     # Сесія: нова, якщо пристрій був офлайн або змінився connect_time
     new_session_needed = was_offline or (connect_time and connect_time != prev_connect)
-    should_close_sessions = was_offline
-
-    # Перевірка: якщо пристрій онлайн, але немає активної сесії, створити нову
-    if not new_session_needed and not was_offline:
-        # Перевіримо чи є активна сесія для цього пристрою
-        active_session = await session.scalar(
-            select(DeviceSession).where(DeviceSession.chip_id == chip_id, DeviceSession.ended_at.is_(None))
-        )
-        if not active_session:
-            new_session_needed = True
-
     if new_session_needed:
+        await _close_open_sessions(session, chip_id, now)
         session.add(
             DeviceSession(
                 chip_id=chip_id,
@@ -187,14 +177,11 @@ async def _apply_snapshot(
                 region=_truncate(value.get("region"), 128),
             )
         )
-    return should_close_sessions
 
 
-async def _close_open_sessions(session, chip_ids: set[str], now: datetime.datetime) -> None:
-    if not chip_ids:
-        return
+async def _close_open_sessions(session, chip_id: str, now: datetime.datetime) -> None:
     result = await session.execute(
-        select(DeviceSession).where(DeviceSession.chip_id.in_(chip_ids), DeviceSession.ended_at.is_(None))
+        select(DeviceSession).where(DeviceSession.chip_id == chip_id, DeviceSession.ended_at.is_(None))
     )
     for s in result.scalars().all():
         s.ended_at = now
@@ -208,21 +195,15 @@ async def _mark_stale_offline(session, seen_chip_ids: set[str], now: datetime.da
     """Позначає офлайн ті пристрої, яких не бачили довше за поріг."""
     threshold = now - datetime.timedelta(seconds=OFFLINE_AFTER_SECONDS)
     result = await session.execute(select(Device).where(Device.is_online.is_(True), Device.last_seen < threshold))
-    devices_to_close = []
     count = 0
     for device in result.scalars().all():
         if device.chip_id in seen_chip_ids:
             continue
         device.is_online = False
         device.last_online_at = device.last_seen
-        devices_to_close.append((device.chip_id, device.last_seen or now))
+        await _close_open_sessions(session, device.chip_id, device.last_seen or now)
         await _add_event(session, device.chip_id, "offline", None)
         count += 1
-
-    # Bulk close all open sessions for devices marked offline
-    if devices_to_close:
-        chips_to_close = {chip_id for chip_id, _ in devices_to_close}
-        await _close_open_sessions(session, chips_to_close, now)
 
     return count
 
@@ -255,20 +236,14 @@ async def collect_once(servers: list[RedisServer]) -> dict:
         else:
             devices_cache = {}
 
-        chips_needing_session_close = set()
         for chip_id, value in deduped.items():
             try:
                 server_name = value.get("_server")
                 tz = servers_tz.get(server_name, "Europe/Kyiv")
-                needs_close = await _apply_snapshot(session, chip_id, value, now, devices_cache, tz)
-                if needs_close:
-                    chips_needing_session_close.add(chip_id)
+                await _apply_snapshot(session, chip_id, value, now, devices_cache, tz)
             except Exception:
                 logger.exception("Помилка при обробці пристрою %s, пропускаємо", chip_id)
                 await session.rollback()
-
-        # Close open sessions for devices that need new ones (single bulk query)
-        await _close_open_sessions(session, chips_needing_session_close, now)
 
         offline = await _mark_stale_offline(session, set(deduped.keys()), now)
         await session.commit()
