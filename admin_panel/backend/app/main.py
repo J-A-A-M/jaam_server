@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI):
         app.state.redis_servers = [build_server_from_config(cfg) for cfg in result.scalars().all()]
     stop_event = asyncio.Event()
     app.state.stop_event = stop_event
+    app.state.redis_servers_lock = asyncio.Lock()
     app.state.collector_task = asyncio.create_task(run_collector(app.state.redis_servers, stop_event))
     logger.info("Адмін-панель запущена на порту %s", PORT)
     try:

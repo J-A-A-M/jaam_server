@@ -59,6 +59,14 @@ def _hw_type(value: dict) -> str | None:
     return None
 
 
+def _truncate(value: str | None, max_len: int) -> str | None:
+    """Обрізає рядок до максимальної довжини."""
+    if value is None:
+        return None
+    s = str(value)
+    return s[:max_len] if len(s) > max_len else s
+
+
 def dedup_by_chip_id(records: list[tuple[str, dict]]) -> dict[str, dict]:
     """records: список (server_name, value). Повертає chip_id -> value з найновішим connect_time."""
     best: dict[str, dict] = {}
@@ -83,13 +91,13 @@ async def _add_event(session, chip_id: str, event_type: str, details: dict | Non
     )
 
 
-async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.datetime) -> None:
+async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.datetime, devices_cache: dict) -> bool:
     firmware, firmware_id = _split_firmware(value.get("firmware"))
     server_name = value.get("_server")
     connect_time = value.get("connect_time")
     lat, lon = _parse_location(value.get("location"))
 
-    device = await session.get(Device, chip_id)
+    device = devices_cache.get(chip_id)
     is_new = device is None
     was_offline = is_new or not device.is_online
     prev_firmware = None if is_new else device.firmware
@@ -104,26 +112,26 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
         device = Device(chip_id=chip_id, first_seen=now)
         session.add(device)
 
-    device.firmware = firmware
-    device.firmware_id = firmware_id
-    device.hw_type = _hw_type(value) or device.hw_type
+    device.firmware = _truncate(firmware, 64)
+    device.firmware_id = _truncate(firmware_id, 128)
+    device.hw_type = _truncate(_hw_type(value) or device.hw_type, 32)
     device.is_online = True
     device.last_seen = now
     device.last_online_at = now
-    device.connect_time = connect_time
-    device.last_ip = value.get("ip") or device.last_ip
-    device.city = value.get("city")
-    device.region = value.get("region")
-    device.country = value.get("country")
-    device.timezone = value.get("timezone")
-    device.org = value.get("org")
-    device.location = value.get("location")
+    device.connect_time = _truncate(connect_time, 32)
+    device.last_ip = _truncate(value.get("ip") or device.last_ip, 64)
+    device.city = _truncate(value.get("city"), 128)
+    device.region = _truncate(value.get("region"), 128)
+    device.country = _truncate(value.get("country"), 64)
+    device.timezone = _truncate(value.get("timezone"), 64)
+    device.org = _truncate(value.get("org"), 256)
+    device.location = _truncate(value.get("location"), 64)
     device.lat, device.lon = lat, lon
     latency = value.get("latency")
     device.latency = latency if isinstance(latency, int) else device.latency
     sc = value.get("secure_connection")
     device.secure_connection = (sc.lower() == "true") if isinstance(sc, str) else bool(sc) if sc is not None else None
-    device.last_server = server_name
+    device.last_server = _truncate(server_name, 64)
 
     # Події
     if is_new:
@@ -153,25 +161,27 @@ async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.date
     # Сесія: нова, якщо пристрій був офлайн або змінився connect_time
     new_session_needed = was_offline or (connect_time and connect_time != prev_connect)
     if new_session_needed:
-        await _close_open_sessions(session, chip_id, now)
         session.add(
             DeviceSession(
                 chip_id=chip_id,
-                server_name=server_name,
-                connect_time=connect_time,
+                server_name=_truncate(server_name, 64),
+                connect_time=_truncate(connect_time, 32),
                 started_at=now,
-                firmware=firmware,
-                firmware_id=firmware_id,
-                ip=value.get("ip"),
-                city=value.get("city"),
-                region=value.get("region"),
+                firmware=_truncate(firmware, 64),
+                firmware_id=_truncate(firmware_id, 128),
+                ip=_truncate(value.get("ip"), 64),
+                city=_truncate(value.get("city"), 128),
+                region=_truncate(value.get("region"), 128),
             )
         )
+    return new_session_needed
 
 
-async def _close_open_sessions(session, chip_id: str, now: datetime.datetime) -> None:
+async def _close_open_sessions(session, chip_ids: set[str], now: datetime.datetime) -> None:
+    if not chip_ids:
+        return
     result = await session.execute(
-        select(DeviceSession).where(DeviceSession.chip_id == chip_id, DeviceSession.ended_at.is_(None))
+        select(DeviceSession).where(DeviceSession.chip_id.in_(chip_ids), DeviceSession.ended_at.is_(None))
     )
     for s in result.scalars().all():
         s.ended_at = now
@@ -185,24 +195,33 @@ async def _mark_stale_offline(session, seen_chip_ids: set[str], now: datetime.da
     """Позначає офлайн ті пристрої, яких не бачили довше за поріг."""
     threshold = now - datetime.timedelta(seconds=OFFLINE_AFTER_SECONDS)
     result = await session.execute(select(Device).where(Device.is_online.is_(True), Device.last_seen < threshold))
+    devices_to_close = []
     count = 0
     for device in result.scalars().all():
         if device.chip_id in seen_chip_ids:
             continue
         device.is_online = False
         device.last_online_at = device.last_seen
-        await _close_open_sessions(session, device.chip_id, device.last_seen or now)
+        devices_to_close.append((device.chip_id, device.last_seen or now))
         await _add_event(session, device.chip_id, "offline", None)
         count += 1
+
+    # Bulk close all open sessions for devices marked offline
+    if devices_to_close:
+        chips_to_close = {chip_id for chip_id, _ in devices_to_close}
+        await _close_open_sessions(session, chips_to_close, now)
+
     return count
 
 
 async def collect_once(servers: list[RedisServer]) -> dict:
     now = utcnow()
-    scans = await asyncio.gather(*[scan_clients(s.client) for s in servers], return_exceptions=True)
+    # Snapshot the list to prevent issues if servers are mutated during collection
+    servers_snapshot = list(servers)
+    scans = await asyncio.gather(*[scan_clients(s.client) for s in servers_snapshot], return_exceptions=True)
     records: list[tuple[str, dict]] = []
     per_server: dict[str, int] = {}
-    for server, result in zip(servers, scans):
+    for server, result in zip(servers_snapshot, scans):
         if isinstance(result, Exception):
             logger.error("Помилка скану Redis %s: %s", server.name, result)
             per_server[server.name] = -1
@@ -214,8 +233,26 @@ async def collect_once(servers: list[RedisServer]) -> dict:
     deduped = dedup_by_chip_id(records)
 
     async with SessionLocal() as session:
+        # Bulk-load existing devices to avoid N+1 queries
+        if deduped:
+            result = await session.execute(select(Device).where(Device.chip_id.in_(deduped.keys())))
+            devices_cache = {d.chip_id: d for d in result.scalars().all()}
+        else:
+            devices_cache = {}
+
+        chips_needing_session_close = set()
         for chip_id, value in deduped.items():
-            await _apply_snapshot(session, chip_id, value, now)
+            try:
+                needs_close = await _apply_snapshot(session, chip_id, value, now, devices_cache)
+                if needs_close:
+                    chips_needing_session_close.add(chip_id)
+            except Exception:
+                logger.exception("Помилка при обробці пристрою %s, пропускаємо", chip_id)
+                await session.rollback()
+
+        # Close open sessions for devices that need new ones (single bulk query)
+        await _close_open_sessions(session, chips_needing_session_close, now)
+
         offline = await _mark_stale_offline(session, set(deduped.keys()), now)
         await session.commit()
 

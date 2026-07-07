@@ -39,8 +39,12 @@ async def _reload(request: Request, session: AsyncSession) -> None:
     configs = result.scalars().all()
     old_servers = list(request.app.state.redis_servers)
     new_servers = [build_server_from_config(cfg) for cfg in configs]
-    request.app.state.redis_servers.clear()
-    request.app.state.redis_servers.extend(new_servers)
+
+    # Atomic replacement under lock to prevent race with collector
+    async with request.app.state.redis_servers_lock:
+        request.app.state.redis_servers.clear()
+        request.app.state.redis_servers.extend(new_servers)
+
     for server in old_servers:
         try:
             await server.client.aclose()
