@@ -81,6 +81,11 @@ BEGIN
         ALTER TABLE redis_server_configs ADD COLUMN timezone VARCHAR(64) DEFAULT 'Europe/Kyiv';
     END IF;
 
+    -- Backfill timezone for existing rows
+    UPDATE redis_server_configs
+    SET timezone = 'Europe/Kyiv'
+    WHERE timezone IS NULL;
+
     -- strip -c3/-s3 chip suffixes from firmware versions (hw_type stores this separately)
     UPDATE devices
         SET firmware = regexp_replace(firmware, '[-_](c3|s3)$', '', 'i')
