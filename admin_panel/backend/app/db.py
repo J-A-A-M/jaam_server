@@ -75,6 +75,12 @@ BEGIN
         ALTER TABLE jaam_maps ADD COLUMN map_id VARCHAR(128);
     END IF;
 
+    -- redis_server_configs: add timezone column if missing
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_name='redis_server_configs' AND column_name='timezone') THEN
+        ALTER TABLE redis_server_configs ADD COLUMN timezone VARCHAR(64) DEFAULT 'Europe/Kyiv';
+    END IF;
+
     -- strip -c3/-s3 chip suffixes from firmware versions (hw_type stores this separately)
     UPDATE devices
         SET firmware = regexp_replace(firmware, '[-_](c3|s3)$', '', 'i')
