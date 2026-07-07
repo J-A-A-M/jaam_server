@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..deps import get_current_user
+from ..deps import get_current_user, require_admin
 from ..models import Device, JaamMap
 from ..schemas import BulkResult, JaamMapIn, JaamMapListOut, JaamMapOut
 
@@ -102,7 +102,7 @@ async def list_maps(
 @router.post("", response_model=JaamMapOut, status_code=201)
 async def create_map(
     body: JaamMapIn,
-    user: dict = Depends(get_current_user),
+    admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     chip_id = body.chip_id.strip()
@@ -132,7 +132,7 @@ async def create_map(
 async def update_map(
     chip_id: str,
     body: JaamMapIn,
-    user: dict = Depends(get_current_user),
+    admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     m = await session.get(JaamMap, chip_id)
@@ -152,7 +152,7 @@ async def update_map(
 @router.delete("/{chip_id}", status_code=204)
 async def delete_map(
     chip_id: str,
-    user: dict = Depends(get_current_user),
+    admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     m = await session.get(JaamMap, chip_id)
@@ -165,7 +165,7 @@ async def delete_map(
 @router.post("/bulk", response_model=BulkResult)
 async def bulk_upsert(
     body: list[JaamMapIn],
-    user: dict = Depends(get_current_user),
+    admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     """Одноразовий імпорт із Google-таблиці: upsert за chip_id."""

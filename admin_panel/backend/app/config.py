@@ -37,6 +37,8 @@ def check_secrets() -> None:
         raise RuntimeError("JWT_SECRET не змінено! Виставте змінну оточення JWT_SECRET перед запуском.")
     if _env("ADMIN_PASSWORD", "jaam_rocks") == "jaam_rocks":
         logger.warning("ADMIN_PASSWORD не змінено — використовується дефолтний пароль 'jaam_rocks'")
+    if _redis_password == "redis":
+        raise RuntimeError("REDIS_PASSWORD не змінено! Виставте змінну оточення REDIS_PASSWORD перед запуском.")
 
 
 # --- WebAuthn (Passkeys) ---

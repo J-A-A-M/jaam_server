@@ -50,13 +50,21 @@ async def delete_user(
     admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
-    # Lock all user rows so concurrent deletes can't bypass the last-user check
+    # Lock all user rows so concurrent deletes can't bypass the checks
     result = await session.execute(select(User).with_for_update())
     all_users = result.scalars().all()
     user = next((u for u in all_users if u.username == username), None)
     if not user:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
-    if len(all_users) <= 1:
-        raise HTTPException(status_code=400, detail="Не можна видалити останнього користувача")
+
+    # Не дозволяти видаляти себе
+    if admin["username"] == username:
+        raise HTTPException(status_code=400, detail="Не можна видалити власний акаунт")
+
+    # Гарантувати ≥1 admin завжди
+    admin_count = sum(1 for u in all_users if u.role == "admin")
+    if user.role == "admin" and admin_count <= 1:
+        raise HTTPException(status_code=400, detail="Не можна видалити останнього адміністратора")
+
     await session.delete(user)
     await session.commit()
