@@ -115,7 +115,7 @@ async def overview(
         hist[-1] += older
     duration_histogram = [CountItem(label=l, count=c) for l, c in zip(hist_labels, hist)]
 
-    # Тренд онлайну за 24 год — рахуємо УНІКАЛЬНІ пристрої, не сесії
+    # Тренд онлайну за 24 год — рахуємо УНІКАЛЬНІ пристрої як online_now
     trend_res = await session.execute(
         text(
             """
@@ -128,6 +128,7 @@ async def overview(
             LEFT JOIN device_sessions s
                    ON s.started_at <= t
                   AND (s.ended_at IS NULL OR s.ended_at >= t)
+                  AND s.chip_id IS NOT NULL
             GROUP BY t
             ORDER BY t
         """
