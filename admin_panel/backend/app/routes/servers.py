@@ -25,6 +25,7 @@ def _out(cfg: RedisServerConfig) -> RedisServerConfigOut:
         port=cfg.port,
         db=cfg.db,
         has_password=bool(cfg.password),
+        timezone=cfg.timezone,
         enabled=cfg.enabled,
         created_at=cfg.created_at,
         updated_at=cfg.updated_at,
@@ -96,6 +97,7 @@ async def create_config(
         port=body.port,
         db=body.db,
         password=body.password or None,
+        timezone=body.timezone,
         enabled=body.enabled,
     )
     session.add(cfg)
