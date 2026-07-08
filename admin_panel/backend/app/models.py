@@ -109,6 +109,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(256))
     role: Mapped[str] = mapped_column(String(16), default="admin")
+    # Інкрементується для відкликання всіх виданих токенів користувача (logout/скидання).
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     credentials: Mapped[list["UserCredential"]] = relationship(back_populates="user", cascade="all, delete-orphan")

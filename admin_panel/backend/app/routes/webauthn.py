@@ -226,7 +226,7 @@ async def auth_complete(
     user_result = await session.execute(select(User).where(User.id == db_cred.user_id))
     db_user = user_result.scalar_one()
 
-    token = create_token(db_user.username, db_user.role)
+    token = create_token(db_user.username, db_user.role, db_user.token_version)
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,

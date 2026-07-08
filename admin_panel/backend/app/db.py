@@ -81,6 +81,12 @@ BEGIN
         ALTER TABLE redis_server_configs ADD COLUMN timezone VARCHAR(64) DEFAULT 'Europe/Kyiv';
     END IF;
 
+    -- users: add token_version for token revocation if missing
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_name='users' AND column_name='token_version') THEN
+        ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;
+    END IF;
+
     -- Backfill timezone for existing rows
     UPDATE redis_server_configs
     SET timezone = 'Europe/Kyiv'
