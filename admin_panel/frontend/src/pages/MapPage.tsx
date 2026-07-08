@@ -120,7 +120,7 @@ export default function MapPage() {
           </div>
         </div>
 
-        <MapContainer center={[49, 32]} zoom={6} className="h-full w-full" scrollWheelZoom zoomControl={false}>
+        <MapContainer center={[49, 32]} zoom={6} className="h-full w-full" scrollWheelZoom zoomControl={false} worldCopyJump={true}>
           <TileLayer url={tileUrl} attribution="© OpenStreetMap contributors" />
           <ZoomControl position="bottomright" />
           <Clusters points={points} />
