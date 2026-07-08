@@ -12,15 +12,16 @@ from ..schemas import DeviceDetailOut, DeviceListOut, DeviceOut, EventOut, Sessi
 router = APIRouter(prefix="/api/devices", tags=["devices"])
 
 
-def _device_out(d: Device, reg: JaamMap | None) -> DeviceOut:
+def _device_out(d: Device, reg: JaamMap | None, include_pii: bool = True) -> DeviceOut:
     out = DeviceOut.model_validate(d)
     if reg is not None:
         out.is_jaam = True
         out.map_id = reg.map_id
         out.hw_version = reg.hw_version
         out.is_prototype = reg.is_prototype
-        out.order_number = reg.order_number
-        out.customer_info = reg.customer_info
+        # PII клієнтів — лише для адміністраторів
+        out.order_number = reg.order_number if include_pii else None
+        out.customer_info = reg.customer_info if include_pii else None
     return out
 
 
@@ -110,7 +111,8 @@ async def list_devices(
         reg_res = await session.execute(select(JaamMap).where(JaamMap.chip_id.in_(chip_ids)))
         registry = {m.chip_id: m for m in reg_res.scalars().all()}
 
-    items = [_device_out(d, registry.get(d.chip_id)) for d in devices]
+    is_admin = user.get("role") == "admin"
+    items = [_device_out(d, registry.get(d.chip_id), is_admin) for d in devices]
     return DeviceListOut(total=total or 0, page=page, page_size=page_size, items=items)
 
 
@@ -137,7 +139,8 @@ async def same_ip_devices(
     reg_res = await session.execute(select(JaamMap).where(JaamMap.chip_id.in_(chip_ids)))
     registry = {m.chip_id: m for m in reg_res.scalars().all()}
 
-    return [_device_out(d, registry.get(d.chip_id)) for d in devices]
+    is_admin = user.get("role") == "admin"
+    return [_device_out(d, registry.get(d.chip_id), is_admin) for d in devices]
 
 
 @router.get("/{chip_id}", response_model=DeviceDetailOut)
@@ -150,6 +153,7 @@ async def device_detail(
 ):
     import datetime
 
+    is_admin = user.get("role") == "admin"
     device = await session.get(Device, chip_id)
     reg = await session.get(JaamMap, chip_id)
 
@@ -183,8 +187,8 @@ async def device_detail(
             map_id=reg.map_id,
             hw_version=reg.hw_version,
             is_prototype=reg.is_prototype,
-            order_number=reg.order_number,
-            customer_info=reg.customer_info,
+            order_number=reg.order_number if is_admin else None,
+            customer_info=reg.customer_info if is_admin else None,
         )
         return DeviceDetailOut(device=stub, sessions=[], events=[])
 
@@ -209,7 +213,7 @@ async def device_detail(
         .limit(_EVENTS_PAGE_SIZE)
     )
     return DeviceDetailOut(
-        device=_device_out(device, reg),
+        device=_device_out(device, reg, is_admin),
         sessions=[SessionOut.model_validate(s) for s in sessions_res.scalars().all()],
         sessions_total=sessions_total or 0,
         events=[EventOut.model_validate(e) for e in events_res.scalars().all()],

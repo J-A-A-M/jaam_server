@@ -32,8 +32,12 @@ _SORT_COLUMNS = {
 }
 
 
-def _to_out(m: JaamMap, device: Device | None) -> JaamMapOut:
+def _to_out(m: JaamMap, device: Device | None, include_pii: bool = True) -> JaamMapOut:
     out = JaamMapOut.model_validate(m)
+    if not include_pii:
+        # PII клієнтів — лише для адміністраторів
+        out.order_number = None
+        out.customer_info = None
     if device is not None:
         out.ever_seen = True
         out.is_online = device.is_online
@@ -95,7 +99,8 @@ async def list_maps(
         .limit(page_size)
     )
 
-    items = [_to_out(m, d) for m, d in result.all()]
+    is_admin = user.get("role") == "admin"
+    items = [_to_out(m, d, is_admin) for m, d in result.all()]
     return JaamMapListOut(total=total or 0, page=page, page_size=page_size, items=items)
 
 
