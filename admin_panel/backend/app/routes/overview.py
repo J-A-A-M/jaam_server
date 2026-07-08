@@ -117,8 +117,7 @@ async def overview(
 
     # Тренд онлайну за 24 год — рахуємо УНІКАЛЬНІ пристрої як online_now
     trend_res = await session.execute(
-        text(
-            """
+        text("""
             SELECT t, COUNT(DISTINCT s.chip_id) AS online
             FROM generate_series(
                 CAST(:day_ago AS timestamptz),
@@ -131,8 +130,7 @@ async def overview(
                   AND s.chip_id IS NOT NULL
             GROUP BY t
             ORDER BY t
-        """
-        ),
+        """),
         {
             "day_ago": day_ago,
             "now": now,
@@ -151,16 +149,14 @@ async def overview(
     # Нові мапи по днях за 30 днів
     # (gs.day AT TIME ZONE :tz) — конвертує timestamptz у Kyiv-дату для правильного підпису
     new_day_res = await session.execute(
-        text(
-            """
+        text("""
             SELECT (gs.day AT TIME ZONE :tz)::date AS day, COUNT(d.chip_id) AS count
             FROM generate_series(CAST(:ts_start AS timestamptz), CAST(:ts_end AS timestamptz) - '1 day'::interval, '1 day'::interval) AS gs(day)
             LEFT JOIN devices d
                    ON d.first_seen >= gs.day
                   AND d.first_seen < gs.day + '1 day'::interval
             GROUP BY gs.day ORDER BY gs.day
-        """
-        ),
+        """),
         {"ts_start": _ts_start, "ts_end": _ts_end, "tz": DEFAULT_SERVER_TZ},
     )
     new_per_day = [DayPoint(date=row.day, count=row.count) for row in new_day_res.mappings()]
@@ -169,33 +165,45 @@ async def overview(
     # рахуємо унікальні пристрої, чия сесія ПЕРЕТИНАЄТЬСЯ з добою
     # (стартувала до кінця доби І ще не завершилась АБО завершилась після початку доби)
     active_day_res = await session.execute(
-        text(
-            """
+        text("""
             SELECT (gs.day AT TIME ZONE :tz)::date AS day, COUNT(DISTINCT s.chip_id) AS count
             FROM generate_series(CAST(:ts_start AS timestamptz), CAST(:ts_end AS timestamptz) - '1 day'::interval, '1 day'::interval) AS gs(day)
             LEFT JOIN device_sessions s
                    ON s.started_at < gs.day + '1 day'::interval
                   AND (s.ended_at >= gs.day OR s.ended_at IS NULL)
             GROUP BY gs.day ORDER BY gs.day
-        """
-        ),
+        """),
         {"ts_start": _ts_start, "ts_end": _ts_end, "tz": DEFAULT_SERVER_TZ},
     )
     active_per_day = [DayPoint(date=row.day, count=row.count) for row in active_day_res.mappings()]
 
     # Latency stats
-    good_count = await session.scalar(
-        select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency < 100)
-    ) or 0
-    normal_count = await session.scalar(
-        select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency >= 100, Device.latency <= 300)
-    ) or 0
-    poor_count = await session.scalar(
-        select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency > 300)
-    ) or 0
-    unknown_count = await session.scalar(
-        select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency.is_(None))
-    ) or 0
+    good_count = (
+        await session.scalar(
+            select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency < 100)
+        )
+        or 0
+    )
+    normal_count = (
+        await session.scalar(
+            select(func.count())
+            .select_from(Device)
+            .where(Device.is_online.is_(True), Device.latency >= 100, Device.latency <= 300)
+        )
+        or 0
+    )
+    poor_count = (
+        await session.scalar(
+            select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency > 300)
+        )
+        or 0
+    )
+    unknown_count = (
+        await session.scalar(
+            select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency.is_(None))
+        )
+        or 0
+    )
     latency_stats = {
         "good": good_count,
         "normal": normal_count,
@@ -203,13 +211,13 @@ async def overview(
         "unknown": unknown_count,
     }
 
-    # Top-15 провайдерів по кількості пристроїв (всі, не лише онлайн)
+    # Top-10 провайдерів по кількості пристроїв (всі, не лише онлайн)
     top_providers_res = await session.execute(
         select(Device.org, func.count().label("cnt"))
         .where(Device.org.is_not(None))
         .group_by(Device.org)
         .order_by(func.count().desc())
-        .limit(15)
+        .limit(10)
     )
     top_providers = top_providers_res.all()  # [(org, cnt), ...]
     top_org_names = [row[0] for row in top_providers]
@@ -228,11 +236,7 @@ async def overview(
         )
         lat_map = {row[0]: int(row[1]) for row in lat_prov_res.all()}
         # Зберігаємо той самий порядок, що і by_provider; провайдери без латенсі — пропускаємо
-        latency_by_provider = [
-            CountItem(label=str(org), count=lat_map[org])
-            for org in top_org_names
-            if org in lat_map
-        ]
+        latency_by_provider = [CountItem(label=str(org), count=lat_map[org]) for org in top_org_names if org in lat_map]
     else:
         latency_by_provider = []
 

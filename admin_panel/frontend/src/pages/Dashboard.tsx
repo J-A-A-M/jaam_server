@@ -228,9 +228,16 @@ function LatencyChart({ title, items }: { title: string; items: { label: string;
               <XAxis type="number" {...palette.axis} allowDecimals={false} unit=" ms" />
               <YAxis type="category" dataKey="label" {...palette.axis} width={110} tickFormatter={(val: string) => val && val.length > 16 ? val.slice(0, 16) + "…" : val} />
               <Tooltip
-                contentStyle={palette.tooltip}
                 cursor={{ fill: palette.cursor }}
-                formatter={(value: number) => [`${value} мс`]}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || !payload.length) return null;
+                  return (
+                    <div style={{ ...palette.tooltip, padding: "6px 10px" }}>
+                      <div style={{ marginBottom: 2, opacity: 0.7 }}>{label}</div>
+                      <div>Середній пінг: {payload[0].value} мс</div>
+                    </div>
+                  );
+                }}
               />
               <Bar dataKey="count" name="Середній пінг" radius={[0, 4, 4, 0]}>
                 {items.map((entry, index) => {
