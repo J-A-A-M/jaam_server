@@ -246,12 +246,14 @@ async def collect_once(servers: list[RedisServer]) -> dict:
 
         for chip_id, value in deduped.items():
             try:
-                server_name = value.get("_server")
-                tz = servers_tz.get(server_name, "Europe/Kyiv")
-                await _apply_snapshot(session, chip_id, value, now, devices_cache, tz)
+                # SAVEPOINT на кожен пристрій: помилка на одному відкочує лише його,
+                # а не весь цикл збору (раніше session.rollback() скидав усе оброблене).
+                async with session.begin_nested():
+                    server_name = value.get("_server")
+                    tz = servers_tz.get(server_name, "Europe/Kyiv")
+                    await _apply_snapshot(session, chip_id, value, now, devices_cache, tz)
             except Exception:
                 logger.exception("Помилка при обробці пристрою %s, пропускаємо", chip_id)
-                await session.rollback()
 
         offline = await _mark_stale_offline(session, set(deduped.keys()), now)
         await session.commit()
