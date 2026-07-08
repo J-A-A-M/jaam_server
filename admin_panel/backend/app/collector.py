@@ -150,6 +150,7 @@ async def _apply_snapshot(
         if not is_new and prev_firmware_id != firmware_id and (prev_firmware_id or firmware_id):
             await _add_event(session, chip_id, "firmware_id_change", {"from": prev_firmware_id, "to": firmware_id})
     if not is_new:
+
         def _geo_label(city, region):
             parts = [p for p in (city, region) if p]
             return ", ".join(parts) if parts else None
