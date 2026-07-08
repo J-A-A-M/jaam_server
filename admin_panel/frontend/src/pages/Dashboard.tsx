@@ -233,7 +233,7 @@ function LatencyChart({ title, items }: { title: string; items: { label: string;
                 formatter={(value) => [`${value} мс`, "Середній пінг"]}
                 labelFormatter={(label) => label}
               />
-              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+              <Bar dataKey="count" name="Середній пінг" radius={[0, 4, 4, 0]}>
                 {items.map((entry, index) => {
                   let color = "#ef4444";
                   if (entry.count < 100) color = "#22c55e";

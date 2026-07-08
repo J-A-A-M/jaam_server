@@ -203,15 +203,38 @@ async def overview(
         "unknown": unknown_count,
     }
 
-    # Average latency by top providers
-    lat_prov_res = await session.execute(
-        select(Device.org, func.round(func.avg(Device.latency)))
-        .where(Device.is_online.is_(True), Device.org.is_not(None), Device.latency.is_not(None))
+    # Top-15 провайдерів по кількості пристроїв (всі, не лише онлайн)
+    top_providers_res = await session.execute(
+        select(Device.org, func.count().label("cnt"))
+        .where(Device.org.is_not(None))
         .group_by(Device.org)
         .order_by(func.count().desc())
-        .limit(10)
+        .limit(15)
     )
-    latency_by_provider = [CountItem(label=str(row[0]), count=int(row[1])) for row in lat_prov_res.all()]
+    top_providers = top_providers_res.all()  # [(org, cnt), ...]
+    top_org_names = [row[0] for row in top_providers]
+    by_provider = [CountItem(label=str(row[0]), count=row[1]) for row in top_providers]
+
+    # Середній пінг для тих самих провайдерів, у тому самому порядку
+    if top_org_names:
+        lat_prov_res = await session.execute(
+            select(Device.org, func.round(func.avg(Device.latency)))
+            .where(
+                Device.is_online.is_(True),
+                Device.org.in_(top_org_names),
+                Device.latency.is_not(None),
+            )
+            .group_by(Device.org)
+        )
+        lat_map = {row[0]: int(row[1]) for row in lat_prov_res.all()}
+        # Зберігаємо той самий порядок, що і by_provider; провайдери без латенсі — пропускаємо
+        latency_by_provider = [
+            CountItem(label=str(org), count=lat_map[org])
+            for org in top_org_names
+            if org in lat_map
+        ]
+    else:
+        latency_by_provider = []
 
     return OverviewOut(
         online_now=online_now or 0,
@@ -227,7 +250,7 @@ async def overview(
         by_region=await _grouped(session, Device.region),
         by_country=await _grouped(session, Device.country),
         by_city=await _grouped(session, Device.city),
-        by_provider=await _grouped(session, Device.org),
+        by_provider=by_provider,
         latency_stats=latency_stats,
         latency_by_provider=latency_by_provider,
         duration_histogram=duration_histogram,
