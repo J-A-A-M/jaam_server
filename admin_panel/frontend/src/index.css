@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Light theme (default) ───────────────────────── */
+:root {
+  --bg:          249 250 252;
+  --card:        255 255 255;
+  --muted:       241 245 249;
+  --muted-fg:    100 116 139;
+  --fg:          15 23 42;
+  --border:      15 23 42;
+  --primary:     217 119 6;
+  --primary-fg:  255 255 255;
+  --success:     5 150 105;
+  --danger:      220 38 38;
+  --sidebar:     248 250 252;
+}
+
+/* ── Dark theme ──────────────────────────────────── */
+:root.dark {
+  --bg:          7 8 13;
+  --card:        11 13 20;
+  --muted:       16 19 28;
+  --muted-fg:    92 106 128;
+  --fg:          220 228 240;
+  --border:      255 255 255;
+  --primary:     245 158 11;
+  --primary-fg:  7 8 13;
+  --success:     16 185 129;
+  --danger:      239 68 68;
+  --sidebar:     8 9 14;
+}
+
+body {
+  @apply bg-background text-foreground font-sans antialiased;
+  margin: 0;
+  min-height: 100vh;
+  background-image: radial-gradient(circle, rgb(var(--border) / 0.04) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* Subtle primary ambient on login */
+.login-bg {
+  background-image:
+    radial-gradient(ellipse at 50% 55%, rgb(var(--primary) / 0.06) 0%, transparent 55%),
+    radial-gradient(circle, rgb(var(--border) / 0.04) 1px, transparent 1px);
+  background-size: auto, 26px 26px;
+}
+
+/* Text selection */
+::selection {
+  background: rgb(var(--primary) / 0.25);
+  color: rgb(var(--fg));
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(var(--border) / 0.1); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--primary) / 0.4); }
+
+/* Leaflet */
+.leaflet-container { background: rgb(var(--bg)); }
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: rgb(var(--card));
+  color: rgb(var(--fg));
+  border: 1px solid rgb(var(--border) / 0.08);
+  box-shadow: 0 4px 20px rgb(var(--border) / 0.12);
+}
+.leaflet-control-zoom a {
+  background: rgb(var(--card)) !important;
+  color: rgb(var(--fg)) !important;
+  border-color: rgb(var(--border) / 0.1) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: rgb(var(--muted)) !important;
+  color: rgb(var(--primary)) !important;
+}
+
+/* Recharts tooltip label */
+.recharts-tooltip-label {
+  color: rgb(var(--fg)) !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
