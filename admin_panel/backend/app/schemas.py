@@ -21,6 +21,16 @@ class UserCreate(BaseModel):
     role: str = "admin"
 
 
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str
+
+
+class UserUpdate(BaseModel):
+    role: str | None = None
+    password: str | None = None
+
+
 class UserListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

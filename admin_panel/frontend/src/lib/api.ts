@@ -302,8 +302,12 @@ export const api = {
   users: () => req<PanelUser[]>("/api/users"),
   createUser: (body: PanelUserInput) =>
     req<PanelUser>("/api/users", { method: "POST", body: JSON.stringify(body) }),
+  updateUser: (username: string, body: { role?: string; password?: string }) =>
+    req<PanelUser>(`/api/users/${encodeURIComponent(username)}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteUser: (username: string) =>
     req<void>(`/api/users/${encodeURIComponent(username)}`, { method: "DELETE" }),
+  changeOwnPassword: (old_password: string, new_password: string) =>
+    req<void>("/api/users/me/password", { method: "POST", body: JSON.stringify({ old_password, new_password }) }),
 
   webauthn: {
     registerBegin: (name: string) =>
