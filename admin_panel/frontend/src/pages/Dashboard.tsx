@@ -202,7 +202,7 @@ function DistroChart({ title, items, hideEmpty, labelFmt, horizontal }: { title:
             <BarChart data={data} layout="vertical" margin={{ left: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} horizontal={false} />
               <XAxis type="number" {...palette.axis} allowDecimals={false} />
-              <YAxis type="category" dataKey="label" {...palette.axis} width={100} tickFormatter={(val) => val && val.length > 14 ? val.slice(0, 14) + "..." : val} />
+              <YAxis type="category" dataKey="label" {...palette.axis} width={100} />
               <Tooltip contentStyle={palette.tooltip} cursor={{ fill: palette.cursor }} />
               <Bar dataKey="count" fill={palette.accent} radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -226,11 +226,12 @@ function LatencyChart({ title, items }: { title: string; items: { label: string;
             <BarChart data={items} layout="vertical" margin={{ left: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} horizontal={false} />
               <XAxis type="number" {...palette.axis} allowDecimals={false} unit=" ms" />
-              <YAxis type="category" dataKey="label" {...palette.axis} width={100} tickFormatter={(val) => val && val.length > 14 ? val.slice(0, 14) + "..." : val} />
+              <YAxis type="category" dataKey="label" {...palette.axis} width={110} tickFormatter={(val: string) => val && val.length > 16 ? val.slice(0, 16) + "…" : val} />
               <Tooltip
                 contentStyle={palette.tooltip}
                 cursor={{ fill: palette.cursor }}
                 formatter={(value) => [`${value} мс`, "Середній пінг"]}
+                labelFormatter={(label) => label}
               />
               <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                 {items.map((entry, index) => {
