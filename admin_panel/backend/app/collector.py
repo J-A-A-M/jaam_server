@@ -114,8 +114,12 @@ async def _apply_snapshot(
         device = Device(chip_id=chip_id, first_seen=now)
         session.add(device)
 
-    device.firmware = _truncate(firmware, 64)
-    device.firmware_id = _truncate(firmware_id, 128)
+    incoming_valid = firmware not in (None, "", "unknown")
+    prev_valid = prev_firmware not in (None, "", "unknown")
+
+    if incoming_valid or not prev_valid:
+        device.firmware = _truncate(firmware, 64)
+        device.firmware_id = _truncate(firmware_id, 128)
     device.hw_type = _truncate(_hw_type(value) or device.hw_type, 32)
     device.is_online = True
     device.last_seen = now
@@ -140,22 +144,25 @@ async def _apply_snapshot(
         await _add_event(session, chip_id, "first_seen", {"firmware": firmware})
     if was_offline:
         await _add_event(session, chip_id, "online", {"server": server_name})
-    if not is_new and prev_firmware and firmware and prev_firmware != firmware:
-        await _add_event(session, chip_id, "firmware_change", {"from": prev_firmware, "to": firmware})
-    if not is_new and prev_firmware_id != firmware_id and (prev_firmware_id or firmware_id):
-        await _add_event(session, chip_id, "firmware_id_change", {"from": prev_firmware_id, "to": firmware_id})
-    if not is_new and prev_location and device.location and prev_location != device.location:
-
+    if incoming_valid or not prev_valid:
+        if not is_new and prev_firmware and firmware and prev_firmware != firmware:
+            await _add_event(session, chip_id, "firmware_change", {"from": prev_firmware, "to": firmware})
+        if not is_new and prev_firmware_id != firmware_id and (prev_firmware_id or firmware_id):
+            await _add_event(session, chip_id, "firmware_id_change", {"from": prev_firmware_id, "to": firmware_id})
+    if not is_new:
         def _geo_label(city, region):
             parts = [p for p in (city, region) if p]
             return ", ".join(parts) if parts else None
 
-        await _add_event(
-            session,
-            chip_id,
-            "geo_change",
-            {"from": _geo_label(prev_city, prev_region), "to": _geo_label(value.get("city"), value.get("region"))},
-        )
+        prev_label = _geo_label(prev_city, prev_region)
+        new_label = _geo_label(value.get("city"), value.get("region"))
+        if prev_label and new_label and prev_label != new_label:
+            await _add_event(
+                session,
+                chip_id,
+                "geo_change",
+                {"from": prev_label, "to": new_label},
+            )
     new_ip = value.get("ip")
     if not is_new and not was_offline and prev_ip and new_ip and prev_ip != new_ip:
         await _add_event(session, chip_id, "ip_change", {"from": prev_ip, "to": new_ip})
