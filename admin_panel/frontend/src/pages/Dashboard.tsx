@@ -230,8 +230,7 @@ function LatencyChart({ title, items }: { title: string; items: { label: string;
               <Tooltip
                 contentStyle={palette.tooltip}
                 cursor={{ fill: palette.cursor }}
-                formatter={(value) => [`${value} мс`, "Середній пінг"]}
-                labelFormatter={(label) => label}
+                formatter={(value: number) => [`${value} мс`]}
               />
               <Bar dataKey="count" name="Середній пінг" radius={[0, 4, 4, 0]}>
                 {items.map((entry, index) => {
