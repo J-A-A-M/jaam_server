@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
+  ResponsiveContainer, Tooltip, XAxis, YAxis, Cell,
 } from "recharts";
 import { Activity, Cpu, Clock, PlusCircle } from "lucide-react";
 import { api } from "@/lib/api";
@@ -78,10 +78,9 @@ export default function Dashboard() {
   const activePerDay = data.active_per_day.map((p) => ({ day: fmtDay(p.date), count: p.count }));
 
   const latencyData = [
-    { label: "⚡ Добре (<100мс)", count: data.latency_stats.good },
-    { label: "🟢 Нормально (100-300мс)", count: data.latency_stats.normal },
+    { label: "🟢 Добре (<100мс)", count: data.latency_stats.good },
+    { label: "🟡 Нормально (100-300мс)", count: data.latency_stats.normal },
     { label: "🔴 Погано (>300мс)", count: data.latency_stats.poor },
-    { label: "⚪ Невідомо", count: data.latency_stats.unknown },
   ];
 
   return (
@@ -203,7 +202,7 @@ function DistroChart({ title, items, hideEmpty, labelFmt, horizontal }: { title:
             <BarChart data={data} layout="vertical" margin={{ left: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} horizontal={false} />
               <XAxis type="number" {...palette.axis} allowDecimals={false} />
-              <YAxis type="category" dataKey="label" {...palette.axis} width={100} />
+              <YAxis type="category" dataKey="label" {...palette.axis} width={100} tickFormatter={(val) => val && val.length > 14 ? val.slice(0, 14) + "..." : val} />
               <Tooltip contentStyle={palette.tooltip} cursor={{ fill: palette.cursor }} />
               <Bar dataKey="count" fill={palette.accent} radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -227,13 +226,20 @@ function LatencyChart({ title, items }: { title: string; items: { label: string;
             <BarChart data={items} layout="vertical" margin={{ left: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} horizontal={false} />
               <XAxis type="number" {...palette.axis} allowDecimals={false} unit=" ms" />
-              <YAxis type="category" dataKey="label" {...palette.axis} width={100} />
+              <YAxis type="category" dataKey="label" {...palette.axis} width={100} tickFormatter={(val) => val && val.length > 14 ? val.slice(0, 14) + "..." : val} />
               <Tooltip
                 contentStyle={palette.tooltip}
                 cursor={{ fill: palette.cursor }}
                 formatter={(value) => [`${value} мс`, "Середній пінг"]}
               />
-              <Bar dataKey="count" fill={palette.primary} radius={[0, 4, 4, 0]} />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                {items.map((entry, index) => {
+                  let color = "#ef4444";
+                  if (entry.count < 100) color = "#22c55e";
+                  else if (entry.count <= 300) color = "#f59e0b";
+                  return <Cell key={`cell-${index}`} fill={color} />;
+                })}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
