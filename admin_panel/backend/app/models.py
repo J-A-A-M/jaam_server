@@ -29,11 +29,11 @@ class Device(Base):
     connect_time: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     last_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    city: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     region: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     country: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    org: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    org: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
     location: Mapped[str | None] = mapped_column(String(64), nullable=True)  # "lat,lon"
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lon: Mapped[float | None] = mapped_column(Float, nullable=True)

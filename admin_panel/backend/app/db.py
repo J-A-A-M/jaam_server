@@ -94,6 +94,10 @@ BEGIN
         ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;
     END IF;
 
+    -- devices: indexes for dashboard aggregations (group by org / city)
+    CREATE INDEX IF NOT EXISTS ix_devices_org ON devices (org);
+    CREATE INDEX IF NOT EXISTS ix_devices_city ON devices (city);
+
     -- Backfill timezone for existing rows
     UPDATE redis_server_configs
     SET timezone = 'Europe/Kyiv'
