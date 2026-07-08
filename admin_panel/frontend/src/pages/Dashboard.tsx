@@ -77,6 +77,13 @@ export default function Dashboard() {
   const newPerDay  = data.new_per_day.map((p)    => ({ day: fmtDay(p.date), count: p.count }));
   const activePerDay = data.active_per_day.map((p) => ({ day: fmtDay(p.date), count: p.count }));
 
+  const latencyData = [
+    { label: "⚡ Добре (<100мс)", count: data.latency_stats.good },
+    { label: "🟢 Нормально (100-300мс)", count: data.latency_stats.normal },
+    { label: "🔴 Погано (>300мс)", count: data.latency_stats.poor },
+    { label: "⚪ Невідомо", count: data.latency_stats.unknown },
+  ];
+
   return (
     <div className="space-y-4 p-4 sm:space-y-6 sm:p-6">
       <div>
@@ -133,6 +140,12 @@ export default function Dashboard() {
         <DistroChart title="Топ країн" items={data.by_country} labelFmt={countryLabel} />
         <DistroChart title="Топ регіонів" items={data.by_region} />
         <DistroChart title="Топ міст" items={data.by_city} />
+      </div>
+
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+        <DistroChart title="Топ провайдерів (ISP)" items={data.by_provider} />
+        <DistroChart title="Якість зв'язку (пінг)" items={latencyData} />
+        <LatencyChart title="Сер. пінг топ-провайдерів" items={data.latency_by_provider} />
       </div>
 
       <DistroChart title="Тривалість онлайн-сесій" items={data.duration_histogram} hideEmpty horizontal />
@@ -193,6 +206,34 @@ function DistroChart({ title, items, hideEmpty, labelFmt, horizontal }: { title:
               <YAxis type="category" dataKey="label" {...palette.axis} width={100} />
               <Tooltip contentStyle={palette.tooltip} cursor={{ fill: palette.cursor }} />
               <Bar dataKey="count" fill={palette.accent} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+function LatencyChart({ title, items }: { title: string; items: { label: string; count: number }[] }) {
+  const palette = useChartPalette();
+  return (
+    <Card>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+      <CardBody>
+        {items.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">Немає даних</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(160, items.length * 26)}>
+            <BarChart data={items} layout="vertical" margin={{ left: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} horizontal={false} />
+              <XAxis type="number" {...palette.axis} allowDecimals={false} unit=" ms" />
+              <YAxis type="category" dataKey="label" {...palette.axis} width={100} />
+              <Tooltip
+                contentStyle={palette.tooltip}
+                cursor={{ fill: palette.cursor }}
+                formatter={(value) => [`${value} мс`, "Середній пінг"]}
+              />
+              <Bar dataKey="count" fill={palette.primary} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

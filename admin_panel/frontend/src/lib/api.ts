@@ -70,6 +70,13 @@ export interface DeviceList {
 export interface CountItem { label: string; count: number; }
 export interface TrendPoint { ts: string; online: number; }
 
+export interface LatencyStats {
+  good: number;
+  normal: number;
+  poor: number;
+  unknown: number;
+}
+
 export interface Overview {
   online_now: number;
   jaam_online: number;
@@ -84,6 +91,9 @@ export interface Overview {
   by_region: CountItem[];
   by_country: CountItem[];
   by_city: CountItem[];
+  by_provider: CountItem[];
+  latency_stats: LatencyStats;
+  latency_by_provider: CountItem[];
   duration_histogram: CountItem[];
   online_trend: TrendPoint[];
   new_per_day: DayPoint[];

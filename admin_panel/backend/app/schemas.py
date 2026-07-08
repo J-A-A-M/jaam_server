@@ -168,6 +168,13 @@ class DayPoint(BaseModel):
     count: int
 
 
+class LatencyStats(BaseModel):
+    good: int
+    normal: int
+    poor: int
+    unknown: int
+
+
 class OverviewOut(BaseModel):
     online_now: int
     jaam_online: int
@@ -182,6 +189,9 @@ class OverviewOut(BaseModel):
     by_region: list[CountItem]
     by_country: list[CountItem]
     by_city: list[CountItem]
+    by_provider: list[CountItem]
+    latency_stats: LatencyStats
+    latency_by_provider: list[CountItem]
     duration_histogram: list[CountItem]
     online_trend: list[TrendPoint]
     new_per_day: list[DayPoint]

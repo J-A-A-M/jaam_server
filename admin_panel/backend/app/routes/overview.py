@@ -183,6 +183,36 @@ async def overview(
     )
     active_per_day = [DayPoint(date=row.day, count=row.count) for row in active_day_res.mappings()]
 
+    # Latency stats
+    good_count = await session.scalar(
+        select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency < 100)
+    ) or 0
+    normal_count = await session.scalar(
+        select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency >= 100, Device.latency <= 300)
+    ) or 0
+    poor_count = await session.scalar(
+        select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency > 300)
+    ) or 0
+    unknown_count = await session.scalar(
+        select(func.count()).select_from(Device).where(Device.is_online.is_(True), Device.latency.is_(None))
+    ) or 0
+    latency_stats = {
+        "good": good_count,
+        "normal": normal_count,
+        "poor": poor_count,
+        "unknown": unknown_count,
+    }
+
+    # Average latency by top providers
+    lat_prov_res = await session.execute(
+        select(Device.org, func.round(func.avg(Device.latency)))
+        .where(Device.is_online.is_(True), Device.org.is_not(None), Device.latency.is_not(None))
+        .group_by(Device.org)
+        .order_by(func.count().desc())
+        .limit(10)
+    )
+    latency_by_provider = [CountItem(label=str(row[0]), count=int(row[1])) for row in lat_prov_res.all()]
+
     return OverviewOut(
         online_now=online_now or 0,
         jaam_online=jaam_online or 0,
@@ -197,6 +227,9 @@ async def overview(
         by_region=await _grouped(session, Device.region),
         by_country=await _grouped(session, Device.country),
         by_city=await _grouped(session, Device.city),
+        by_provider=await _grouped(session, Device.org),
+        latency_stats=latency_stats,
+        latency_by_provider=latency_by_provider,
         duration_histogram=duration_histogram,
         online_trend=trend,
         new_per_day=new_per_day,
