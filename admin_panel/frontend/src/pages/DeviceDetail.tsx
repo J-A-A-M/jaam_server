@@ -249,7 +249,7 @@ export default function DeviceDetail() {
           <CardBody className="p-0">
             {d.lat != null && d.lon != null ? (
               <div className="isolate h-[220px] sm:h-[260px]">
-                <MapContainer center={[d.lat, d.lon]} zoom={9} className="h-full w-full" scrollWheelZoom={false}>
+                <MapContainer center={[d.lat, d.lon]} zoom={9} className="h-full w-full" scrollWheelZoom={false} worldCopyJump={true}>
                   <TileLayer url={tileUrl} attribution="© OpenStreetMap" />
                   <Marker position={[d.lat, d.lon]} />
                 </MapContainer>
