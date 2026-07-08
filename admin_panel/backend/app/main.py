@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .collector import run_collector
 from .config import LOG_LEVEL, PORT, check_secrets
+from .retention import run_retention
 from .db import SessionLocal, init_models
 from .models import RedisServerConfig
 from .redis_util import build_server_from_config
@@ -41,14 +42,16 @@ async def lifespan(app: FastAPI):
     app.state.stop_event = stop_event
     app.state.redis_servers_lock = asyncio.Lock()
     app.state.collector_task = asyncio.create_task(run_collector(app.state.redis_servers, stop_event))
+    app.state.retention_task = asyncio.create_task(run_retention(stop_event))
     logger.info("Адмін-панель запущена на порту %s", PORT)
     try:
         yield
     finally:
         stop_event.set()
-        app.state.collector_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await app.state.collector_task
+        for task in (app.state.collector_task, app.state.retention_task):
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
         for server in app.state.redis_servers:
             await server.client.close()
 
