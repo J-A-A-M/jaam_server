@@ -11,6 +11,7 @@ import MapPage from "./pages/MapPage";
 import Servers from "./pages/Servers";
 import Events from "./pages/Events";
 import Users from "./pages/Users";
+import Account from "./pages/Account";
 import type { ReactNode } from "react";
 
 function Protected({ children }: { children: ReactNode }) {
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/servers" element={<Servers />} />
         <Route path="/events" element={<Events />} />
         <Route path="/users" element={<Users />} />
+        <Route path="/account" element={<Account />} />
       </Route>
     </Routes>
   );

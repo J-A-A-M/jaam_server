@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, MapPin, Cpu, Server, LogOut, Radar, ClipboardList, Users, Activity, Sun, Moon, Menu, X } from "lucide-react";
+import { LayoutDashboard, MapPin, Cpu, Server, LogOut, Radar, ClipboardList, Users, Activity, Sun, Moon, Menu, X, UserCog } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { useTheme } from "./ThemeContext";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ const nav = [
   { to: "/map", label: "Карта", icon: MapPin },
   { to: "/servers", label: "Сервери", icon: Server },
   { to: "/users", label: "Користувачі", icon: Users, adminOnly: true },
+  { to: "/account", label: "Акаунт", icon: UserCog },
 ];
 
 export default function Layout() {
