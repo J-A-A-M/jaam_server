@@ -44,6 +44,7 @@ export default function Inventory() {
   };
 
   const [editing, setEditing] = useState<JaamMap | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["inventory", q, status, sort, dir, page],
@@ -59,8 +60,14 @@ export default function Inventory() {
     onSuccess: invalidate,
   });
 
-  const openAdd = () => setEditing(null);
-  const openEdit = (m: JaamMap) => setEditing(m);
+  const openAdd = () => {
+    setEditing(null);
+    setModalOpen(true);
+  };
+  const openEdit = (m: JaamMap) => {
+    setEditing(m);
+    setModalOpen(true);
+  };
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
 
@@ -187,8 +194,11 @@ export default function Inventory() {
       </div>
 
       <JaamMapModal
-        open={!!editing}
-        onClose={() => setEditing(null)}
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setEditing(null);
+        }}
         editing={editing}
       />
     </div>
