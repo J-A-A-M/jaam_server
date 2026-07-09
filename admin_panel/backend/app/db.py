@@ -82,11 +82,8 @@ BEGIN
         ALTER TABLE jaam_maps ADD COLUMN map_id VARCHAR(128);
     END IF;
 
-    -- redis_server_configs: add timezone column if missing
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                  WHERE table_name='redis_server_configs' AND column_name='timezone') THEN
-        ALTER TABLE redis_server_configs ADD COLUMN timezone VARCHAR(64) DEFAULT 'Europe/Kyiv';
-    END IF;
+    -- redis_server_configs: drop unused per-server timezone column (feature removed)
+    ALTER TABLE redis_server_configs DROP COLUMN IF EXISTS timezone;
 
     -- users: add token_version for token revocation if missing
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
@@ -97,11 +94,6 @@ BEGIN
     -- devices: indexes for dashboard aggregations (group by org / city)
     CREATE INDEX IF NOT EXISTS ix_devices_org ON devices (org);
     CREATE INDEX IF NOT EXISTS ix_devices_city ON devices (city);
-
-    -- Backfill timezone for existing rows
-    UPDATE redis_server_configs
-    SET timezone = 'Europe/Kyiv'
-    WHERE timezone IS NULL;
 
     -- strip -c3/-s3 chip suffixes from firmware versions (hw_type stores this separately)
     UPDATE devices

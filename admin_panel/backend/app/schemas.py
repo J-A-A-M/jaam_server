@@ -233,7 +233,6 @@ class RedisServerConfigIn(BaseModel):
     port: int = 6379
     db: int = 0
     password: str | None = None
-    timezone: str = "Europe/Kyiv"
     enabled: bool = True
 
 
@@ -243,7 +242,6 @@ class RedisServerConfigUpdate(BaseModel):
     port: int | None = None
     db: int | None = None
     password: str | None = None  # None/відсутнє → не змінювати; "" → очистити
-    timezone: str | None = None
     enabled: bool | None = None
 
 
@@ -256,7 +254,6 @@ class RedisServerConfigOut(BaseModel):
     port: int
     db: int
     has_password: bool
-    timezone: str
     enabled: bool
     created_at: datetime.datetime
     updated_at: datetime.datetime
