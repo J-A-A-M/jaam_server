@@ -13,7 +13,7 @@ from ..config import COLLECT_INTERVAL, DEFAULT_SERVER_TZ
 from ..db import get_session
 from ..deps import get_current_user
 from ..models import Device, DeviceSession, JaamMap, utcnow
-from ..schemas import CountItem, DayPoint, OverviewOut, TrendPoint
+from ..schemas import CountItem, DayPoint, OverviewOut, ProviderCount, TrendPoint
 
 router = APIRouter(prefix="/api/overview", tags=["overview"])
 
@@ -242,7 +242,19 @@ async def _compute_overview(session: AsyncSession) -> OverviewOut:
     )
     top_providers = top_providers_res.all()  # [(org, cnt), ...]
     top_org_names = [row[0] for row in top_providers]
-    by_provider = [CountItem(label=str(row[0]), count=row[1]) for row in top_providers]
+
+    # Онлайн-кількість для тих самих провайдерів (зелена частина стовпчика)
+    online_by_org: dict = {}
+    if top_org_names:
+        online_prov_res = await session.execute(
+            select(Device.org, func.count())
+            .where(Device.org.in_(top_org_names), Device.is_online.is_(True))
+            .group_by(Device.org)
+        )
+        online_by_org = {row[0]: row[1] for row in online_prov_res.all()}
+    by_provider = [
+        ProviderCount(label=str(org), total=total, online=online_by_org.get(org, 0)) for org, total in top_providers
+    ]
 
     # Середній пінг для тих самих провайдерів, у тому самому порядку
     if top_org_names:

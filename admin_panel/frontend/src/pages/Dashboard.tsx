@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis, Cell,
 } from "recharts";
 import { Activity, Cpu, Clock, PlusCircle } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, type ProviderCount } from "@/lib/api";
 import { Card, CardBody, CardHeader, CardTitle, Spinner, Stat } from "@/components/ui";
 import { useTheme } from "@/components/ThemeContext";
 
@@ -142,7 +142,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
-        <DistroChart title="Топ провайдерів (ISP)" items={data.by_provider} />
+        <ProviderChart title="Топ провайдерів (ISP)" items={data.by_provider} />
         <DistroChart title="Якість зв'язку (пінг)" items={latencyData} />
         <LatencyChart title="Сер. пінг топ-провайдерів" items={data.latency_by_provider} />
       </div>
@@ -205,6 +205,50 @@ function DistroChart({ title, items, hideEmpty, labelFmt, horizontal }: { title:
               <YAxis type="category" dataKey="label" {...palette.axis} width={100} />
               <Tooltip contentStyle={palette.tooltip} cursor={{ fill: palette.cursor }} />
               <Bar dataKey="count" fill={palette.accent} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+function ProviderChart({ title, items }: { title: string; items: ProviderCount[] }) {
+  const palette = useChartPalette();
+  const data = items.map((i) => ({
+    label: i.label,
+    online: i.online,
+    offline: Math.max(0, i.total - i.online),
+    total: i.total,
+  }));
+  return (
+    <Card>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+      <CardBody>
+        {data.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">Немає даних</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(160, data.length * 26)}>
+            <BarChart data={data} layout="vertical" margin={{ left: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={palette.gridBar} horizontal={false} />
+              <XAxis type="number" {...palette.axis} allowDecimals={false} />
+              <YAxis type="category" dataKey="label" {...palette.axis} width={110} tickFormatter={(val: string) => val && val.length > 16 ? val.slice(0, 16) + "…" : val} />
+              <Tooltip
+                cursor={{ fill: palette.cursor }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || !payload.length) return null;
+                  const row = payload[0].payload as { online: number; total: number };
+                  return (
+                    <div style={{ ...palette.tooltip, padding: "6px 10px" }}>
+                      <div style={{ marginBottom: 2, opacity: 0.7 }}>{label}</div>
+                      <div>Онлайн: {row.online}</div>
+                      <div>Усього: {row.total}</div>
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="online" stackId="p" name="Онлайн" fill="#22c55e" radius={[4, 0, 0, 4]} />
+              <Bar dataKey="offline" stackId="p" name="Офлайн" fill={palette.accent} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

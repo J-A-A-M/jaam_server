@@ -68,6 +68,7 @@ export interface DeviceList {
 }
 
 export interface CountItem { label: string; count: number; }
+export interface ProviderCount { label: string; total: number; online: number; }
 export interface TrendPoint { ts: string; online: number; }
 
 export interface LatencyStats {
@@ -91,7 +92,7 @@ export interface Overview {
   by_region: CountItem[];
   by_country: CountItem[];
   by_city: CountItem[];
-  by_provider: CountItem[];
+  by_provider: ProviderCount[];
   latency_stats: LatencyStats;
   latency_by_provider: CountItem[];
   duration_histogram: CountItem[];

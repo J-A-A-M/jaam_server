@@ -127,6 +127,14 @@ class CountItem(BaseModel):
     count: int
 
 
+class ProviderCount(BaseModel):
+    """Провайдер із розбивкою онлайн / загалом (для стекового стовпчика на дашборді)."""
+
+    label: str
+    total: int
+    online: int
+
+
 class TrendPoint(BaseModel):
     ts: datetime.datetime
     online: int
@@ -193,7 +201,7 @@ class OverviewOut(BaseModel):
     by_region: list[CountItem]
     by_country: list[CountItem]
     by_city: list[CountItem]
-    by_provider: list[CountItem]
+    by_provider: list[ProviderCount]
     latency_stats: LatencyStats
     latency_by_provider: list[CountItem]
     duration_histogram: list[CountItem]
