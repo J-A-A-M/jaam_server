@@ -52,4 +52,7 @@ jobs:
       - name: Run PyTest in tests
         run: |
           cd tests
-          pytest --tb=short -v --capture=tee-sys
+          # admin_panel-тести бігають в ізольованому середовищі (гейт deploy_admin_panel.yml)
+          # з власними pinned-залежностями; тут спільний env з усіма requirements.txt репо,
+          # де fastapi адмінки конфліктує з чужим starlette — тож ігноруємо їх у цьому джобі.
+          pytest --tb=short -v --capture=tee-sys --ignore=admin_panel
