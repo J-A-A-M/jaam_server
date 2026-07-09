@@ -1,126 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Shield, Eye, KeyRound } from "lucide-react";
-import { startRegistration } from "@simplewebauthn/browser";
-import { api, type PanelUserInput } from "@/lib/api";
+import { Plus, Trash2, Shield, Eye, Pencil } from "lucide-react";
+import { api, type PanelUser, type PanelUserInput } from "@/lib/api";
 import { useAuth } from "@/components/AuthContext";
-import { Badge, Button, Card, Input, Modal, RelativeTime, Select, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Input, Modal, Select, Spinner } from "@/components/ui";
 import { fmtDateTime } from "@/lib/utils";
 
 const EMPTY: PanelUserInput = { username: "", password: "", role: "admin" };
-
-function PasskeysSection() {
-  const qc = useQueryClient();
-  const [addOpen, setAddOpen] = useState(false);
-  const [keyName, setKeyName] = useState("");
-  const [addError, setAddError] = useState("");
-  const [adding, setAdding] = useState(false);
-
-  const { data: creds, isLoading } = useQuery({
-    queryKey: ["passkeys"],
-    queryFn: api.webauthn.credentials,
-  });
-
-  const delMut = useMutation({
-    mutationFn: (id: number) => api.webauthn.deleteCredential(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["passkeys"] }),
-  });
-
-  const addPasskey = async () => {
-    setAddError("");
-    setAdding(true);
-    try {
-      const name = keyName.trim() || "Ключ";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const options = await api.webauthn.registerBegin(name) as any;
-      const credential = await startRegistration({ optionsJSON: options });
-      await api.webauthn.registerComplete(credential);
-      qc.invalidateQueries({ queryKey: ["passkeys"] });
-      setAddOpen(false);
-      setKeyName("");
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (!msg.includes("cancel") && !msg.includes("abort") && !msg.includes("NotAllowed")) {
-        setAddError("Не вдалося додати ключ: " + msg);
-      }
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex items-center justify-between border-b border-border/[0.07] px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <KeyRound className="h-4 w-4 text-muted-foreground" />
-          Мої ключі доступу (Passkeys)
-        </div>
-        <button
-          onClick={() => { setKeyName(""); setAddError(""); setAddOpen(true); }}
-          className="flex items-center gap-1.5 rounded border border-border/[0.15] px-2.5 py-1.5 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" /> Додати
-        </button>
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center py-6"><Spinner className="h-5 w-5" /></div>
-      ) : creds && creds.length > 0 ? (
-        <div className="divide-y divide-border/[0.07]">
-          {creds.map((c) => (
-            <div key={c.id} className="flex items-center justify-between px-4 py-3 sm:px-5">
-              <div>
-                <div className="text-sm text-foreground">{c.name}</div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  Додано <RelativeTime ts={c.created_at} />
-                  {c.last_used_at && <> · Використано <RelativeTime ts={c.last_used_at} /></>}
-                </div>
-              </div>
-              <button
-                onClick={() => { if (confirm(`Видалити ключ «${c.name}»?`)) delMut.mutate(c.id); }}
-                disabled={delMut.isPending}
-                className="rounded-md p-1.5 text-muted-foreground transition hover:bg-danger/15 hover:text-danger disabled:opacity-40"
-                title="Видалити ключ"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="px-4 py-6 text-center text-sm text-muted-foreground sm:px-5">
-          Ключів поки немає — додайте, щоб входити без пароля
-        </div>
-      )}
-
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новий ключ доступу">
-        <div className="space-y-3">
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">Назва ключа</label>
-            <Input
-              value={keyName}
-              onChange={(e) => setKeyName(e.target.value)}
-              placeholder="напр. MacBook Touch ID"
-              autoFocus
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Після натискання «Зареєструвати» браузер попросить підтвердити особу через Touch ID, Face ID або ключ безпеки.
-          </p>
-          {addError && <div className="text-sm text-danger">{addError}</div>}
-          <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={() => setAddOpen(false)} className="rounded border border-border/[0.1] px-4 py-2 text-sm transition hover:bg-muted hover:text-foreground">
-              Скасувати
-            </button>
-            <Button onClick={addPasskey} disabled={adding}>
-              {adding ? <Spinner /> : "Зареєструвати"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-    </Card>
-  );
-}
 
 export default function Users() {
   const qc = useQueryClient();
@@ -128,6 +14,12 @@ export default function Users() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<PanelUserInput>(EMPTY);
   const [error, setError] = useState("");
+
+  // Редагування наявного користувача
+  const [editUser, setEditUser] = useState<PanelUser | null>(null);
+  const [editRole, setEditRole] = useState("admin");
+  const [editPassword, setEditPassword] = useState("");
+  const [editError, setEditError] = useState("");
 
   const { data, isLoading } = useQuery({ queryKey: ["users"], queryFn: api.users });
   const invalidate = () => qc.invalidateQueries({ queryKey: ["users"] });
@@ -143,6 +35,30 @@ export default function Users() {
     onSuccess: invalidate,
     onError: (e: Error) => alert(e.message),
   });
+
+  const editMut = useMutation({
+    mutationFn: ({ username, role, password }: { username: string; role: string; password?: string }) =>
+      api.updateUser(username, { role, ...(password ? { password } : {}) }),
+    onSuccess: () => { invalidate(); setEditUser(null); setEditError(""); },
+    onError: (e: Error) => setEditError(e.message),
+  });
+
+  const openEdit = (u: PanelUser) => {
+    setEditUser(u);
+    setEditRole(u.role);
+    setEditPassword("");
+    setEditError("");
+  };
+
+  const submitEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+    if (editPassword && editPassword.length < 8) {
+      setEditError("Пароль має бути не коротшим за 8 символів");
+      return;
+    }
+    editMut.mutate({ username: editUser.username, role: editRole, password: editPassword || undefined });
+  };
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
@@ -184,7 +100,14 @@ export default function Users() {
                     </td>
                     <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{fmtDateTime(u.created_at)}</td>
                     <td className="px-3 py-3 sm:px-4">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          onClick={() => openEdit(u)}
+                          className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                          title="Редагувати роль / скинути пароль"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={() => { if (confirm(`Видалити користувача ${u.username}?`)) delMut.mutate(u.username); }}
                           disabled={delMut.isPending || u.username === user?.username}
@@ -202,8 +125,6 @@ export default function Users() {
           </table>
         </div>
       </Card>
-
-      <PasskeysSection />
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Новий користувач">
         <form onSubmit={(e) => { e.preventDefault(); createMut.mutate(form); }} className="space-y-3">
@@ -226,6 +147,36 @@ export default function Users() {
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={() => setModalOpen(false)} className="rounded border border-border/[0.1] px-4 py-2 text-sm transition hover:bg-muted hover:text-foreground">Скасувати</button>
             <Button type="submit" disabled={createMut.isPending}>{createMut.isPending ? <Spinner /> : "Створити"}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={editUser !== null} onClose={() => setEditUser(null)} title={editUser ? `Редагувати ${editUser.username}` : ""}>
+        <form onSubmit={submitEdit} className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Роль</label>
+            <Select value={editRole} onChange={(e) => setEditRole(e.target.value)} className="w-full">
+              <option value="admin">admin — повний доступ</option>
+              <option value="viewer">viewer — лише перегляд</option>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Новий пароль</label>
+            <Input
+              type="password"
+              value={editPassword}
+              onChange={(e) => setEditPassword(e.target.value)}
+              placeholder="Залишіть порожнім, щоб не змінювати"
+              autoComplete="new-password"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Зміна ролі чи пароля завершує всі активні сесії цього користувача.
+          </p>
+          {editError && <div className="text-sm text-danger">{editError}</div>}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={() => setEditUser(null)} className="rounded border border-border/[0.1] px-4 py-2 text-sm transition hover:bg-muted hover:text-foreground">Скасувати</button>
+            <Button type="submit" disabled={editMut.isPending}>{editMut.isPending ? <Spinner /> : "Зберегти"}</Button>
           </div>
         </form>
       </Modal>

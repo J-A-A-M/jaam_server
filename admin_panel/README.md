@@ -21,13 +21,6 @@
 потрапляють, але видно онлайн). Сторінка «Реєстр JAAM» дає CRUD (додати/редагувати/видалити),
 пошук і фільтр за станом (онлайн / офлайн / ніколи не був онлайн).
 
-**Одноразова міграція з Google Sheets:** ендпоінт `POST /api/inventory/bulk` приймає масив
-записів і робить upsert за `chip_id`. Приклад:
-```bash
-curl -b cookie.txt -X POST https://admin.jaam.net.ua/api/inventory/bulk \
-  -H 'Content-Type: application/json' \
-  -d '[{"chip_id":"a1b2...","hw_version":"JAAM2","is_prototype":false,"order_number":"ORD-1","customer_info":"..."}]'
-```
 - **frontend/** — React + Vite + TS + Tailwind (shadcn-стиль) + Recharts + Leaflet.
 - **Dockerfile** — multi-stage: збірка SPA → FastAPI віддає API та статику з `/app/static`.
 

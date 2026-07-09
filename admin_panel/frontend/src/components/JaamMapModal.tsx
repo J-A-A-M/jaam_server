@@ -5,10 +5,17 @@ import { Button, Input, Modal, Select, Spinner, Textarea } from "@/components/ui
 
 const HW_VERSIONS = ["JAAM3.2", "JAAM3.1", "JAAM3.0", "JAAM2", "JAAM1", "NOT JAAM", ""];
 
+// Модалка редагує запис реєстру. Приймаємо і повний JaamMap (сторінка «Реєстр»),
+// і Device (сторінка мапи) — потрібні лише ці поля; is_prototype у Device може бути null.
+export type JaamMapEditable = Pick<
+  JaamMap,
+  "chip_id" | "map_id" | "hw_version" | "order_number" | "customer_info"
+> & { is_prototype: boolean | null };
+
 export interface JaamMapModalProps {
   open: boolean;
   onClose: () => void;
-  editing?: JaamMap | null;
+  editing?: JaamMapEditable | null;
   defaultChipId?: string;
   onSuccess?: () => void;
 }
@@ -26,7 +33,7 @@ export function JaamMapModal({ open, onClose, editing, defaultChipId, onSuccess 
         chip_id: editing.chip_id,
         map_id: editing.map_id ?? "",
         hw_version: editing.hw_version ?? "",
-        is_prototype: editing.is_prototype,
+        is_prototype: editing.is_prototype ?? false,
         order_number: editing.order_number ?? "",
         customer_info: editing.customer_info ?? "",
       });

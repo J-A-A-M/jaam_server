@@ -21,6 +21,16 @@ class UserCreate(BaseModel):
     role: str = "admin"
 
 
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str
+
+
+class UserUpdate(BaseModel):
+    role: str | None = None
+    password: str | None = None
+
+
 class UserListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -157,12 +167,6 @@ class JaamMapListOut(BaseModel):
     items: list[JaamMapOut]
 
 
-class BulkResult(BaseModel):
-    created: int
-    updated: int
-    total: int
-
-
 class DayPoint(BaseModel):
     date: datetime.date
     count: int
@@ -229,7 +233,6 @@ class RedisServerConfigIn(BaseModel):
     port: int = 6379
     db: int = 0
     password: str | None = None
-    timezone: str = "Europe/Kyiv"
     enabled: bool = True
 
 
@@ -239,7 +242,6 @@ class RedisServerConfigUpdate(BaseModel):
     port: int | None = None
     db: int | None = None
     password: str | None = None  # None/відсутнє → не змінювати; "" → очистити
-    timezone: str | None = None
     enabled: bool | None = None
 
 
@@ -252,7 +254,6 @@ class RedisServerConfigOut(BaseModel):
     port: int
     db: int
     has_password: bool
-    timezone: str
     enabled: bool
     created_at: datetime.datetime
     updated_at: datetime.datetime

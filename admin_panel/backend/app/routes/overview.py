@@ -1,13 +1,15 @@
 """Дашборд: агреговані KPI, розподіли, тренд онлайну (з історії сесій)."""
 
+import asyncio
 import datetime
+import time
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import DEFAULT_SERVER_TZ
+from ..config import COLLECT_INTERVAL, DEFAULT_SERVER_TZ
 from ..db import get_session
 from ..deps import get_current_user
 from ..models import Device, DeviceSession, JaamMap, utcnow
@@ -20,6 +22,12 @@ HISTORY_HOURS = 24
 TREND_BUCKET_MINUTES = 30
 
 _SERVER_ZONE = ZoneInfo(DEFAULT_SERVER_TZ)
+
+# Кеш дашборда: дані оновлюються раз на цикл collector-а, тож один розрахунок
+# ділиться між усіма відкритими вкладками замість ~20 запитів на кожен виклик.
+OVERVIEW_CACHE_TTL = max(10, COLLECT_INTERVAL)
+_cache: dict = {"data": None, "expires": 0.0}
+_cache_lock = asyncio.Lock()
 
 
 def _aware(dt: datetime.datetime | None) -> datetime.datetime | None:
@@ -76,7 +84,20 @@ async def _grouped(session: AsyncSession, column, limit: int = 12) -> list[Count
 async def overview(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-):
+) -> OverviewOut:
+    if _cache["data"] is not None and time.monotonic() < _cache["expires"]:
+        return _cache["data"]
+    # Один розрахунок за раз; решта конкурентних запитів дочекаються й візьмуть кеш.
+    async with _cache_lock:
+        if _cache["data"] is not None and time.monotonic() < _cache["expires"]:
+            return _cache["data"]
+        data = await _compute_overview(session)
+        _cache["data"] = data
+        _cache["expires"] = time.monotonic() + OVERVIEW_CACHE_TTL
+        return data
+
+
+async def _compute_overview(session: AsyncSession) -> OverviewOut:
     now = utcnow()
     day_ago = now - datetime.timedelta(hours=24)
 

@@ -29,11 +29,11 @@ class Device(Base):
     connect_time: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     last_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    city: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     region: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     country: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    org: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    org: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
     location: Mapped[str | None] = mapped_column(String(64), nullable=True)  # "lat,lon"
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lon: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -109,6 +109,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(256))
     role: Mapped[str] = mapped_column(String(16), default="admin")
+    # Інкрементується для відкликання всіх виданих токенів користувача (logout/скидання).
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     credentials: Mapped[list["UserCredential"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -125,7 +127,6 @@ class RedisServerConfig(Base):
     port: Mapped[int] = mapped_column(Integer, default=6379)
     db: Mapped[int] = mapped_column(Integer, default=0)
     password: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    timezone: Mapped[str] = mapped_column(String(64), default="Europe/Kyiv")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

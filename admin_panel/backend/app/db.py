@@ -11,7 +11,14 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
+engine = create_async_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=1800,  # переробляти з'єднання кожні 30 хв, щоб уникнути застояних
+    future=True,
+)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -75,16 +82,18 @@ BEGIN
         ALTER TABLE jaam_maps ADD COLUMN map_id VARCHAR(128);
     END IF;
 
-    -- redis_server_configs: add timezone column if missing
+    -- redis_server_configs: drop unused per-server timezone column (feature removed)
+    ALTER TABLE redis_server_configs DROP COLUMN IF EXISTS timezone;
+
+    -- users: add token_version for token revocation if missing
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                  WHERE table_name='redis_server_configs' AND column_name='timezone') THEN
-        ALTER TABLE redis_server_configs ADD COLUMN timezone VARCHAR(64) DEFAULT 'Europe/Kyiv';
+                  WHERE table_name='users' AND column_name='token_version') THEN
+        ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;
     END IF;
 
-    -- Backfill timezone for existing rows
-    UPDATE redis_server_configs
-    SET timezone = 'Europe/Kyiv'
-    WHERE timezone IS NULL;
+    -- devices: indexes for dashboard aggregations (group by org / city)
+    CREATE INDEX IF NOT EXISTS ix_devices_org ON devices (org);
+    CREATE INDEX IF NOT EXISTS ix_devices_city ON devices (city);
 
     -- strip -c3/-s3 chip suffixes from firmware versions (hw_type stores this separately)
     UPDATE devices

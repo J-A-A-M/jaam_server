@@ -17,10 +17,9 @@ CLIENTS_PATTERN = "websocket:clients:*"
 
 
 class RedisServer:
-    def __init__(self, name: str, client: redis.Redis, timezone: str = "Europe/Kyiv"):
+    def __init__(self, name: str, client: redis.Redis):
         self.name = name
         self.client = client
-        self.timezone = timezone
 
 
 def build_server_from_config(cfg) -> RedisServer:
@@ -37,8 +36,8 @@ def build_server_from_config(cfg) -> RedisServer:
         socket_keepalive=True,
         health_check_interval=30,
     )
-    logger.info("Redis-сервер: %s (%s:%s, tz=%s)", cfg.name, cfg.host, cfg.port, cfg.timezone)
-    return RedisServer(cfg.name, client, timezone=cfg.timezone)
+    logger.info("Redis-сервер: %s (%s:%s)", cfg.name, cfg.host, cfg.port)
+    return RedisServer(cfg.name, client)
 
 
 def build_servers() -> list[RedisServer]:

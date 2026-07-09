@@ -91,9 +91,7 @@ async def _add_event(session, chip_id: str, event_type: str, details: dict | Non
     )
 
 
-async def _apply_snapshot(
-    session, chip_id: str, value: dict, now: datetime.datetime, devices_cache: dict, server_tz: str = "Europe/Kyiv"
-) -> None:
+async def _apply_snapshot(session, chip_id: str, value: dict, now: datetime.datetime, devices_cache: dict) -> None:
     firmware, firmware_id = _split_firmware(value.get("firmware"))
     server_name = value.get("_server")
     connect_time = value.get("connect_time")
@@ -220,8 +218,6 @@ async def collect_once(servers: list[RedisServer]) -> dict:
     now = utcnow()
     # Snapshot the list to prevent issues if servers are mutated during collection
     servers_snapshot = list(servers)
-    # Build server_name -> timezone map for later use in _apply_snapshot
-    servers_tz = {s.name: s.timezone for s in servers_snapshot}
     scans = await asyncio.gather(*[scan_clients(s.client) for s in servers_snapshot], return_exceptions=True)
     records: list[tuple[str, dict]] = []
     per_server: dict[str, int] = {}
@@ -246,12 +242,12 @@ async def collect_once(servers: list[RedisServer]) -> dict:
 
         for chip_id, value in deduped.items():
             try:
-                server_name = value.get("_server")
-                tz = servers_tz.get(server_name, "Europe/Kyiv")
-                await _apply_snapshot(session, chip_id, value, now, devices_cache, tz)
+                # SAVEPOINT на кожен пристрій: помилка на одному відкочує лише його,
+                # а не весь цикл збору (раніше session.rollback() скидав усе оброблене).
+                async with session.begin_nested():
+                    await _apply_snapshot(session, chip_id, value, now, devices_cache)
             except Exception:
                 logger.exception("Помилка при обробці пристрою %s, пропускаємо", chip_id)
-                await session.rollback()
 
         offline = await _mark_stale_offline(session, set(deduped.keys()), now)
         await session.commit()

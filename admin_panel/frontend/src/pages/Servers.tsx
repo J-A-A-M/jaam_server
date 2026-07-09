@@ -6,7 +6,7 @@ import { useAuth } from "@/components/AuthContext";
 import { Badge, Button, Card, CardBody, Input, Modal, Spinner } from "@/components/ui";
 import { fmtDateTime } from "@/lib/utils";
 
-const EMPTY_FORM: RedisServerConfigInput = { name: "", host: "", port: 6379, db: 0, password: undefined, timezone: "Europe/Kyiv", enabled: true };
+const EMPTY_FORM: RedisServerConfigInput = { name: "", host: "", port: 6379, db: 0, password: undefined, enabled: true };
 
 function ConfigSection() {
   const qc = useQueryClient();
@@ -55,7 +55,7 @@ function ConfigSection() {
 
   const openEdit = (cfg: RedisServerConfig) => {
     setEditing(cfg);
-    setForm({ name: cfg.name, host: cfg.host, port: cfg.port, db: cfg.db, password: undefined, timezone: cfg.timezone, enabled: cfg.enabled });
+    setForm({ name: cfg.name, host: cfg.host, port: cfg.port, db: cfg.db, password: undefined, enabled: cfg.enabled });
     setChangePassword(false);
     setError("");
     setModalOpen(true);
@@ -68,7 +68,7 @@ function ConfigSection() {
     if (!form.name.trim() || !form.host.trim()) { setError("Назва і хост обов'язкові"); return; }
     if (editing) {
       const body: Record<string, unknown> = {
-        name: form.name, host: form.host, port: form.port, db: form.db, timezone: form.timezone, enabled: form.enabled,
+        name: form.name, host: form.host, port: form.port, db: form.db, enabled: form.enabled,
       };
       if (changePassword) body.password = form.password || null;
       updateMut.mutate({ id: editing.id, body });
@@ -107,7 +107,6 @@ function ConfigSection() {
                 <th className="px-3 py-3 font-medium sm:px-4">Назва</th>
                 <th className="px-3 py-3 font-medium sm:px-4">Хост : порт</th>
                 <th className="hidden px-4 py-3 font-medium sm:table-cell">DB</th>
-                <th className="hidden px-4 py-3 font-medium md:table-cell">Часовий пояс</th>
                 <th className="hidden px-4 py-3 font-medium lg:table-cell">Пароль</th>
                 <th className="px-3 py-3 font-medium sm:px-4">Стан</th>
                 <th className="px-3 py-3 sm:px-4"></th>
@@ -115,9 +114,9 @@ function ConfigSection() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={7} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
+                <tr><td colSpan={6} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
               ) : configs?.length === 0 ? (
-                <tr><td colSpan={7} className="py-10 text-center text-sm text-muted-foreground">Немає конфігурацій</td></tr>
+                <tr><td colSpan={6} className="py-10 text-center text-sm text-muted-foreground">Немає конфігурацій</td></tr>
               ) : configs?.map((cfg) => {
                 const testRes = testResults[cfg.id];
                 return (
@@ -127,7 +126,6 @@ function ConfigSection() {
                       {cfg.host}:{cfg.port}
                     </td>
                     <td className="hidden px-4 py-3 font-mono text-xs text-muted-foreground sm:table-cell">{cfg.db}</td>
-                    <td className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">{cfg.timezone}</td>
                     <td className="hidden px-4 py-3 lg:table-cell">
                       {cfg.has_password
                         ? <span className="font-mono text-xs text-muted-foreground">••••••</span>
@@ -199,10 +197,6 @@ function ConfigSection() {
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">DB</label>
               <Input type="number" value={form.db} onChange={(e) => setForm({ ...form, db: Number(e.target.value) })} min={0} max={15} />
-            </div>
-            <div className="col-span-2">
-              <label className="mb-1 block text-xs text-muted-foreground">Часовий пояс</label>
-              <Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} placeholder="напр. Europe/Kyiv" />
             </div>
             <div className="flex items-end pb-0.5">
               <button

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api } from "@/lib/api";
+import { api, setUnauthorizedHandler } from "@/lib/api";
 
 interface User { username: string; role: string; }
 
@@ -18,7 +18,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // На будь-який 401 від захищеного ендпоінта — скидаємо користувача,
+    // після чого <Protected> перекидає на /login.
+    setUnauthorizedHandler(() => setUser(null));
     api.me().then(setUser).catch(() => setUser(null)).finally(() => setLoading(false));
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const login = async (username: string, password: string) => {

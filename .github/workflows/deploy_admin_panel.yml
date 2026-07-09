@@ -35,7 +35,51 @@ run-name: Deploy Admin Panel from '${{ github.ref_name }}' branch
 permissions:
   contents: read
 jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - name: Setup Node
+            uses: actions/setup-node@v4
+            with:
+              node-version: '22'
+          - name: Install frontend deps
+            working-directory: admin_panel/frontend
+            run: npm ci
+          - name: Frontend typecheck
+            id: typecheck
+            working-directory: admin_panel/frontend
+            run: npm run typecheck
+            continue-on-error: true
+          - name: Frontend unit tests
+            id: fe_tests
+            working-directory: admin_panel/frontend
+            run: npm run test:run -- --reporter=default --reporter=json --outputFile=vitest-results.json
+            continue-on-error: true
+          - name: Setup Python
+            uses: actions/setup-python@v5
+            with:
+              python-version: '3.12'
+          - name: Backend admin_panel unit tests
+            id: be_tests
+            run: |
+              pip install -r admin_panel/backend/requirements.txt pytest
+              cd tests && python -m pytest admin_panel/ -v --junitxml=../pytest-results.xml
+            continue-on-error: true
+          - name: Test results summary
+            if: always()
+            env:
+              TYPECHECK: ${{ steps.typecheck.outcome }}
+            run: python3 .github/scripts/test_summary.py >> "$GITHUB_STEP_SUMMARY"
+          - name: Fail if any suite failed
+            if: always()
+            run: |
+              [ "${{ steps.typecheck.outcome }}" = "success" ] \
+                && [ "${{ steps.fe_tests.outcome }}" = "success" ] \
+                && [ "${{ steps.be_tests.outcome }}" = "success" ]
+
     deploy_admin_panel:
+        needs: test
         runs-on: ubuntu-latest
         env:
           SERVER_IP: ${{ inputs.server_choice == 'Server 1' && secrets.CLOUD_SERVER_IP || secrets.CLOUD_SERVER_2_IP }}

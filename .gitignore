@@ -13,5 +13,9 @@ shared_data/
 logs/*
 CLAUDE.md
 
+# test report artifacts
+pytest-results.xml
+vitest-results.json
+
 # graphify
 graphify-out/*

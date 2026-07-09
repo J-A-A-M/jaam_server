@@ -31,6 +31,9 @@ async def geo_points(
     elif type_ == "self":
         filters.append(JaamMap.chip_id.is_(None))
 
+    # PII клієнтів (order_number, customer_info) — лише для адміністраторів.
+    is_admin = user.get("role") == "admin"
+
     j = outerjoin(Device, JaamMap, Device.chip_id == JaamMap.chip_id)
     result = await session.execute(select(Device, JaamMap).select_from(j).where(*filters))
     points = []
@@ -53,8 +56,8 @@ async def geo_points(
                 map_id=reg.map_id if reg else None,
                 hw_version=reg.hw_version if reg else None,
                 is_prototype=reg.is_prototype if reg else False,
-                order_number=reg.order_number if reg else None,
-                customer_info=reg.customer_info if reg else None,
+                order_number=(reg.order_number if reg else None) if is_admin else None,
+                customer_info=(reg.customer_info if reg else None) if is_admin else None,
             )
         )
     return points

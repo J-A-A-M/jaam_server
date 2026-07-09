@@ -56,6 +56,12 @@ COLLECT_INTERVAL = int(_env("COLLECT_INTERVAL", "20"))  # секунд між с
 # Пристрій вважається офлайн, якщо його не бачили довше за цей поріг (> Redis TTL 120с)
 OFFLINE_AFTER_SECONDS = int(_env("OFFLINE_AFTER_SECONDS", "150"))
 
+# --- Retention (прибирання старої історії; 0 = вимкнено) ---
+# Рутинні події (online/offline/ip_change) та завершені сесії, старші за поріг,
+# видаляються. Події first_seen/firmware_change/firmware_id_change/geo_change — назавжди.
+EVENTS_RETENTION_DAYS = int(_env("EVENTS_RETENTION_DAYS", "90"))
+SESSIONS_RETENTION_DAYS = int(_env("SESSIONS_RETENTION_DAYS", "90"))
+
 # Часовий пояс за замовчуванням (для серверів без явного налаштування)
 # Замість глобального SERVER_TZ, кожен Redis-сервер має свій timezone в RedisServerConfig
 DEFAULT_SERVER_TZ = _env("SERVER_TZ", "Europe/Kyiv")

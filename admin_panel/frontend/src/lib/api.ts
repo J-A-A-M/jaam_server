@@ -219,6 +219,17 @@ export class ApiError extends Error {
   }
 }
 
+// Глобальний обробник неавторизованих відповідей (реєструється в AuthContext).
+// Викликається на 401 від захищених ендпоінтів — щоб SPA перекинула на логін,
+// коли токен протух або був відкликаний (logout/зміна пароля чи ролі).
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  onUnauthorized = fn;
+}
+
+// Ендпоінти входу: тут 401 означає «невірні дані», а не протухлу сесію.
+const AUTH_ENTRY_PREFIXES = ["/api/auth/login", "/api/webauthn/auth/"];
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: "include",
@@ -230,6 +241,9 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     try {
       detail = (await res.json()).detail ?? detail;
     } catch { /* ignore */ }
+    if (res.status === 401 && !AUTH_ENTRY_PREFIXES.some((p) => path.startsWith(p))) {
+      onUnauthorized?.();
+    }
     throw new ApiError(res.status, detail);
   }
   if (res.status === 204 || res.headers.get("Content-Length") === "0") return undefined as T;
@@ -302,8 +316,12 @@ export const api = {
   users: () => req<PanelUser[]>("/api/users"),
   createUser: (body: PanelUserInput) =>
     req<PanelUser>("/api/users", { method: "POST", body: JSON.stringify(body) }),
+  updateUser: (username: string, body: { role?: string; password?: string }) =>
+    req<PanelUser>(`/api/users/${encodeURIComponent(username)}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteUser: (username: string) =>
     req<void>(`/api/users/${encodeURIComponent(username)}`, { method: "DELETE" }),
+  changeOwnPassword: (old_password: string, new_password: string) =>
+    req<void>("/api/users/me/password", { method: "POST", body: JSON.stringify({ old_password, new_password }) }),
 
   webauthn: {
     registerBegin: (name: string) =>

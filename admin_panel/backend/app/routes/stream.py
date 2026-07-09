@@ -11,7 +11,7 @@ from starlette.responses import StreamingResponse
 
 from ..config import COOKIE_NAME
 from ..db import SessionLocal
-from ..models import Device, DeviceEvent
+from ..models import Device, DeviceEvent, User
 from ..security import decode_token
 
 router = APIRouter(prefix="/api/stream", tags=["stream"])
@@ -37,24 +37,37 @@ async def _snapshot(session) -> dict:
     return {"online_now": online or 0, "total_registered": total or 0, "events": events}
 
 
+async def _token_still_valid(session, token: str | None) -> bool:
+    """Звіряє токен із БД (існування користувача + token_version), як get_current_user."""
+    payload = decode_token(token) if token else None
+    if not payload or not payload.get("sub"):
+        return False
+    user = await session.scalar(select(User).where(User.username == payload["sub"]))
+    return user is not None and payload.get("tv", 0) == user.token_version
+
+
 @router.get("")
 async def stream(request: Request):
     # Авторизація вручну (SSE зручніше перевіряти напряму)
     token = request.cookies.get(COOKIE_NAME)
-    payload = decode_token(token) if token else None
-    if not payload:
-        raise HTTPException(status_code=401, detail="Не авторизовано")
+    async with SessionLocal() as session:
+        if not await _token_still_valid(session, token):
+            raise HTTPException(status_code=401, detail="Не авторизовано")
 
     async def event_gen():
-        async with SessionLocal() as session:
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                # Коротка сесія на кожен знімок: з'єднання повертається в пул між
+                # знімками, транзакція не висить відкритою (idle in transaction).
+                async with SessionLocal() as session:
+                    if not await _token_still_valid(session, token):
+                        break  # токен відкликано або користувача видалено
                     data = await _snapshot(session)
-                    yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
-                except Exception:
-                    logger.exception("SSE snapshot failed")
-                await asyncio.sleep(STREAM_INTERVAL)
+                yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+            except Exception:
+                logger.exception("SSE snapshot failed")
+            await asyncio.sleep(STREAM_INTERVAL)
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")

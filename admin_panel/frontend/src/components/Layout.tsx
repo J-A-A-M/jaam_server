@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, MapPin, Cpu, Server, LogOut, Radar, ClipboardList, Users, Activity, Sun, Moon, Menu, X } from "lucide-react";
+import { LayoutDashboard, MapPin, Cpu, Server, LogOut, Radar, ClipboardList, Users, Activity, Sun, Moon, Menu, X, UserCog } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { useTheme } from "./ThemeContext";
 import { cn } from "@/lib/utils";
@@ -81,13 +81,20 @@ export default function Layout() {
         <div className="mb-1 px-3 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground/70">
           {user?.username}
         </div>
-        <button
-          onClick={toggle}
-          className="hidden md:flex w-full items-center gap-3 border-l-2 border-transparent rounded-r px-3 py-2 text-[13px] text-muted-foreground transition-all duration-150 hover:border-border/[0.15] hover:bg-border/[0.04] hover:text-foreground"
+        <NavLink
+          to="/account"
+          className={({ isActive }) =>
+            cn(
+              "flex w-full items-center gap-3 border-l-2 rounded-r px-3 py-2 text-[13px] transition-all duration-150",
+              isActive
+                ? "border-primary bg-primary/[0.07] text-primary"
+                : "border-transparent text-muted-foreground hover:border-border/[0.15] hover:bg-border/[0.04] hover:text-foreground",
+            )
+          }
         >
-          {theme === "dark" ? <Sun className="h-[15px] w-[15px] shrink-0" /> : <Moon className="h-[15px] w-[15px] shrink-0" />}
-          {theme === "dark" ? "Світла тема" : "Темна тема"}
-        </button>
+          <UserCog className="h-[15px] w-[15px] shrink-0" />
+          Акаунт
+        </NavLink>
         <button
           onClick={async () => { await logout(); navigate("/login"); }}
           className="flex w-full items-center gap-3 border-l-2 border-transparent rounded-r px-3 py-2 text-[13px] text-muted-foreground transition-all duration-150 hover:border-danger/40 hover:bg-danger/[0.05] hover:text-danger"
@@ -143,6 +150,17 @@ export default function Layout() {
             aria-label="Тема"
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+        </header>
+
+        {/* Desktop top bar — перемикач теми у правому верхньому куті */}
+        <header className="hidden items-center justify-end border-b border-border/[0.07] bg-sidebar px-6 py-3 md:flex">
+          <button
+            onClick={toggle}
+            className="rounded p-1.5 text-muted-foreground transition hover:text-foreground"
+            aria-label="Тема"
+          >
+            {theme === "dark" ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
           </button>
         </header>
 
