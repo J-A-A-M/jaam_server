@@ -1,4 +1,4 @@
-"""Реєстр офіційних JAAM-мап (jaam_maps): CRUD, bulk-імпорт, склейка зі станом онлайн."""
+"""Реєстр офіційних JAAM-мап (jaam_maps): CRUD, склейка зі станом онлайн."""
 
 import datetime
 
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_session
 from ..deps import get_current_user, require_admin
 from ..models import Device, JaamMap
-from ..schemas import BulkResult, JaamMapIn, JaamMapListOut, JaamMapOut
+from ..schemas import JaamMapIn, JaamMapListOut, JaamMapOut
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -165,39 +165,3 @@ async def delete_map(
         raise HTTPException(status_code=404, detail="Запис не знайдено")
     await session.delete(m)
     await session.commit()
-
-
-@router.post("/bulk", response_model=BulkResult)
-async def bulk_upsert(
-    body: list[JaamMapIn],
-    admin: dict = Depends(require_admin),
-    session: AsyncSession = Depends(get_session),
-):
-    """Одноразовий імпорт із Google-таблиці: upsert за chip_id."""
-    created = updated = 0
-    for row in body:
-        chip_id = row.chip_id.strip()
-        if not chip_id:
-            continue
-        m = await session.get(JaamMap, chip_id)
-        if m:
-            m.map_id = row.map_id
-            m.hw_version = row.hw_version
-            m.is_prototype = row.is_prototype
-            m.order_number = row.order_number
-            m.customer_info = row.customer_info
-            updated += 1
-        else:
-            session.add(
-                JaamMap(
-                    chip_id=chip_id,
-                    map_id=row.map_id,
-                    hw_version=row.hw_version,
-                    is_prototype=row.is_prototype,
-                    order_number=row.order_number,
-                    customer_info=row.customer_info,
-                )
-            )
-            created += 1
-    await session.commit()
-    return BulkResult(created=created, updated=updated, total=created + updated)

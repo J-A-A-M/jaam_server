@@ -167,12 +167,6 @@ class JaamMapListOut(BaseModel):
     items: list[JaamMapOut]
 
 
-class BulkResult(BaseModel):
-    created: int
-    updated: int
-    total: int
-
-
 class DayPoint(BaseModel):
     date: datetime.date
     count: int
