@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid,
-  ResponsiveContainer, Tooltip, XAxis, YAxis, Cell,
+  ResponsiveContainer, Tooltip, XAxis, YAxis, Cell, Rectangle,
 } from "recharts";
 import { Activity, Cpu, Clock, PlusCircle } from "lucide-react";
 import { api, type ProviderCount } from "@/lib/api";
@@ -38,6 +38,8 @@ function useChartPalette() {
     },
     primary:  isDark ? "#F59E0B" : "#D97706",
     accent:   "#22D3EE",
+    online:   isDark ? "#22C55E" : "#16A34A",
+    offline:  isDark ? "#4B5563" : "#CBD5E1",
     gridArea: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
     gridBar:  isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
     cursor:   isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
@@ -247,8 +249,18 @@ function ProviderChart({ title, items }: { title: string; items: ProviderCount[]
                   );
                 }}
               />
-              <Bar dataKey="online" stackId="p" name="Онлайн" fill="#22c55e" radius={[4, 0, 0, 4]} />
-              <Bar dataKey="offline" stackId="p" name="Офлайн" fill={palette.accent} radius={[0, 4, 4, 0]} />
+              <Bar
+                dataKey="online"
+                stackId="p"
+                name="Онлайн"
+                fill={palette.online}
+                // Заокруглюємо правий край зеленого лише коли немає блакитного продовження
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                shape={(props: any) => (
+                  <Rectangle {...props} radius={props.payload.offline > 0 ? [0, 0, 0, 0] : [0, 4, 4, 0]} />
+                )}
+              />
+              <Bar dataKey="offline" stackId="p" name="Офлайн" fill={palette.offline} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
