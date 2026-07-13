@@ -106,6 +106,12 @@ class EventOut(BaseModel):
     ts: datetime.datetime
     details: str | None
 
+    # Склейка з devices/реєстром JAAM — для підпису під chip_id та чипа типу мапи
+    firmware_id: str | None = None
+    is_jaam: bool = False
+    hw_version: str | None = None
+    is_prototype: bool | None = None
+
 
 class EventListOut(BaseModel):
     total: int

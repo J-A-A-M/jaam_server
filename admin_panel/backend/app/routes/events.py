@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import DEFAULT_SERVER_TZ
 from ..db import get_session
 from ..deps import get_current_user
-from ..models import DeviceEvent
+from ..models import Device, DeviceEvent, JaamMap
 from ..schemas import EventListOut, EventOut
 
 router = APIRouter(prefix="/api/events", tags=["events"])
@@ -69,5 +69,27 @@ async def list_events(
     result = await session.execute(
         select(DeviceEvent).where(*filters).order_by(sort_expr).offset((page - 1) * page_size).limit(page_size)
     )
-    items = [EventOut.model_validate(e) for e in result.scalars().all()]
+    events = result.scalars().all()
+
+    # Склейка з devices/реєстром JAAM — для підпису під chip_id та чипа типу мапи
+    chip_ids = {e.chip_id for e in events if e.chip_id}
+    firmware_ids: dict[str, str | None] = {}
+    registry: dict[str, JaamMap] = {}
+    if chip_ids:
+        dev_res = await session.execute(select(Device.chip_id, Device.firmware_id).where(Device.chip_id.in_(chip_ids)))
+        firmware_ids = dict(dev_res.all())
+        reg_res = await session.execute(select(JaamMap).where(JaamMap.chip_id.in_(chip_ids)))
+        registry = {m.chip_id: m for m in reg_res.scalars().all()}
+
+    items = []
+    for e in events:
+        out = EventOut.model_validate(e)
+        if e.chip_id:
+            out.firmware_id = firmware_ids.get(e.chip_id)
+            reg = registry.get(e.chip_id)
+            if reg is not None:
+                out.is_jaam = True
+                out.hw_version = reg.hw_version
+                out.is_prototype = reg.is_prototype
+        items.append(out)
     return EventListOut(total=total or 0, page=page, page_size=page_size, items=items)

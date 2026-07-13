@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, FlaskConical } from "lucide-react";
 import { api } from "@/lib/api";
 import { Card, Input, RelativeTime, Select, Spinner, SortTh } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -144,13 +144,14 @@ export default function Events() {
                 <tr className="border-b border-border/[0.1] text-left">
                   <SortTh col="type"    label="Тип"     sort={sort} dir={dir} onSort={onSort} />
                   <SortTh col="chip_id" label="Chip ID" sort={sort} dir={dir} onSort={onSort} />
+                  <th className="hidden px-4 py-3 text-left text-xs font-medium text-muted-foreground sm:table-cell">Тип мапи</th>
                   <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">Деталі</th>
                   <SortTh col="ts" label="Час" sort={sort} dir={dir} onSort={onSort} className="text-right" />
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={4} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
+                  <tr><td colSpan={5} className="py-16 text-center"><Spinner className="mx-auto h-6 w-6" /></td></tr>
                 ) : data && data.items.length > 0 ? (
                   data.items.map((e) => {
                     const detail = eventDetail(e.type, e.details);
@@ -169,12 +170,31 @@ export default function Events() {
                           </td>
                           <td className="px-3 py-3 sm:px-4">
                             {e.chip_id ? (
-                              <Link
-                                to={`/devices/${encodeURIComponent(e.chip_id)}`}
-                                className="font-mono text-xs text-primary hover:underline"
-                              >
-                                {e.chip_id}
-                              </Link>
+                              <>
+                                <Link
+                                  to={`/devices/${encodeURIComponent(e.chip_id)}`}
+                                  className="font-mono text-xs text-primary hover:underline"
+                                >
+                                  {e.chip_id}
+                                </Link>
+                                {e.firmware_id && <div className="font-mono text-[11px] text-muted-foreground">{e.firmware_id}</div>}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="hidden px-4 py-3 sm:table-cell">
+                            {e.chip_id ? (
+                              e.is_jaam ? (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                                  {e.is_prototype && <FlaskConical className="h-3 w-3 shrink-0" />}
+                                  {e.hw_version ?? "JAAM"}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full border border-border/[0.15] bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                  SELF
+                                </span>
+                              )
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
@@ -188,7 +208,7 @@ export default function Events() {
                         </tr>
                         {detail && (
                           <tr className="border-b border-border/[0.07] transition hover:bg-muted/40 md:hidden">
-                            <td colSpan={4} className="px-3 pb-2.5 pt-0 font-mono text-[11px] text-muted-foreground">
+                            <td colSpan={5} className="px-3 pb-2.5 pt-0 font-mono text-[11px] text-muted-foreground">
                               {detail}
                             </td>
                           </tr>
@@ -197,7 +217,7 @@ export default function Events() {
                     );
                   })
                 ) : (
-                  <tr><td colSpan={4} className="py-16 text-center text-muted-foreground">Подій не знайдено</td></tr>
+                  <tr><td colSpan={5} className="py-16 text-center text-muted-foreground">Подій не знайдено</td></tr>
                 )}
               </tbody>
             </table>

@@ -122,6 +122,10 @@ export interface DeviceEvent {
   type: string;
   ts: string;
   details: string | null;
+  firmware_id: string | null;
+  is_jaam: boolean;
+  hw_version: string | null;
+  is_prototype: boolean | null;
 }
 
 export interface EventList {
