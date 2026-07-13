@@ -115,7 +115,7 @@ export default function Inventory() {
                     <SortTh col="chip_id" label="Chip ID" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="hw_version" label="Тип" sort={sort} dir={dir} onSort={onSort} className="hidden sm:table-cell" />
                     <SortTh col="map_id" label="Мітка" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
-                    <SortTh col="order_number" label="Замовлення" sort={sort} dir={dir} onSort={onSort} className="hidden md:table-cell" />
+                    <SortTh col="order_number" label="Замовлення" sort={sort} dir={dir} onSort={onSort} />
                     <SortTh col="customer_info" label="Клієнт" sort={sort} dir={dir} onSort={onSort} />
                     <th className="px-3 py-3 sm:px-4"></th>
                   </tr>
@@ -148,7 +148,7 @@ export default function Inventory() {
                           </span>
                         </td>
                         <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">{m.map_id ?? "—"}</td>
-                        <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">{m.order_number ?? "—"}</td>
+                        <td className="px-3 py-3 font-mono text-xs sm:px-4">{m.order_number ?? "—"}</td>
                         <td className="max-w-[140px] truncate px-3 py-3 text-muted-foreground sm:max-w-[240px] sm:px-4" title={m.customer_info ?? ""}>
                           {m.customer_info ?? "—"}
                         </td>
