@@ -25,6 +25,14 @@ BEZIER_SAMPLES = 10  # dense sampling -> mapshaper has good detail to snap+simpl
 SIMPLIFY_PCT = 4  # % of vertices kept (lower = lower poly)
 SNAP = 0.18  # vertex snap interval (viewBox units) to merge shared borders
 
+# districts.svg дає Києву district-id "14" — колізує з oblast id Київської
+# області (теж 14). Живі тривоги Ukraine Alarm API шлють для м.Київ regionId
+# 31 (звірено з data/uaapi.json: "regionId":"31","regionName":"м. Київ"), тому
+# resolveRegionElements() у клієнтському JS (#raion-31 / [data-oblast="31"])
+# нічого не знаходить і тривога на мапі не підсвічується. Ремапаємо id
+# районів на реальний Ukraine Alarm regionId ПІСЛЯ симпліфікації.
+RAION_ID_REMAP = {"14": "31"}
+
 
 def flatten_rings(d):
     """path d -> list of closed coordinate rings (one per continuous subpath)."""
@@ -190,7 +198,7 @@ def main():
 
     rsvg, osvg, vcount = [], [], 0
     for rk, g in simp.items():
-        rsvg.append(rings_to_svg(g, "raion", rk, oblast=r2o.get(rk)))
+        rsvg.append(rings_to_svg(g, "raion", RAION_ID_REMAP.get(rk, rk), oblast=r2o.get(rk)))
         polys = g.geoms if isinstance(g, MultiPolygon) else [g]
         vcount += sum(len(p.exterior.coords) for p in polys)
     # occupied / no-raion areas: fillable + highlightable; oblast == own id

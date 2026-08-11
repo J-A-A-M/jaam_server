@@ -1,28 +1,4 @@
-<!DOCTYPE html>
-<html lang="uk"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UA low-poly — preview</title>
-<style>
-  :root{--ua-fill:#d9d9d6;--ua-line:#b8b8b4;--ua-border:#7a7a76;--ua-alert:#F5601A;--ua-alert-line:#c24410}
-  body{margin:0;background:#eee;font-family:ui-monospace,Menlo,monospace;color:#222}
-  .wrap{max-width:760px;margin:24px auto;padding:0 16px}
-  #uaLowpoly{width:100%;height:auto;display:block}
-  .raion polygon{transition:fill .25s}
-  .bar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;align-items:center}
-  button,input{font:inherit;padding:7px 12px;border:1.5px solid #222;border-radius:7px;background:#fff;cursor:pointer}
-  .theme{margin-left:auto}
-  body.dark{background:#111;color:#ddd;--ua-fill:#26262a;--ua-line:#3a3a40;--ua-border:#555;--ua-alert:#FF6A2B;--ua-alert-line:#c9480e}
-  body.dark button,body.dark input{background:#1c1c1e;color:#ddd;border-color:#ddd}
-</style></head>
-<body><div class="wrap">
-  <div class="bar">
-    <button onclick="rnd()">Випадкові тривоги</button>
-    <button onclick="clearAll()">Скинути</button>
-    <input id="rid" placeholder="raion id" size="8"><button onclick="hi('raion')">Район</button>
-    <input id="oid" placeholder="oblast id" size="8"><button onclick="hi('oblast')">Область</button>
-    <button class="theme" onclick="document.body.classList.toggle('dark')">◐ тема</button>
-  </div>
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 175" id="uaLowpoly">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 175" id="uaLowpoly">
 <style>
   .raion polygon{fill:var(--ua-fill,#d9d9d6);stroke:var(--ua-line,#b8b8b4);stroke-width:.15;stroke-linejoin:round}
   .raion.alert polygon{fill:var(--ua-alert,#F5601A);stroke:var(--ua-alert-line,#c24410)}
@@ -511,21 +487,34 @@
     <polygon points="164.54,134.75 164.84,134.89 167.1,135.24 169.39,136.64 169.57,136.74 173.3,138.42 174.12,138.16 174.79,138.35 176.62,140.65 178.0,139.47 178.34,139.59 178.78,139.82 180.88,141.9 181.03,143.26 181.43,143.48 183.43,144.06 185.33,147.24 188.29,151.3 191.2,153.82 194.21,152.87 194.78,151.57 196.02,150.7 198.28,152.12 199.39,150.58 202.23,149.93 204.63,150.38 207.28,151.8 206.62,152.61 205.09,152.3 204.15,154.14 204.17,154.36 203.96,158.16 201.38,159.01 198.91,158.55 195.86,159.59 194.4,157.76 191.88,157.01 189.48,158.62 189.03,160.37 187.57,160.4 186.17,161.84 185.63,163.29 184.33,162.93 180.16,163.35 176.88,165.0 175.85,165.99 174.6,168.58 172.52,169.56 171.69,170.87 169.13,171.67 166.18,171.76 164.15,169.6 162.49,169.33 161.41,168.08 161.77,168.04 163.1,168.36 163.27,168.22 163.75,167.41 163.93,167.31 163.75,167.13 163.34,166.62 163.3,163.83 164.34,162.02 163.7,157.95 162.04,155.98 161.07,155.67 159.69,156.55 158.06,155.68 155.35,152.93 152.62,152.22 150.97,153.15 148.82,152.7 148.45,151.43 149.79,149.97 151.22,149.19 151.35,149.32 154.51,146.7 157.08,145.19 158.08,143.92 160.38,143.97 161.55,143.01 163.5,142.6 164.27,141.67 166.6,140.75 164.72,140.47 164.59,136.75 164.54,134.75"/>
   </g>
 </g>
+<g id="cities">
+<style>
+  #cities .city circle, #cities .city polygon{fill:none;stroke:var(--ua-line,#b8b8b4);stroke-width:.15;stroke-linejoin:round}
+</style>
+    <g class="city" data-oblast="3" data-id="1400"><title>Хмельницький</title><circle cx="70.95" cy="66.99" r="2.30"/></g>
+    <g class="city" data-oblast="4" data-id="155"><title>Вінниця</title><circle cx="91.84" cy="70.97" r="2.30"/></g>
+    <g class="city" data-oblast="5" data-id="1133"><title>Рівне</title><circle cx="60.99" cy="42.92" r="2.30"/></g>
+    <g class="city" data-oblast="8" data-id="225"><title>Луцьк</title><circle cx="45.83" cy="38.74" r="2.30"/></g>
+    <g class="city" data-oblast="9" data-id="332"><title>Дніпро</title><circle cx="184.65" cy="87.14" r="2.30"/></g>
+    <g class="city" data-oblast="10" data-id="442"><title>Житомир</title><circle cx="94.92" cy="50.52" r="2.30"/></g>
+    <g class="city" data-oblast="11" data-id="500"><title>Ужгород</title><circle cx="7.26" cy="82.97" r="2.30"/></g>
+    <g class="city" data-oblast="13" data-id="632"><title>Івано-Франківськ</title><circle cx="38.55" cy="76.75" r="2.30"/></g>
+    <g class="city" data-oblast="15" data-id="761"><title>Кропивницький</title><circle cx="145.26" cy="85.95" r="2.30"/></g>
+    <g class="city" data-oblast="16" data-id="7615"><title>Луганськ</title><circle cx="245.00" cy="85.46" r="2.30"/></g>
+    <g class="city" data-oblast="17" data-id="926"><title>Миколаїв</title><circle cx="140.90" cy="116.63" r="2.30"/></g>
+    <g class="city" data-oblast="18" data-id="964"><title>Одеса</title><circle cx="122.72" cy="126.35" r="2.30"/></g>
+    <g class="city" data-oblast="19" data-id="1060"><title>Полтава</title><circle cx="178.07" cy="64.57" r="2.30"/></g>
+    <g class="city" data-oblast="20" data-id="1187"><title>Суми</title><circle cx="182.05" cy="38.16" r="2.30"/></g>
+    <g class="city" data-oblast="21" data-id="1241"><title>Тернопіль</title><circle cx="51.29" cy="64.21" r="2.30"/></g>
+    <g class="city" data-oblast="23" data-id="1370"><title>Херсон</title><circle cx="150.27" cy="124.18" r="2.30"/></g>
+    <g class="city" data-oblast="24" data-id="1473"><title>Черкаси</title><circle cx="142.75" cy="67.16" r="2.30"/></g>
+    <g class="city" data-oblast="25" data-id="1591"><title>Чернігів</title><circle cx="132.61" cy="25.92" r="2.30"/></g>
+    <g class="city" data-oblast="26" data-id="1542"><title>Чернівці</title><circle cx="55.64" cy="89.53" r="2.30"/></g>
+    <g class="city" data-oblast="27" data-id="845"><title>Львів</title><circle cx="29.25" cy="58.29" r="2.30"/></g>
+    <g class="city" data-oblast="28" data-id="53"><title>Донецьк</title><circle cx="223.49" cy="96.46" r="2.30"/></g>
+    <g class="city" data-oblast="9999" data-id="7926"><title>Сімферополь</title><circle cx="169.97" cy="157.41" r="2.30"/></g>
+    <g class="city" data-oblast="14" data-id="31"><title>Київ</title><polygon points="120.77,42.67 120.77,43.02 121.2,43.27 121.2,43.08 121.35,42.96 121.68,43.0 122.39,42.91 122.57,42.75 122.71,42.56 123.17,42.38 123.38,42.18 123.41,41.97 123.57,41.83 124.69,42.46 124.64,42.77 123.73,43.14 123.4,43.48 123.57,43.73 123.64,43.91 123.71,44.11 123.68,44.31 123.72,44.61 124.08,45.02 124.34,45.29 124.4,45.52 124.65,45.8 124.1,46.01 124.06,46.22 123.76,46.48 123.16,46.59 123.16,46.88 123.02,47.0 122.79,46.59 122.48,46.55 122.13,46.76 121.98,46.9 121.85,47.07 122.01,47.18 121.89,47.36 122.32,48.27 122.15,48.4 121.77,48.65 121.85,48.91 122.01,49.11 122.18,49.52 121.72,49.91 121.63,49.75 121.56,49.45 121.5,49.19 121.27,48.84 120.97,48.41 120.79,48.02 120.82,47.74 120.62,47.65 120.22,47.33 119.88,47.25 119.96,47.0 119.75,46.63 119.56,46.57 119.37,46.54 119.44,46.36 119.37,46.12 118.01,44.76 117.47,44.92 117.06,44.99 116.89,45.08 116.71,45.07 116.68,44.74 116.77,44.55 116.87,44.37 116.8,44.18 117.06,43.76 117.34,43.06 117.48,42.9 117.56,42.72 117.73,42.53 117.94,42.53 118.09,42.42 118.01,42.06 119.5,41.87 119.66,41.96 119.94,42.07 120.16,42.45 120.42,42.78 120.77,42.67"/></g>
+    <g class="city" data-oblast="22" data-id="1293"><title>Харків</title><polygon points="202.58,55.67 201.97,53.47 201.35,52.52 200.93,52.12 200.58,52.58 200.12,52.2 199.98,51.43 198.35,52.72 198.52,53.53 197.88,53.37 197.98,53.93 197.66,54.11 198.01,55.43 198.99,55.5 199.6,56.4 200.41,56.33 200.1,55.69 201.23,55.22 201.72,55.97 202.58,55.67"/></g>
+    <g class="city" data-oblast="12" data-id="564"><title>Запоріжжя</title><polygon points="187.23,100.0 186.64,100.1 186.79,99.15 185.56,99.78 185.85,99.3 185.56,99.74 185.68,99.11 185.2,99.07 185.63,99.0 185.57,98.86 184.62,99.09 184.35,98.85 184.82,98.97 185.05,98.74 184.08,98.81 183.85,97.85 183.19,98.02 183.36,99.13 181.86,99.29 181.85,99.94 182.62,100.41 182.12,100.32 181.99,100.73 182.8,100.98 182.72,100.47 184.48,102.05 186.66,101.77 185.74,101.35 185.61,100.75 186.33,100.81 187.23,100.0"/></g>
+</g>
 </svg>
-
-  <p style="font-size:12px;color:#888">клік по району = toggle · область = всі її райони (data-oblast)</p>
-</div>
-<script>
-  const root=document.getElementById('uaLowpoly');
-  // highlight one raion
-  const setRaion=(id,on)=>{const g=root.querySelector('#raion-'+id);if(g)g.classList.toggle('alert',on);};
-  // highlight whole oblast = all its raions
-  const setOblast=(id,on)=>root.querySelectorAll('.raion[data-oblast="'+id+'"]').forEach(g=>g.classList.toggle('alert',on));
-  root.addEventListener('click',e=>{const g=e.target.closest('.raion');if(g)g.classList.toggle('alert');});
-  function rnd(){root.querySelectorAll('.raion').forEach(g=>g.classList.toggle('alert',Math.random()<0.15));}
-  function clearAll(){root.querySelectorAll('.raion.alert').forEach(g=>g.classList.remove('alert'));}
-  function hi(kind){
-    if(kind==='raion'){const id=rid.value.trim();const g=root.querySelector('#raion-'+id);g?g.classList.toggle('alert'):alert('нема раіону '+id);}
-    else{const id=oid.value.trim();const els=root.querySelectorAll('.raion[data-oblast="'+id+'"]');if(!els.length)return alert('нема області '+id);const on=!els[0].classList.contains('alert');els.forEach(g=>g.classList.toggle('alert',on));}
-  }
-</script></body></html>
