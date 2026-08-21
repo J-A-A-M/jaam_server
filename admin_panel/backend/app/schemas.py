@@ -241,6 +241,18 @@ class ServerStatus(BaseModel):
     checked_at: datetime.datetime
 
 
+class HardwareVersionIn(BaseModel):
+    name: str
+
+
+class HardwareVersionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    sort_order: int
+
+
 class RedisServerConfigIn(BaseModel):
     name: str
     host: str

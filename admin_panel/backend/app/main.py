@@ -17,11 +17,25 @@ from .retention import run_retention
 from .db import SessionLocal, init_models
 from .models import RedisServerConfig
 from .redis_util import build_server_from_config
-from .routes import auth, devices, events, geo, inventory, overview, servers, stream, users, webauthn
-from .seed import seed_admin, seed_redis_configs
+from .routes import (
+    auth,
+    devices,
+    events,
+    geo,
+    inventory,
+    overview,
+    servers,
+    settings,
+    stream,
+    users,
+    webauthn,
+)
+from .seed import seed_admin, seed_hw_versions, seed_redis_configs
 from sqlalchemy import select
 
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
+logging.basicConfig(
+    level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s : %(message)s"
+)
 logger = logging.getLogger("admin_panel")
 
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/app/static"))
@@ -33,15 +47,22 @@ async def lifespan(app: FastAPI):
     await init_models()
     await seed_admin()
     await seed_redis_configs()
+    await seed_hw_versions()
     async with SessionLocal() as s:
         result = await s.execute(
-            select(RedisServerConfig).where(RedisServerConfig.enabled.is_(True)).order_by(RedisServerConfig.id)
+            select(RedisServerConfig)
+            .where(RedisServerConfig.enabled.is_(True))
+            .order_by(RedisServerConfig.id)
         )
-        app.state.redis_servers = [build_server_from_config(cfg) for cfg in result.scalars().all()]
+        app.state.redis_servers = [
+            build_server_from_config(cfg) for cfg in result.scalars().all()
+        ]
     stop_event = asyncio.Event()
     app.state.stop_event = stop_event
     app.state.redis_servers_lock = asyncio.Lock()
-    app.state.collector_task = asyncio.create_task(run_collector(app.state.redis_servers, stop_event))
+    app.state.collector_task = asyncio.create_task(
+        run_collector(app.state.redis_servers, stop_event)
+    )
     app.state.retention_task = asyncio.create_task(run_retention(stop_event))
     logger.info("Адмін-панель запущена на порту %s", PORT)
     try:
@@ -66,6 +87,7 @@ app.include_router(events.router)
 app.include_router(inventory.router)
 app.include_router(geo.router)
 app.include_router(servers.router)
+app.include_router(settings.router)
 app.include_router(stream.router)
 app.include_router(users.router)
 
@@ -92,4 +114,6 @@ if STATIC_DIR.exists():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=PORT, proxy_headers=True, forwarded_allow_ips=["*"])
+    uvicorn.run(
+        app, host="0.0.0.0", port=PORT, proxy_headers=True, forwarded_allow_ips=["*"]
+    )

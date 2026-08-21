@@ -11,6 +11,7 @@ import MapPage from "./pages/MapPage";
 import Servers from "./pages/Servers";
 import Events from "./pages/Events";
 import Users from "./pages/Users";
+import Settings from "./pages/Settings";
 import Account from "./pages/Account";
 import type { ReactNode } from "react";
 
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/servers" element={<Servers />} />
         <Route path="/events" element={<Events />} />
         <Route path="/users" element={<Users />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/account" element={<Account />} />
       </Route>
     </Routes>
