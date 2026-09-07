@@ -2,6 +2,7 @@
 
 import logging
 import os
+import asyncio
 
 import httpx
 
@@ -11,12 +12,13 @@ logger = logging.getLogger(__name__)
 async def download_file(url, filepath):
     """Завантажує файл з URL та зберігає його локально"""
     try:
+        
         async with httpx.AsyncClient() as client:
             async with client.stream("GET", url, follow_redirects=True, timeout=60.0) as response:
                 response.raise_for_status()
                 with open(filepath, "wb") as f:
                     async for chunk in response.aiter_bytes(chunk_size=8192):
-                        f.write(chunk)
+                        await asyncio.to_thread(f.write, chunk)
         logger.info(f"✅ Завантажено файл: {os.path.basename(filepath)}")
         return True
     except Exception as e:
@@ -33,7 +35,10 @@ async def sync_local_files(files_data, files_path):
     os.makedirs(files_path, exist_ok=True)
 
     # Отримуємо список актуальних файлів з GitHub (з урахуванням strip_pattern)
-    remote_files = {item["name"]: item["url"] for item in files_data}
+    def _is_safe_name(name):
+        return name and os.path.basename(name) == name and not name.startswith(".")
+
+    remote_files = {item["name"]: item["url"] for item in files_data if _is_safe_name(item["name"])}
 
     # Отримуємо список локальних .bin файлів
     local_files = set()
@@ -59,11 +64,15 @@ async def sync_local_files(files_data, files_path):
 
     # Завантажуємо нові файли
     if files_to_download:
+        failed = []
         logger.info(f"📥 Завантажуємо {len(files_to_download)} нових файлів...")
         for filename in files_to_download:
             url = remote_files[filename]
             filepath = os.path.join(files_path, filename)
-            await download_file(url, filepath)
+            if not await download_file(url, filepath):
+                failed.append(filename)
+        if failed:
+            logger.error(f"❌ Не вдалося завантажити файли: {', '.join(failed)}")
 
     if not files_to_download and not files_to_delete:
         logger.debug("✅ Локальні файли синхронізовані")

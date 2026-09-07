@@ -55,7 +55,9 @@ try:
         notifications,
         corrections,
     )
-except ImportError:
+except ModuleNotFoundError as e:
+    if e.name not in {"pubsub_loop", "files", "processing"}:
+        raise
     from updater.pubsub_loop import run_pubsub_loop
     from updater.files import sync_local_files
     from updater.processing import (

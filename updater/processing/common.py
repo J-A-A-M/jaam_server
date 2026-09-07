@@ -21,7 +21,7 @@ def get_legacy_state_id(regions, region_id):
             if region_data["regionId"] == int(region_id):
                 return region_data["legacyId"]
         return None
-    except KeyError:
+    except (KeyError, ValueError, TypeError):
         return None
 
 
