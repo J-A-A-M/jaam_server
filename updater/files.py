@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 async def download_file(url, filepath):
     """Завантажує файл з URL та зберігає його локально"""
     try:
-        
+
         async with httpx.AsyncClient() as client:
             async with client.stream("GET", url, follow_redirects=True, timeout=60.0) as response:
                 response.raise_for_status()
