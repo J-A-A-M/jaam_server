@@ -78,6 +78,25 @@ def build_alert_reasons(reasons, alerts_cache, websocket_data, default_value, al
     return alerts
 
 
+def resolve_active_alert_level(active_alert):
+    """Підсумковий рівень (Red/Yellow) з activeAlertLevels.
+
+    Останній по createdAt запис на кожен унікальний reason; якщо серед них є
+    хоч один Red => Red, інакше Yellow. Порожній/відсутній список => Red
+    (старий формат без поля — поведінка як раніше, біт 0).
+    """
+    levels = active_alert.get("activeAlertLevels") or []
+    if not levels:
+        return "Red"
+    latest = {}
+    for lvl in levels:
+        reason = lvl["reason"]
+        ts = datetime.datetime.fromisoformat(lvl["createdAt"].replace("Z", "+00:00"))
+        if reason not in latest or ts > latest[reason][0]:
+            latest[reason] = (ts, lvl["alertLevel"])
+    return "Red" if any(al == "Red" for _, al in latest.values()) else "Yellow"
+
+
 def build_fusion_alerts_state(alerts_cache, reasons):
     """Будує {regionId: flags16} для fusion-протоколу з тривог + причин."""
     new_state = {}
@@ -88,7 +107,10 @@ def build_fusion_alerts_state(alerts_cache, reasons):
             if region_id not in new_state:
                 new_state[region_id] = 0
             if active_alert["type"] == "AIR":
-                new_state[region_id] |= 1 << 0
+                if resolve_active_alert_level(active_alert) == "Red":
+                    new_state[region_id] |= 1 << 0
+                else:
+                    new_state[region_id] |= 1 << 11
             if active_alert["type"] == "ARTILLERY":
                 new_state[region_id] |= 1 << 1
             if active_alert["type"] == "URBAN_FIGHTS":

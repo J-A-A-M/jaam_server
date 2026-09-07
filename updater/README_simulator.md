@@ -1,68 +1,75 @@
-# Симулятор alerts_fusion_websocket_v1
+# Симулятор fusion-тривог (`simulator.py`)
 
-Цей скрипт симулює роботу функції `update_alerts_fusion_websocket_v1` з основного updater.py, але замість отримання даних з реальних API використовує заздалегідь визначені тестові дані.
+Скрипт підміняє реальні API-джерела для локального тестування двох обробників
+`updater.py`:
 
-## Призначення
+- `update_websocket_fusion_v1_alerts`
+- `update_websocket_fusion_v1_etryvoga`
 
-Скрипт створює тестові дані тривог з різними типами загроз для різних регіонів України та записує їх у memcached через функцію `store_websocket_data` один раз при запуску.
+Замість запитів у зовнішні API він прокручує заздалегідь заданий сценарій
+`SIMULATION_STEPS` і на кожному кроці пише дані в Redis + публікує події, на які
+підписаний updater.
 
-## Типи тривог (біти)
+## Що пише в Redis
 
-- Біт 0: AIR (повітряна тривога)
-- Біт 1: ARTILLERY (артилерійська загроза)  
-- Біт 2: URBAN_FIGHTS (міські бої)
-- Біт 3: CHEMICAL (хімічна загроза)
-- Біт 4: NUCLEAR (ядерна загроза)
-- Біт 5: Drones (дрони)
-- Біт 6: Missile (ракети)
-- Біт 7: Ballistic (балістика)
-- Біт 8: KAB (керовані авіабомби)
-- Біт 9: Explosion (вибухи)
-- Біт 10: Recon Drones (дрони-розвідники)
+| kind           | ключ                        | подія                     |
+|----------------|-----------------------------|---------------------------|
+| `alert`        | `alerts:api:data`           | `alerts:api:updated`      |
+|                | `alerts:api:last_call`      | —                         |
+| `notification` | `alerts:etryvoga:full:data` | `alerts:etryvoga:updated` |
 
-## Тестові дані
+`alerts:api:data` — список записів регіонів у форматі ukrainealarm v3
+(`regionId`, `regionType`, `regionName`, `regionEngName`, `lastUpdate`,
+`activeAlerts[]`).
 
-## Використання
+`alerts:etryvoga:full:data` — `[{"regionId", "type", "id"}]`; `id` монотонно
+зростає між кроками (гарантія: кожен новий id більший за максимальний з
+попереднього кроку).
 
-### Базовий запуск:
+Регіони резолвяться за назвою з `data/uaapi.json` (області + райони).
+
+## Сценарій
+
+`SIMULATION_STEPS` — 9 кроків по районах Київської області: наростання тривог
+(AIR) + нотіфікації (`DRONE`, `RECON_DRONE`, `ROCKET`, `KAB`, `BALLISTIC`,
+`EXPLOSION`), останній крок — повний відбій (порожні дані).
+
+`SIMULATION_STEPS_2` — по черзі кожна область з `AIR`, потім відбій (у циклі
+`main` не використовується; для ручного перемикання).
+
+Цикл: `run_step` → `sleep(SIMULATION_PAUSE)` → наступний крок по колу.
+
+## Запуск
+
 ```bash
 python3 simulator.py
 ```
 
-### З налаштуванням хоста memcached:
-```bash
-MEMCACHED_HOST=localhost python3 simulator.py
-```
-
-### З налаштуванням рівня логування:
-```bash
-LOGGING=DEBUG python3 simulator.py
-```
-
 ## Змінні середовища
 
-- `MEMCACHED_HOST` - хост memcached (за замовчуванням: "memcached")
-- `LOGGING` - рівень логування (за замовчуванням: "INFO")
+| змінна             | замовчування | опис                       |
+|--------------------|--------------|----------------------------|
+| `REDIS_HOST`       | `redis`      | хост Redis                 |
+| `REDIS_PORT`       | `6379`       | порт Redis                 |
+| `REDIS_PASSWORD`   | `redis`      | пароль Redis               |
+| `REDIS_DB`         | `0`          | номер БД Redis             |
+| `SIMULATION_PAUSE` | `60`         | пауза між кроками, секунди |
+| `LOGGING`          | `INFO`       | рівень логування           |
 
-## Залежності
+## Fusion flags16 (вихід `build_fusion_alerts_state`)
 
-Скрипт використовує ті самі залежності, що і основний updater.py:
-- `aiomcache` - для роботи з memcached
-- `asyncio` - для асинхронного виконання
-- `json` - для серіалізації даних
+Бітова маска на регіон у payload `websocket:v1:fusion:payload:alerts`
+(2 байти `regionId` + 2 байти `flags16`):
 
-## Вихідні дані
-
-Скрипт записує дані у memcached з ключем `alerts_fusion_websocket_v1` у форматі:
-```json
-{
-  "631": 33,  // Київ: AIR + Drones (0b100001)
-  "15": 66,   // Харків: ARTILLERY + Missile (0b1000010)  
-  "12": 5,    // Дніпро: AIR + URBAN_FIGHTS (0b101)
-  // ... інші регіони
-}
-```
-
-## Модифікація тестових даних
-
-Для зміни тестових даних відредагуйте словник `SIMULATION_DATA` у скрипті. Кожен ключ - це regionId, а значення - це бітова маска з активними типами тривог.
+- Біт 0: AIR Red (повітряна тривога червоного рівня)
+- Біт 1: ARTILLERY (артилерійська загроза)
+- Біт 2: URBAN_FIGHTS (міські бої)
+- Біт 3: CHEMICAL (хімічна загроза)
+- Біт 4: NUCLEAR (ядерна загроза)
+- Біт 5: Drones (дрони, з `alerts:http:reasons:data`)
+- Біт 6: Missile (ракети, з `alerts:http:reasons:data`)
+- Біт 7: Ballistic (балістика) — зарезервовано
+- Біт 8: KAB (керовані авіабомби) — зарезервовано
+- Біт 9: Explosion (вибухи) — зарезервовано
+- Біт 10: Recon Drones (дрони-розвідники) — зарезервовано
+- Біт 11: AIR Yellow (повітряна тривога жовтого рівня)
