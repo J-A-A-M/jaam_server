@@ -1,6 +1,9 @@
 FROM python:3.13-slim
 ENV TZ="Europe/Kyiv"
 COPY updater/updater.py .
+COPY updater/pubsub_loop.py .
+COPY updater/files.py .
+COPY updater/processing ./processing
 COPY utils.py .
 COPY regions.json .
 RUN --mount=type=bind,source=updater/requirements.txt,target=/tmp/requirements.txt \
