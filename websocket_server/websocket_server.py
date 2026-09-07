@@ -10,10 +10,8 @@ import aiohttp
 
 from geoip2 import database, errors
 from zoneinfo import ZoneInfo
-from ga4mp import GtagMP
 from websockets import ConnectionClosedError
 from websockets.asyncio.server import serve, ServerConnection, Request, Response
-from logging import WARNING
 from http import HTTPStatus
 from copy import copy
 
@@ -87,11 +85,8 @@ redis_host = os.environ.get("REDIS_HOST") or "redis"
 redis_port = int(os.environ.get("REDIS_PORT", 6379))
 redis_password = os.environ.get("REDIS_PASSWORD") or "redis"
 redis_db = int(os.environ.get("REDIS_DB", 0))
-api_secret = os.environ.get("API_SECRET") or ""
-measurement_id = os.environ.get("MEASUREMENT_ID") or ""
 environment = os.environ.get("ENVIRONMENT") or "PROD"
 geo_lite_db_path = os.environ.get("GEO_PATH") or "GeoLite2-City.mmdb"
-google_stat_send = os.environ.get("GOOGLE_STAT", "False").lower() in ("true", "1", "t")
 ip_info_token = os.environ.get("IP_INFO_TOKEN") or ""
 geo_ip_cache_ttl = int(os.environ.get("GEO_IP_CACHE_TTL") or 86400)  # 24 hours by default
 weather_source = os.environ.get("WEATHER_SOURCE") or "openmeteo"  # openweathermap or openmeteo
@@ -108,19 +103,6 @@ else:
     WEATHER_DATA_KEY = "websocket:v1:fusion:openweathermap:data"
     WEATHER_UPDATED_CHANNEL = "websocket:v1:fusion:openweathermap:updated"
     logger.info("🌤️  Weather source: OpenWeatherMap")
-
-gtagmp_logger = logging.getLogger("ga4mp")
-# always warning for ga4mp
-gtagmp_logger.setLevel(WARNING)
-
-if not gtagmp_logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s : %(message)s"))
-    # always warning for ga4mp
-    handler.setLevel(WARNING)
-    gtagmp_logger.addHandler(handler)
-gtagmp_logger.propagate = False
-
 
 geo = database.Reader(geo_lite_db_path)
 
@@ -241,7 +223,6 @@ class SharedData:
         # self.c3_bins = []
         # self.c3_test_bins = []
         self.clients = {}
-        self.trackers = {}
         self.blocked_ips = []
         self.test_id = None
         self.redis_client = None
@@ -633,8 +614,6 @@ async def _fetch_geo_ip_data_from_sources(ip, request):
 async def message_handler(
     websocket: ServerConnection, client, client_id, client_ip, country, region, city, chip_id_event, firmware_event
 ):
-    if google_stat_send:
-        tracker = shared_data.trackers[f"{client_ip}_{client_id}"]
     async for message in websocket:
         try:
             chip_id = get_chip_id(client, client_id)
@@ -652,43 +631,12 @@ async def message_handler(
                 case "firmware":
                     client["firmware"] = data
                     firmware_event.set()
-                    parts = data.split("_", 1)
-                    if google_stat_send:
-                        tracker.store.set_user_property("firmware_v", parts[0])
-                        tracker.store.set_user_property("identifier", parts[1])
                     logger.debug(f"{client_ip}:{chip_id} >>> firmware saved")
-                case "user_info":
-                    json_data = json.loads(data)
-                    if google_stat_send:
-                        for key, value in json_data.items():
-                            tracker.store.set_user_property(key, value)
                 case "chip_id":
                     client["chip_id"] = data
                     chip_id_event.set()
                     logger.info(f"{client_ip}:{chip_id} >>> chip init: {data}")
-                    if google_stat_send:
-                        tracker.client_id = data
-                        tracker.store.set_session_parameter(
-                            "session_id", f"{data}_{datetime.datetime.now().timestamp()}"
-                        )
-                        tracker.store.set_user_property("user_id", data)
-                        tracker.store.set_user_property("chip_id", data)
-                        tracker.store.set_user_property("country", country)
-                        tracker.store.set_user_property("region", region)
-                        tracker.store.set_user_property("city", city)
-                        tracker.store.set_user_property("ip", client_ip)
-                        online_event = tracker.create_new_event("status")
-                        online_event.set_event_param("online", "true")
-                        await send_google_stat(tracker, online_event)
                     logger.debug(f"{client_ip}:{data} >>> chip_id saved")
-                case "settings":
-                    json_data = json.loads(data)
-                    if google_stat_send:
-                        settings_event = tracker.create_new_event("settings")
-                        for key, value in json_data.items():
-                            settings_event.set_event_param(key, value)
-                        await send_google_stat(tracker, settings_event)
-                        logger.debug(f"{client_ip}:{chip_id} >>> settings analytics sent")
                 case _:
                     logger.debug(f"{client_ip}:{chip_id} !!! unknown data request")
         except Exception as e:
@@ -1226,8 +1174,6 @@ async def alerts_data(
 
 async def ping_pong(websocket: ServerConnection, client, client_id, client_ip):
     timeouts_count = 0
-    if google_stat_send:
-        tracker = shared_data.trackers[f"{client_ip}_{client_id}"]
     while True:
         chip_id = get_chip_id(client, client_id)
         try:
@@ -1238,10 +1184,6 @@ async def ping_pong(websocket: ServerConnection, client, client_id, client_ip):
             logger.debug(f"{client_ip}:{chip_id} <<< pong, latency: {latency}")
             client["latency"] = int(latency * 1000)  # convert to ms
             timeouts_count = 0
-            if google_stat_send:
-                ping_event = tracker.create_new_event("ping")
-                ping_event.set_event_param("state", "alive")
-                await send_google_stat(tracker, ping_event)
             await asyncio.sleep(ping_interval)
         except asyncio.TimeoutError:
             timeouts_count += 1
@@ -1256,10 +1198,6 @@ async def ping_pong(websocket: ServerConnection, client, client_id, client_ip):
         except Exception as e:
             logger.error(f"{client_ip}:{client_id} !!! ping_pong Exception - {e}")
             break
-
-
-async def send_google_stat(tracker, event):
-    await asyncio.to_thread(tracker.send, events=[event], date=datetime.datetime.now())
 
 
 async def echo(websocket: ServerConnection):
@@ -1324,10 +1262,6 @@ async def echo(websocket: ServerConnection):
         client = await create_redis_backed_client(client_key, shared_data.redis_client, initial_data, ttl=120)
         # Зберігаємо клієнта в shared_data.clients для доступу з фонових задач
         shared_data.clients[client_key] = client
-        if google_stat_send:
-            tracker = shared_data.trackers[f"{client_ip}_{client_id}"] = GtagMP(
-                api_secret=api_secret, measurement_id=measurement_id, client_id="temp_id"
-            )
 
         chip_id_event = asyncio.Event()
         firmware_event = asyncio.Event()
@@ -1452,11 +1386,6 @@ async def echo(websocket: ServerConnection):
         logger.error(f"{client_ip}:{chip_id}: Exception - {e}")
     finally:
         client_key = f"{client_ip}:{client_id}"
-        if google_stat_send and client_key in shared_data.trackers:
-            offline_event = tracker.create_new_event("status")
-            offline_event.set_event_param("online", "false")
-            await send_google_stat(tracker, offline_event)
-            del shared_data.trackers[client_key]
 
         # Видаляємо клієнта з пам'яті та Redis
         if client_key in shared_data.clients:
