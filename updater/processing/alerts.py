@@ -109,8 +109,10 @@ def build_fusion_alerts_state(alerts_cache, reasons):
             if active_alert["type"] == "AIR":
                 if resolve_active_alert_level(active_alert) == "Red":
                     new_state[region_id] |= 1 << 0
+                    new_state[region_id] |= 1 << 12
                 else:
-                    new_state[region_id] |= 1 << 11
+                    new_state[region_id] |= 1 << 0
+                    new_state[region_id] |= 1 << 11                
             if active_alert["type"] == "ARTILLERY":
                 new_state[region_id] |= 1 << 1
             if active_alert["type"] == "URBAN_FIGHTS":
