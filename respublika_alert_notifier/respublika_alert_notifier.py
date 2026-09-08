@@ -9,14 +9,14 @@ import sys
 from pathlib import Path
 
 try:
-    from utils import service_is_fine, run_with_restart
+    from utils import service_is_fine, set_redis_data, run_with_restart
     from logic import resolve_level
 except ImportError:
     parent_dir = Path(__file__).resolve().parent.parent
     if str(parent_dir) not in sys.path:
         sys.path.insert(0, str(parent_dir))
-    from utils import service_is_fine, run_with_restart
-    from respublika_alert_notifier.logic import resolve_level
+    from utils import service_is_fine, set_redis_data, run_with_restart
+    from logic import resolve_level
 
 debug_level = os.environ.get("LOGGING") or "INFO"
 redis_host = os.environ.get("REDIS_HOST") or "redis"
@@ -29,6 +29,12 @@ test_mode = os.environ.get("TEST_MODE", "false").lower() == "true"
 
 if not webhook_url:
     raise ValueError("RESPUBLIKA_ALERTS_WEBHOOK_URL environment variable is required")
+if poll_period < 1:
+    raise ValueError("POLL_PERIOD must be >= 1")
+
+# Пауза після невдалого тіка (webhook недоступний, збій Redis тощо), щоб не
+# довбити мертвий ендпоінт раз на POLL_PERIOD секунд під час тривалого збою.
+ERROR_BACKOFF = 10
 
 logging.basicConfig(level=debug_level, format="%(asctime)s %(levelname)s : %(message)s")
 logger = logging.getLogger(__name__)
@@ -50,7 +56,7 @@ async def send_webhook(session, level):
             raise RuntimeError(f"webhook відповів {response.status}: {await response.text()}")
 
 
-async def notify_on_change(redis_client):
+async def notify_on_change(redis_client, session):
     while True:
         try:
             raw = await redis_client.hget(FUSION_ALERTS_KEY, KYIV_REGION_ID)
@@ -58,19 +64,24 @@ async def notify_on_change(redis_client):
             level = resolve_level(flags16)
 
             raw_last_sent = await redis_client.get(LAST_SENT_LEVEL_KEY)
-            last_sent_level = json.loads(raw_last_sent) if raw_last_sent else None
+            try:
+                last_sent_level = json.loads(raw_last_sent) if raw_last_sent else None
+            except json.JSONDecodeError:
+                logger.warning(f"⚠️ Пошкоджене значення {LAST_SENT_LEVEL_KEY}={raw_last_sent!r}, скидаю")
+                last_sent_level = None
 
             if level != last_sent_level:
-                if last_sent_level is None and level == "green":
-                    # Холодний старт без активної тривоги: фіксуємо базову лінію мовчки,
-                    # щоб рестарт контейнера не слав зайве "відбій" в чат.
-                    await redis_client.set(LAST_SENT_LEVEL_KEY, json.dumps(level))
+                if last_sent_level is None:
+                    # Холодний старт (рестарт контейнера, втрата ключа): фіксуємо поточний
+                    # рівень як базову лінію мовчки. Бот сам дедуплікує за власним
+                    # персистентним станом, тож реальну зміну ми все одно не пропустимо
+                    # на наступному тіку — а зайве дублювання на рестарті нам не потрібне.
+                    await set_redis_data(logger, redis_client, LAST_SENT_LEVEL_KEY, level)
                 else:
                     logger.info(f"🔔 Рівень тривоги Київ: {last_sent_level} → {level} (flags16={flags16})")
-                    async with aiohttp.ClientSession() as session:
-                        await send_webhook(session, level)
-                    await redis_client.set(LAST_SENT_LEVEL_KEY, json.dumps(level))
-                    logger.info(f"✅ Відправлено level={level} на {webhook_url}")
+                    await send_webhook(session, level)
+                    await set_redis_data(logger, redis_client, LAST_SENT_LEVEL_KEY, level)
+                    logger.info(f"✅ Відправлено level={level} на RespublikaChatBot")
 
             await service_is_fine(logger, redis_client, "respublika_alert_notifier:last_call")
             await asyncio.sleep(poll_period)
@@ -80,7 +91,7 @@ async def notify_on_change(redis_client):
         except Exception as e:
             logger.error(f"❌ Помилка при обробці рівня тривоги Києва: {e}")
             logger.debug("❌ Повний стек помилки:", exc_info=True)
-            await asyncio.sleep(poll_period)
+            await asyncio.sleep(ERROR_BACKOFF)
 
 
 async def main():
@@ -102,7 +113,10 @@ async def main():
         if test_mode:
             logger.warning("🧪 TEST_MODE увімкнено: усі вебхуки йдуть з заголовком Test: true")
 
-        await run_with_restart(logger, notify_on_change, redis_client, "notify_on_change")
+        async with aiohttp.ClientSession() as session:
+            await run_with_restart(
+                logger, lambda redis_client: notify_on_change(redis_client, session), redis_client, "notify_on_change"
+            )
 
     except redis.ConnectionError as e:
         logger.error(f"❌ Failed to connect to Redis: {e}")

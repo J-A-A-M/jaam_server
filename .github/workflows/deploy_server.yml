@@ -320,7 +320,7 @@ jobs:
                 bash redeploy_respublika_alert_notifier.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
-                  -u ${{ secrets.RESPUBLIKA_ALERTS_WEBHOOK_URL }} \
+                  -u '${{ secrets.RESPUBLIKA_ALERTS_WEBHOOK_URL }}' \
                   -t ${{ inputs.respublika_alert_notifier_test_mode }}
 
           - name: Clear unused images
