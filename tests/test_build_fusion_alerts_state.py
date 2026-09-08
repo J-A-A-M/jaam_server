@@ -114,6 +114,81 @@ def test_two_reasons_all_latest_yellow():
     _assert_legacy_bit(result["31"])
 
 
+def test_malformed_level_entry_skipped_not_raised():
+    """Битий запис у activeAlertLevels (без createdAt/alertLevel) пропускається,
+    не валить fusion-стан. Валідний Red-запис поруч => Red."""
+    levels = [
+        {"reason": "битий запис"},  # немає createdAt та alertLevel
+        _lvl("Red", "Ракетна загроза", "2026-09-07T16:42:33.179057Z"),
+    ]
+    result = build_fusion_alerts_state([_air("31", levels)], [])
+    assert result == {"31": AIR_RED}
+
+
+def test_all_levels_malformed_falls_back_to_red():
+    levels = [{"reason": "a"}, {"alertLevel": "Yellow"}]  # createdAt відсутній
+    result = build_fusion_alerts_state([_air("31", levels)], [])
+    assert result == {"31": AIR_RED}
+
+
+def test_multiple_air_entries_same_region_red_wins():
+    """Кілька AIR-записів на один region_id (State + District рівні) =>
+    агрегація рівнів, будь-який Red => Red, біти 0 + 12 (без 11)."""
+    alert = {
+        "regionId": "31",
+        "activeAlerts": [
+            {
+                "regionId": "31",
+                "type": "AIR",
+                "activeAlertLevels": [_lvl("Yellow", "Дронова загроза", "2026-09-07T21:38:53.545397Z")],
+            },
+            {"regionId": "31", "type": "AIR", "activeAlertLevels": [_lvl("Red", "", "2026-03-10T14:01:38.075992Z")]},
+        ],
+    }
+    result = build_fusion_alerts_state([alert], [])
+    assert result == {"31": AIR_RED}
+    _assert_legacy_bit(result["31"])
+
+
+def test_multiple_air_entries_same_region_all_yellow():
+    alert = {
+        "regionId": "31",
+        "activeAlerts": [
+            {
+                "regionId": "31",
+                "type": "AIR",
+                "activeAlertLevels": [_lvl("Yellow", "a", "2026-09-07T21:38:53.545397Z")],
+            },
+            {
+                "regionId": "31",
+                "type": "AIR",
+                "activeAlertLevels": [_lvl("Yellow", "b", "2026-09-07T21:39:53.545397Z")],
+            },
+        ],
+    }
+    assert build_fusion_alerts_state([alert], []) == {"31": AIR_YELLOW}
+
+
+def test_unknown_level_string_resolves_to_red():
+    """Невідомий/новий рядок рівня => Red (fail-safe, не занижувати серйозність)."""
+    levels = [_lvl("Orange", "нова категорія", "2026-09-07T16:00:00.0Z")]
+    assert build_fusion_alerts_state([_air("31", levels)], []) == {"31": AIR_RED}
+
+
+def test_level_case_insensitive_yellow():
+    levels = [_lvl("YELLOW", "a", "2026-09-07T16:00:00.0Z")]
+    assert build_fusion_alerts_state([_air("31", levels)], []) == {"31": AIR_YELLOW}
+
+
+def test_mixed_naive_aware_createdat_no_typeerror():
+    """Неузгоджені формати createdAt (Z vs naive) не кидають TypeError."""
+    levels = [
+        _lvl("Yellow", "A", "2026-09-07T16:00:00Z"),
+        _lvl("Red", "A", "2026-09-07T16:30:00"),  # naive => трактується як UTC, новіший
+    ]
+    assert build_fusion_alerts_state([_air("31", levels)], []) == {"31": AIR_RED}
+
+
 def test_non_air_ignores_levels():
     """ARTILLERY з activeAlertLevels => біт 1, рівень не впливає, біта 0 нема."""
     alert = {

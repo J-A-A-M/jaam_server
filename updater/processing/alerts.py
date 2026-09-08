@@ -1,6 +1,5 @@
 """Чиста логіка обробки тривог (alerts): legacy v1/v2 та fusion."""
 
-import datetime
 import struct
 
 from .common import (
@@ -8,6 +7,7 @@ from .common import (
     calculate_reason_date,
     convert_region_ids,
     get_legacy_state_id,
+    parse_iso_utc,
 )
 
 
@@ -39,8 +39,7 @@ def build_v2_alerts(alerts_cache, websocket, regions, legacy_led_count):
             if not legacy_state_id:
                 continue
             alert_type = active_alert["type"]
-            alert_start_time = active_alert["lastUpdate"]
-            alert_start_time = int(datetime.datetime.fromisoformat(alert_start_time.replace("Z", "+00:00")).timestamp())
+            alert_start_time = int(parse_iso_utc(active_alert["lastUpdate"]).timestamp())
             old_alert_data = websocket[legacy_state_id - 1]
             is_old_state_alert = bool(old_alert_data[0] == 1)
             if alert_type in ["AIR"]:
@@ -81,25 +80,35 @@ def build_alert_reasons(reasons, alerts_cache, websocket_data, default_value, al
 def resolve_active_alert_level(active_alert):
     """Підсумковий рівень (Red/Yellow) з activeAlertLevels.
 
-    Останній по createdAt запис на кожен унікальний reason; якщо серед них є
-    хоч один Red => Red, інакше Yellow. Порожній/відсутній список => Red
-    (старий формат без поля — поведінка як раніше, біт 0).
+    Останній по createdAt запис на кожен унікальний reason. Yellow лише коли
+    ВСІ такі записи явно "yellow" (без урахування регістру); будь-що інше —
+    невідомий рядок, null, нова категорія, "Red"/"RED" — резолвиться в Red
+    (fail-safe: занижувати серйозність тривоги не можна). Порожній/відсутній
+    список => Red (старий формат без поля — поведінка як раніше, біт 0).
     """
     levels = active_alert.get("activeAlertLevels") or []
     if not levels:
         return "Red"
     latest = {}
     for lvl in levels:
-        reason = lvl["reason"]
-        ts = datetime.datetime.fromisoformat(lvl["createdAt"].replace("Z", "+00:00"))
+        created_at = lvl.get("createdAt")
+        alert_level = lvl.get("alertLevel")
+        if not created_at or not alert_level:
+            continue
+        reason = lvl.get("reason") or ""
+        ts = parse_iso_utc(created_at)
         if reason not in latest or ts > latest[reason][0]:
-            latest[reason] = (ts, lvl["alertLevel"])
-    return "Red" if any(al == "Red" for _, al in latest.values()) else "Yellow"
+            latest[reason] = (ts, alert_level)
+    if not latest:
+        return "Red"
+    all_yellow = all(isinstance(al, str) and al.strip().lower() == "yellow" for _, al in latest.values())
+    return "Yellow" if all_yellow else "Red"
 
 
 def build_fusion_alerts_state(alerts_cache, reasons):
     """Будує {regionId: flags16} для fusion-протоколу з тривог + причин."""
     new_state = {}
+    air_level = {}  # region_id -> "Red"/"Yellow", агрегат по всіх AIR-записах регіону (Red пріоритетніший)
 
     for alert in alerts_cache:
         for active_alert in alert["activeAlerts"]:
@@ -107,12 +116,8 @@ def build_fusion_alerts_state(alerts_cache, reasons):
             if region_id not in new_state:
                 new_state[region_id] = 0
             if active_alert["type"] == "AIR":
-                if resolve_active_alert_level(active_alert) == "Red":
-                    new_state[region_id] |= 1 << 0
-                    new_state[region_id] |= 1 << 12
-                else:
-                    new_state[region_id] |= 1 << 0
-                    new_state[region_id] |= 1 << 11
+                if air_level.get(region_id) != "Red":
+                    air_level[region_id] = resolve_active_alert_level(active_alert)
             if active_alert["type"] == "ARTILLERY":
                 new_state[region_id] |= 1 << 1
             if active_alert["type"] == "URBAN_FIGHTS":
@@ -121,6 +126,10 @@ def build_fusion_alerts_state(alerts_cache, reasons):
                 new_state[region_id] |= 1 << 3
             if active_alert["type"] == "NUCLEAR":
                 new_state[region_id] |= 1 << 4
+
+    for region_id, level in air_level.items():
+        new_state[region_id] |= 1 << 0
+        new_state[region_id] |= 1 << 12 if level == "Red" else 1 << 11
 
     for reason_alert in reasons:
         region_id = reason_alert["regionId"]
