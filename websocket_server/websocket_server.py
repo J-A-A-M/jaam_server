@@ -635,10 +635,10 @@ async def message_handler(
                 case "chip_id":
                     client["chip_id"] = data
                     chip_id_event.set()
-                    logger.info(f"{client_ip}:{chip_id} >>> chip init: {data}")
+                    logger.debug(f"{client_ip}:{chip_id} >>> chip init: {data}")
                     logger.debug(f"{client_ip}:{data} >>> chip_id saved")
                 case _:
-                    logger.debug(f"{client_ip}:{chip_id} !!! unknown data request")
+                    logger.warning(f"{client_ip}:{chip_id} !!! unknown data request")
         except Exception as e:
             logger.error(f"{client_ip}:{client_id} !!! message_handler Exception - {e}")
             break
@@ -690,7 +690,7 @@ async def alerts_data_fusion(
         firmware = await get_client_firmware(client, firmware_event)
         redis_client = shared_data.redis_client
 
-        # logger.debug(f"{client_ip}:{chip_id}: check")
+        logger.debug(f"{client_ip}:{chip_id}: check")
         match alert_version:
             case AlertVersion.v1:
                 # Отримуємо всі три значення паралельно (одночасно, але з правильною обробкою типів)
@@ -725,7 +725,7 @@ async def alerts_data_fusion(
                     hash_previous = struct.pack("<H", alerts_hash_previous)
                     alerts_payload = alerts_header + hash_actual + hash_previous + alerts
                     await websocket.send(alerts_payload)
-                    logger.info(f"{client_ip}:{chip_id} <<< initial alert packet")
+                    logger.debug(f"{client_ip}:{chip_id} <<< initial alert packet")
 
                 if weather_cache:
                     weather_header = struct.pack("<B", TYPE_WEATHER_BATCH)
@@ -734,31 +734,31 @@ async def alerts_data_fusion(
                         weather += struct.pack("<H B", int(rid), int(flags8) & 0xFF)
                     weather_payload = weather_header + weather
                     await websocket.send(weather_payload)
-                    logger.info(f"{client_ip}:{chip_id} <<< initial weather packet")
+                    logger.debug(f"{client_ip}:{chip_id} <<< initial weather packet")
 
                 if energy_cache:
                     energy_header = struct.pack("<B", TYPE_GRID_BATCH)
                     energy_payload = energy_header + make_grid_batch(energy_cache)
                     await websocket.send(energy_payload)
-                    logger.info(f"{client_ip}:{chip_id} <<< initial energy packet")
+                    logger.debug(f"{client_ip}:{chip_id} <<< initial energy packet")
 
                 if radiation_cache:
                     radiation_header = struct.pack("<B", TYPE_RADIATION_BATCH)
                     radiation_payload = radiation_header + make_radiation_batch(radiation_cache)
                     await websocket.send(radiation_payload)
-                    logger.info(f"{client_ip}:{chip_id} <<< initial radiation packet")
+                    logger.debug(f"{client_ip}:{chip_id} <<< initial radiation packet")
 
                 if releases_beta:
                     firmware_payload = make_firmware_batch(releases_beta, TYPE_FIRMWARE_UPDATE_BETA_BATCH)
                     await websocket.send(firmware_payload)
-                    logger.info(
+                    logger.debug(
                         f"{client_ip}:{chip_id} <<< initial firmware packet ({len(releases_beta)} beta versions)"
                     )
 
                 if releases_prod:
                     firmware_payload = make_firmware_batch(releases_prod, TYPE_FIRMWARE_UPDATE_PROD_BATCH)
                     await websocket.send(firmware_payload)
-                    logger.info(
+                    logger.debug(
                         f"{client_ip}:{chip_id} <<< initial firmware packet ({len(releases_prod)} production versions)"
                     )
 
@@ -790,7 +790,7 @@ async def alerts_data_fusion(
                                 if isinstance(channel, bytes):
                                     channel = channel.decode("utf-8")
 
-                                logger.info(f"📬 {client_ip}:{chip_id} Отримано повідомлення з каналу: {channel}")
+                                logger.debug(f"📬 {client_ip}:{chip_id} Отримано повідомлення з каналу: {channel}")
 
                                 match channel:
                                     case "websocket:v1:fusion:alerts:updated":
@@ -804,7 +804,7 @@ async def alerts_data_fusion(
                                         if payload is False:
                                             continue
                                         await websocket.send(payload)
-                                        logger.info(f"{client_ip}:{chip_id} <<< new alert packet")
+                                        logger.debug(f"{client_ip}:{chip_id} <<< new alert packet")
                                     case channel if channel == WEATHER_UPDATED_CHANNEL:
                                         state = await get_redis_data(
                                             logger,
@@ -816,7 +816,7 @@ async def alerts_data_fusion(
                                         weather = make_weather_batch(state)
                                         payload = header + weather
                                         await websocket.send(payload)
-                                        logger.info(f"{client_ip}:{chip_id} <<< new weather packet")
+                                        logger.debug(f"{client_ip}:{chip_id} <<< new weather packet")
                                     case "websocket:v1:fusion:energy:updated":
                                         state = await get_redis_data(
                                             logger,
@@ -828,7 +828,7 @@ async def alerts_data_fusion(
                                         energy = make_grid_batch(state)
                                         payload = header + energy
                                         await websocket.send(payload)
-                                        logger.info(f"{client_ip}:{chip_id} <<< new energy packet")
+                                        logger.debug(f"{client_ip}:{chip_id} <<< new energy packet")
                                     case "websocket:v1:fusion:radiation:updated":
                                         state = await get_redis_data(
                                             logger,
@@ -840,7 +840,7 @@ async def alerts_data_fusion(
                                         radiation = make_radiation_batch(state)
                                         payload = header + radiation
                                         await websocket.send(payload)
-                                        logger.info(f"{client_ip}:{chip_id} <<< new radiation packet")
+                                        logger.debug(f"{client_ip}:{chip_id} <<< new radiation packet")
                                     case "websocket:v1:fusion:etryvoga:updated":
                                         payload = await get_hex_payload(
                                             logger,
@@ -852,14 +852,14 @@ async def alerts_data_fusion(
                                         if payload is False:
                                             continue
                                         await websocket.send(payload)
-                                        logger.info(f"{client_ip}:{chip_id} <<< new notifications packet")
+                                        logger.debug(f"{client_ip}:{chip_id} <<< new notifications packet")
                                     case "releases:production:updated":
                                         releases = await get_redis_data(
                                             logger, redis_client, "releases:production", default_response=[]
                                         )
                                         payload = make_firmware_batch(releases)
                                         await websocket.send(payload)
-                                        logger.info(
+                                        logger.debug(
                                             f"{client_ip}:{chip_id} <<< updated firmware packet ({len(releases)} prod versions)"
                                         )
                                     case "releases:beta:updated":
@@ -868,11 +868,11 @@ async def alerts_data_fusion(
                                         )
                                         payload = make_firmware_batch(releases)
                                         await websocket.send(payload)
-                                        logger.info(
+                                        logger.debug(
                                             f"{client_ip}:{chip_id} <<< updated firmware packet ({len(releases)} beta versions)"
                                         )
                                     case _:
-                                        logger.warning(f"Невідомий канал: {channel}")
+                                        logger.warning(f"{client_ip}:{chip_id} !!! Невідомий канал: {channel}")
                                         continue
 
                     except (redis.ConnectionError, redis.TimeoutError) as e:
@@ -888,19 +888,18 @@ async def alerts_data_fusion(
                         await asyncio.sleep(5)
 
     except asyncio.CancelledError as e:
-        logger.info(f"{client_ip}:{client_id} !!! alerts_data_fusion cancelled - {e}")
+        logger.debug(f"{client_ip}:{client_id} !!! alerts_data_fusion cancelled - {e}")
     except ChipIdTimeoutException as e:
-        logger.error(f"{client_ip}:{client_id} !!! chip_id timeout, closing connection - {e}")
+        logger.debug(f"{client_ip}:{client_id} !!! chip_id timeout, closing connection - {e}")
     except FirmwareTimeoutException as e:
-        logger.error(f"{client_ip}:{client_id} !!! firmware timeout, closing connection - {e}")
+        logger.debug(f"{client_ip}:{client_id} !!! firmware timeout, closing connection - {e}")
     except Exception as e:
-        logger.error(f"{client_ip}:{client_id} !!! alerts_data_fusion Exception - {e}")
-        logger.debug(f"❌ Повний стек помилки:", exc_info=True)
+        logger.debug(f"{client_ip}:{client_id} !!! alerts_data_fusion Exception - {e}", exc_info=True)
     finally:
         if pubsub:
             await pubsub.unsubscribe(*channels)
             await pubsub.aclose()
-            logger.info(f"📡 Відписано від каналів: {', '.join(channels)}")
+            logger.info(f"📡 {client_ip}:{client_id} Відписано від каналів: {', '.join(channels)}")
 
 
 async def alerts_data(
@@ -1070,7 +1069,7 @@ async def alerts_data(
                     formatted = data
                 ws_payload = '{"payload": "%s", "%s": %s}' % (payload_name, payload_data_key, formatted)
                 await websocket.send(ws_payload)
-                logger.info(f"{client_ip}:{chip_id} <<< new {payload_name}")
+                logger.debug(f"{client_ip}:{chip_id} <<< new {payload_name}")
                 client[client_field] = data
 
         async def handle_weather():
@@ -1079,7 +1078,7 @@ async def alerts_data(
                 weather = json.dumps([float(w) for w in data])
                 ws_payload = '{"payload":"weather","weather":%s}' % weather
                 await websocket.send(ws_payload)
-                logger.info(f"{client_ip}:{chip_id} <<< new weather")
+                logger.debug(f"{client_ip}:{chip_id} <<< new weather")
                 client["weather"] = data
 
         async def handle_bins(redis_key, client_field, payload_name, are_dicts):
@@ -1098,7 +1097,7 @@ async def alerts_data(
                 temp_bins.sort(key=bin_sort, reverse=True)
                 ws_payload = '{"payload": "%s", "%s": %s}' % (payload_name, payload_name, temp_bins)
                 await websocket.send(ws_payload)
-                logger.info(f"{client_ip}:{chip_id} <<< new {payload_name}")
+                logger.debug(f"{client_ip}:{chip_id} <<< new {payload_name}")
                 client[client_field] = data
 
         # --- Pub/Sub цикл з reconnection ---
@@ -1117,7 +1116,7 @@ async def alerts_data(
                 await handle_bins(bins_redis_key, "bins", "bins", bins_are_dicts)
                 await handle_bins(test_bins_redis_key, "test_bins", "test_bins", bins_are_dicts)
 
-                logger.info(f"{client_ip}:{chip_id} <<< initial legacy data sent")
+                logger.debug(f"{client_ip}:{chip_id} <<< initial legacy data sent")
 
                 while True:
                     message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
@@ -1157,14 +1156,13 @@ async def alerts_data(
                 await asyncio.sleep(5)
 
     except asyncio.CancelledError as e:
-        logger.info(f"{client_ip}:{client_id} !!! alerts_data cancelled - {e}")
+        logger.debug(f"{client_ip}:{client_id} !!! alerts_data cancelled - {e}")
     except ChipIdTimeoutException as e:
-        logger.error(f"{client_ip}:{client_id} !!! chip_id timeout, closing connection - {e}")
+        logger.debug(f"{client_ip}:{client_id} !!! chip_id timeout, closing connection - {e}")
     except FirmwareTimeoutException as e:
-        logger.error(f"{client_ip}:{client_id} !!! firmware timeout, closing connection - {e}")
+        logger.debug(f"{client_ip}:{client_id} !!! firmware timeout, closing connection - {e}")
     except Exception as e:
-        logger.error(f"{client_ip}:{client_id} !!! alerts_data Exception - {e}")
-        logger.debug(f"❌ Повний стек помилки:", exc_info=True)
+        logger.debug(f"{client_ip}:{client_id} !!! alerts_data Exception - {e}", exc_info=True)
     finally:
         if pubsub:
             await pubsub.unsubscribe(*all_channels)
@@ -1188,16 +1186,17 @@ async def ping_pong(websocket: ServerConnection, client, client_id, client_ip):
         except asyncio.TimeoutError:
             timeouts_count += 1
             if timeouts_count < ping_timeout_count:
-                logger.warning(f"{client_ip}:{chip_id} !!! pong timeout {timeouts_count}, retrying")
+                logger.debug(f"{client_ip}:{chip_id} !!! pong timeout {timeouts_count}, retrying")
                 continue
-            logger.warning(f"{client_ip}:{chip_id} !!! pong timeout, closing connection")
+            logger.debug(f"{client_ip}:{chip_id} !!! pong timeout, closing connection")
             break
         except ConnectionClosedError as e:
-            logger.warning(f"{client_ip}:{chip_id} !!! ping_pong connection closed - {e}")
+            logger.debug(f"{client_ip}:{chip_id} !!! ping_pong connection closed - {e}")
             break
         except Exception as e:
-            logger.error(f"{client_ip}:{client_id} !!! ping_pong Exception - {e}")
+            logger.debug(f"{client_ip}:{chip_id} !!! ping_pong Exception - {e}", exc_info=True)
             break
+        logger.debug(f"{client_ip}:{chip_id} !!! ping_pong finished")
 
 
 async def echo(websocket: ServerConnection):
@@ -1207,7 +1206,7 @@ async def echo(websocket: ServerConnection):
         # get real header from websocket
         client_ip = await get_client_ip(websocket)
         secure_connection = websocket.request.headers.get("X-Connection-Secure", "false")
-        logger.info(f"{client_ip}:{client_id} >>> new client")
+        logger.debug(f"{client_ip}:{client_id} >>> new client")
 
         if client_ip in shared_data.blocked_ips:
             logger.warning(f"{client_ip}:{client_id} !!! BLOCKED")
@@ -1370,20 +1369,20 @@ async def echo(websocket: ServerConnection):
         chip_id = get_chip_id(client, client_id)
         for finished in done:
             if exception := finished.exception():
-                logger.warning(f"{client_ip}:{chip_id} !!! task {finished.get_name()} finished, exception: {exception}")
+                logger.debug(f"{client_ip}:{chip_id} !!! task {finished.get_name()} finished, exception: {exception}")
             else:
-                logger.warning(f"{client_ip}:{chip_id} !!! task {finished.get_name()} finished")
+                logger.debug(f"{client_ip}:{chip_id} !!! task {finished.get_name()} finished")
         if pending:
             for task in pending:
-                logger.warning(f"{client_ip}:{chip_id} >>> cancel task {task.get_name()}")
+                logger.debug(f"{client_ip}:{chip_id} >>> cancel task {task.get_name()}")
                 task.cancel()
             await asyncio.wait(pending)
     except ConnectionClosedError as e:
         chip_id = get_chip_id(client, client_id) if client else client_id
-        logger.warning(f"{client_ip}:{chip_id}: ConnectionClosedError - {e}")
+        logger.debug(f"{client_ip}:{chip_id}: ConnectionClosedError - {e}")
     except Exception as e:
         chip_id = get_chip_id(client, client_id) if client else client_id
-        logger.error(f"{client_ip}:{chip_id}: Exception - {e}")
+        logger.error(f"{client_ip}:{chip_id}: Exception - {e}", exc_info=True)
     finally:
         client_key = f"{client_ip}:{client_id}"
 
@@ -1508,15 +1507,15 @@ async def get_hex_payload(logger, redis_client, redis_key: str, client_ip: str =
     prefix = f"{client_ip}:{chip_id} " if client_ip or chip_id else ""
     payload_hex = await get_redis_data(logger, redis_client, redis_key, default_response="")
     if not payload_hex:
-        logger.warning(f"{prefix}!!! empty hex payload for {redis_key}, skip send")
+        logger.debug(f"{prefix}!!! empty hex payload for {redis_key}, skip send")
         return False
     if not isinstance(payload_hex, str):
-        logger.error(f"{prefix}!!! invalid hex payload type {type(payload_hex).__name__} for {redis_key}, skip send")
+        logger.debug(f"{prefix}!!! invalid hex payload type {type(payload_hex).__name__} for {redis_key}, skip send")
         return False
     try:
         return bytes.fromhex(payload_hex)
     except (TypeError, ValueError):
-        logger.error(f"{prefix}!!! invalid hex payload value for {redis_key}, skip send")
+        logger.debug(f"{prefix}!!! invalid hex payload value for {redis_key}, skip send")
         return False
 
 
@@ -1528,14 +1527,14 @@ async def process_request(connection: ServerConnection, request: Request):
         return connection.respond(HTTPStatus.OK, "OK\n")
     # check for valid path
     if not request.path.startswith("/data_v") and not request.path.startswith("/data_fusion_v"):
-        logger.warning(f"{client_ip}: invalid path - {request.path}")
+        logger.error(f"{client_ip}: invalid path - {request.path}")
         return connection.respond(HTTPStatus.NOT_FOUND, "Not Found\n")
 
 
 async def process_response(connection: ServerConnection, request: Request, response: Response):
     client_ip = await get_client_ip(connection)
     if connection.protocol.handshake_exc:
-        logger.warning(f"{client_ip}: invalid handshake - {connection.protocol.handshake_exc}")
+        logger.error(f"{client_ip}: invalid handshake - {connection.protocol.handshake_exc}")
         # clear exception, already handled
         connection.protocol.handshake_exc = None
 
