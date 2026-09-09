@@ -10,6 +10,10 @@ os.environ.setdefault(
 
 from websocket_server.websocket_server import (  # noqa: E402
     ALL_CHANNELS,
+    CLIENT_SYNC_CONCURRENCY,
+    GEO_IP_CONCURRENCY,
+    HANDSHAKE_CONCURRENCY,
+    REDIS_MAX_CONNECTIONS,
     AlertVersion,
     FUSION_CHANNELS,
     LEGACY_VERSION_CHANNELS,
@@ -20,6 +24,16 @@ from websocket_server.websocket_server import (  # noqa: E402
     legacy_channels,
     redis_fanout,
 )
+
+
+def test_pool_ceiling_exceeds_sum_of_concurrency_limits():
+    """
+    Пул redis-py кидає ConnectionError, а не чекає. Якщо сума одночасних споживачів
+    дотягується до стелі, get_redis_data глушить помилку і повертає default_response —
+    клієнти мовчки отримують порожній початковий стан. Саме це сталось на проді зі стелею 50.
+    """
+    concurrent = GEO_IP_CONCURRENCY + HANDSHAKE_CONCURRENCY + CLIENT_SYNC_CONCURRENCY + 1  # +1 = redis_fanout
+    assert concurrent < REDIS_MAX_CONNECTIONS, f"сума споживачів {concurrent} >= стеля пулу {REDIS_MAX_CONNECTIONS}"
 
 
 def test_channel_source_matches_legacy_redis_keys():

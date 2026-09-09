@@ -106,6 +106,16 @@ else:
 
 geo = database.Reader(geo_lite_db_path)
 
+# --- Стелі паралелізму до Redis --------------------------------------------
+# Пул redis-py КИДАЄ ConnectionError, а не чекає, коли всі connection зайняті.
+# Тому REDIS_MAX_CONNECTIONS мусить бути більшим за суму всіх одночасних
+# споживачів + 1 на pub/sub у redis_fanout. Інваріант перевіряє
+# tests/test_websocket_fanout.py — при зміні будь-якого числа він упаде.
+GEO_IP_CONCURRENCY = 50
+HANDSHAKE_CONCURRENCY = 32
+CLIENT_SYNC_CONCURRENCY = 8
+REDIS_MAX_CONNECTIONS = 150
+
 
 class RedisBackedClient(dict):
     """
@@ -154,10 +164,11 @@ class RedisBackedClient(dict):
                 client_data = sanitize_for_json(client_data)
 
                 redis_key = f"websocket:clients:{self._client_key}"
-                await asyncio.wait_for(
-                    set_redis_data(logger, self._redis_client, redis_key, client_data, expiry=self._ttl),
-                    timeout=3.0,  # Таймаут 3 секунди для запису в Redis
-                )
+                async with shared_data.client_sync_semaphore:
+                    await asyncio.wait_for(
+                        set_redis_data(logger, self._redis_client, redis_key, client_data, expiry=self._ttl),
+                        timeout=3.0,  # Таймаут 3 секунди для запису в Redis
+                    )
                 self._last_sync_time = current_time
                 logger.debug(f"Client {self._client_key} synced to Redis")
             except asyncio.TimeoutError:
@@ -200,7 +211,9 @@ class RedisBackedClient(dict):
             self._sync_task.cancel()
         try:
             redis_key = f"websocket:clients:{self._client_key}"
-            await asyncio.wait_for(self._redis_client.delete(redis_key), timeout=2.0)  # Таймаут 2 секунди для видалення
+            async with shared_data.client_sync_semaphore:
+                # Таймаут 2 секунди для видалення
+                await asyncio.wait_for(self._redis_client.delete(redis_key), timeout=2.0)
             logger.debug(f"Client {self._client_key} deleted from Redis")
         except asyncio.TimeoutError:
             logger.warning(f"Redis delete timeout for client {self._client_key}")
@@ -242,10 +255,13 @@ class SharedData:
         self.http_session = None
         # Semaphore для контролю кількості одночасних Geo IP запитів (макс 50)
         # Це використовується тільки для фонових запитів, основні підключення не блокуються
-        self.geo_ip_semaphore = asyncio.Semaphore(50)
+        self.geo_ip_semaphore = asyncio.Semaphore(GEO_IP_CONCURRENCY)
         # Стеля паралельних handshake-читань. Має лишатись нижчою за max_connections пулу,
         # інакше при масовому реконекті пул кидає ConnectionError("Too many connections").
-        self.handshake_semaphore = asyncio.Semaphore(32)
+        self.handshake_semaphore = asyncio.Semaphore(HANDSHAKE_CONCURRENCY)
+        # Запис/видалення websocket:clients:*. Кожен legacy fan-out пише в client[field],
+        # що планує sync у ~60 клієнтів одночасно — без стелі це вичерпує пул.
+        self.client_sync_semaphore = asyncio.Semaphore(CLIENT_SYNC_CONCURRENCY)
 
     def subscribe(self, queue: asyncio.Queue, channels):
         for channel in channels:
@@ -903,7 +919,9 @@ async def alerts_data_fusion(
                         logger, redis_client, "websocket:v1:fusion:radiation:data", default_response={}
                     )
                     releases_beta = await get_redis_data(logger, redis_client, "releases:beta", default_response=[])
-                    releases_prod = await get_redis_data(logger, redis_client, "releases:production", default_response=[])
+                    releases_prod = await get_redis_data(
+                        logger, redis_client, "releases:production", default_response=[]
+                    )
 
                 if alerts_cache:
                     alerts_header = struct.pack("<B", TYPE_ALERTS_BATCH)
@@ -1496,9 +1514,12 @@ async def main():
         socket_connect_timeout=5,
         socket_keepalive=True,
         health_check_interval=30,
-        # Стеля пулу: 1 pub/sub (redis_fanout) + командні. Без неї пул росте необмежено
-        # (redis-py: max_connections or 2**31) і з'їдає спільний maxclients інших сервісів.
-        max_connections=50,
+        # Стеля пулу. Пул КИДАЄ ConnectionError, а не чекає — тому стеля мусить бути вища
+        # за суму всіх одночасних споживачів: 1 (redis_fanout) + 32 (handshake)
+        # + 50 (geo_ip) + 8 (client_sync) = 91. Запас на сплески при масовому реконекті.
+        # Значення 50 було замалим: під час старту get_redis_data глушив ConnectionError
+        # і клієнти отримували початковий стан із default_response замість Redis.
+        max_connections=REDIS_MAX_CONNECTIONS,
     )
 
     # Ініціалізуємо Redis client в shared_data для використання в get_geo_ip_data
