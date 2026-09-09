@@ -784,7 +784,7 @@ async def message_handler(
                     logger.debug(f"{client_ip}:{chip_id} >>> chip init: {data}")
                     logger.debug(f"{client_ip}:{data} >>> chip_id saved")
                 case _:
-                    logger.warning(f"{client_ip}:{chip_id} !!! unknown data request {message}")
+                    logger.debug(f"{client_ip}:{chip_id} !!! unknown data request {message}")
         except Exception as e:
             logger.error(f"{client_ip}:{client_id} !!! message_handler Exception - {e}")
             break
