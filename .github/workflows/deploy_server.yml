@@ -50,6 +50,14 @@ on:
         type: boolean
         default: false
         description: Web server
+      redeploy_respublika_alert_notifier:
+        type: boolean
+        default: false
+        description: Respublika Bot alert notifier (Kyiv)
+      respublika_alert_notifier_test_mode:
+        type: boolean
+        default: false
+        description: "Respublika Bot alert notifier: увімкнути тестовий режим"
       server_choice:
         type: choice
         default: 'Server 1'
@@ -296,6 +304,24 @@ jobs:
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
                   -ws ${{ secrets.WS_SERVERS_LIST }}
+          - name: Redeploy Respublika Bot alert notifier
+            if: ${{ inputs.redeploy_respublika_alert_notifier }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                bash redeploy_respublika_alert_notifier.sh \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
+                  -u '${{ secrets.RESPUBLIKA_ALERTS_WEBHOOK_URL }}' \
+                  -t ${{ inputs.respublika_alert_notifier_test_mode }}
 
           - name: Clear unused images
             uses: appleboy/ssh-action@v1.2.0
