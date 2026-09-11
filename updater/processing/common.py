@@ -5,7 +5,22 @@
 патчабельні символи у своєму namespace для існуючих тестів.
 """
 
+import datetime
+
 NO_DATA_TIMESTAMP = 1645674000
+
+
+def parse_iso_utc(value):
+    """ISO-8601 => tz-aware datetime у UTC. Naive (без офсету) трактується як UTC.
+
+    Уникає TypeError при порівнянні naive/aware дат, коли зовнішній API дає
+    неузгоджені формати createdAt/lastUpdate. Python 3.13 fromisoformat парсить
+    суфікс Z нативно.
+    """
+    dt = datetime.datetime.fromisoformat(value)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=datetime.timezone.utc)
+    return dt.astimezone(datetime.timezone.utc)
 
 
 def convert_region_ids(regions, key_value, initial_key, result_key):

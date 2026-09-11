@@ -71,17 +71,27 @@ D_BY_ID = {v["regionId"]: v["regionName"] for v in ALL_STATES.values()}
 
 
 def make_region_record(region_id, region_type, region_name, region_eng_name, alert_types):
-    """Запис для alerts:api:data."""
+    """Запис для alerts:api:data.
+
+    Тип AIR може нести рівень через суфікс: "AIR" => Red (дефолт), "AIR:Yellow"
+    => Yellow. Для AIR завжди додається activeAlertLevels, щоб симулятор міг
+    відтворити біти 11/12 fusion-протоколу.
+    """
     now = get_current_datetime()
+    active_alerts = []
+    for t in alert_types:
+        base, _, level = t.partition(":")
+        entry = {"regionId": region_id, "regionType": region_type, "type": base, "lastUpdate": now}
+        if base == "AIR":
+            entry["activeAlertLevels"] = [{"alertLevel": level or "Red", "reason": "", "createdAt": now}]
+        active_alerts.append(entry)
     return {
         "regionId": region_id,
         "regionType": region_type,
         "regionName": region_name,
         "regionEngName": region_eng_name,
         "lastUpdate": now,
-        "activeAlerts": [
-            {"regionId": region_id, "regionType": region_type, "type": t, "lastUpdate": now} for t in alert_types
-        ],
+        "activeAlerts": active_alerts,
     }
 
 
@@ -189,10 +199,12 @@ SIMULATION_STEPS = [
     [],
 ]
 
-# Кожен регіон по черзі з повітряною тривогою, потім відбій
+# Кожен регіон по черзі з повітряною тривогою, потім відбій.
+# Перший прохід — Red (біт 12), другий — Yellow (біт 11), потім відбій.
 SIMULATION_STEPS_2 = [
     *[
-        [(_state, ["AIR"], "alert")]
+        [(_state, [f"AIR:{_level}"], "alert")]
+        for _level in ["Red", "Yellow"]
         for _state in [
             "м. Київ",
             "Вінницька область",
