@@ -9,7 +9,6 @@ PING_INTERVAL=60
 PING_TIMEOUT=30
 PING_TIMEOUT_COUNT=1
 LOGGING="WARNING"
-GOOGLE_STAT="True"
 IP_INFO_TOKEN=""
 WEATHER_SOURCE="openmeteo"  # openweathermap or openmeteo
 
@@ -32,14 +31,6 @@ while [[ $# -gt 0 ]]; do
             REDIS_DB="$2"
             shift 2
             ;;
-        -s|--api-secret)
-            API_SECRET="$2"
-            shift 2
-            ;;
-        -i|--measurement-id)
-            MEASUREMENT_ID="$2"
-            shift 2
-            ;;
         -p|--ping-interval)
             PING_INTERVAL="$2"
             shift 2
@@ -54,10 +45,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         -l|--logging)
             LOGGING="$2"
-            shift 2
-            ;;
-        -g|--google-stat)
-            GOOGLE_STAT="$2"
             shift 2
             ;;
         -k|--ipinfo-token)
@@ -85,7 +72,6 @@ echo "PING_INTERVAL: $PING_INTERVAL"
 echo "PING_TIMEOUT: $PING_TIMEOUT"
 echo "PING_TIMEOUT_COUNT: $PING_TIMEOUT_COUNT"
 echo "LOGGING: $LOGGING"
-echo "GOOGLE_STAT: $GOOGLE_STAT"
 echo "IP_INFO_TOKEN: $IP_INFO_TOKEN"
 echo "WEATHER_SOURCE: $WEATHER_SOURCE"
 
@@ -112,8 +98,6 @@ docker run --name map_websocket_server \
     -d \
     -p "$WEBSOCKET_PORT":"$WEBSOCKET_PORT" \
     --env WEBSOCKET_PORT="$WEBSOCKET_PORT" \
-    --env API_SECRET="$API_SECRET" \
-    --env MEASUREMENT_ID="$MEASUREMENT_ID" \
     --env PING_INTERVAL="$PING_INTERVAL" \
     --env PING_TIMEOUT="$PING_TIMEOUT" \
     --env PING_TIMEOUT_COUNT="$PING_TIMEOUT_COUNT" \
@@ -121,7 +105,6 @@ docker run --name map_websocket_server \
     --env REDIS_PASSWORD="$REDIS_PASSWORD" \
     --env REDIS_DB="$REDIS_DB" \
     --env LOGGING="$LOGGING" \
-    --env GOOGLE_STAT="$GOOGLE_STAT" \
     --env IP_INFO_TOKEN="$IP_INFO_TOKEN" \
     --env WEATHER_SOURCE="$WEATHER_SOURCE" \
     map_websocket_server
