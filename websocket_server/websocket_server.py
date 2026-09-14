@@ -293,6 +293,7 @@ FUSION_CHANNELS = [
     "websocket:v1:fusion:energy:updated",
     "websocket:v1:fusion:radiation:updated",
     "websocket:v1:fusion:etryvoga:updated",
+    "websocket:v1:fusion:neptun:updated",
     "releases:production:updated",
     "releases:beta:updated",
 ]
@@ -381,6 +382,7 @@ ALL_CHANNELS = sorted({*FUSION_CHANNELS, *(ch for v in LEGACY_VERSION_CHANNELS f
 _CHANNEL_KEY_OVERRIDES = {
     "websocket:v1:fusion:alerts:updated": "websocket:v1:fusion:payload:alerts",
     "websocket:v1:fusion:etryvoga:updated": "websocket:v1:fusion:payload:notifications",
+    "websocket:v1:fusion:neptun:updated": "websocket:v1:fusion:payload:notifications",
     "websocket:v1:fusion:energy:updated": "websocket:v1:fusion:energy:data",
     "websocket:v1:fusion:radiation:updated": "websocket:v1:fusion:radiation:data",
     WEATHER_UPDATED_CHANNEL: WEATHER_DATA_KEY,
@@ -389,6 +391,7 @@ _CHANNEL_KEY_OVERRIDES = {
 _HEX_PAYLOAD_CHANNELS = {
     "websocket:v1:fusion:alerts:updated",
     "websocket:v1:fusion:etryvoga:updated",
+    "websocket:v1:fusion:neptun:updated",
 }
 # Словник стану {region_id: value}
 _DICT_STATE_CHANNELS = {
@@ -995,7 +998,7 @@ async def alerts_data_fusion(
                             payload = struct.pack("<B", TYPE_RADIATION_BATCH) + make_radiation_batch(data)
                             await websocket.send(payload)
                             logger.debug(f"{client_ip}:{chip_id} <<< new radiation packet")
-                        case "websocket:v1:fusion:etryvoga:updated":
+                        case "websocket:v1:fusion:etryvoga:updated" | "websocket:v1:fusion:neptun:updated":
                             payload = hex_payload(data, "websocket:v1:fusion:payload:notifications", client_ip, chip_id)
                             if payload is False:
                                 continue

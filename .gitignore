@@ -13,6 +13,8 @@ shared_data/
 logs/*
 CLAUDE.md
 
+*.jsonl
+
 # test report artifacts
 pytest-results.xml
 vitest-results.json
