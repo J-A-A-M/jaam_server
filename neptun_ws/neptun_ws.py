@@ -133,7 +133,7 @@ async def handle_threat(redis_client, threat, ws_pending, debouncer):
 
     ws_pending[data_name][str(region_id)] = get_current_datetime()
     await debouncer.call(lambda: flush(redis_client, ws_pending))
-    logger.info(f"✅ Оновлено {display_name} (regionId={region_id}), тип: {threat_type}")
+    logger.info(f"✅ Оновлено {display_name} (regionId={region_id}), тип: {threat_type}, id={threat.get('id')}")
 
 
 async def flush(redis_client, ws_pending):
@@ -157,6 +157,8 @@ async def handle_frame(redis_client, raw_text, ws_pending, debouncer):
         elif env_type == "snapshot":
             for t in (env.get("data") or {}).get("threats", []):
                 await handle_threat(redis_client, t, ws_pending, debouncer)
+        elif env_type == "remove":
+            logger.info(f"🗑️ remove: id={(env.get('data') or {}).get('id')}")
 
         await service_is_fine(logger, redis_client, "alerts:neptun_ws:last_call")
     except Exception as e:
