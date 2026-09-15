@@ -48,12 +48,6 @@ except ImportError:
         DEVICE_AUTH_MASTER_SECRET,
     )
 
-if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
-    raise RuntimeError(
-        "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
-        "перед запуском — інакше auth-токени OTA-завантаження /touch/*.bin тривіально підробні."
-    )
-
 debug_level = os.environ.get("LOGGING") or "INFO"
 debug = os.environ.get("DEBUG") or False
 port = int(os.environ.get("PORT") or 8090)
@@ -578,4 +572,9 @@ app = Starlette(
 )
 
 if __name__ == "__main__":
+    if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
+        raise RuntimeError(
+            "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
+            "перед запуском — інакше auth-токени OTA-завантаження /touch/*.bin тривіально підробні."
+        )
     uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, forwarded_allow_ips=["*"])

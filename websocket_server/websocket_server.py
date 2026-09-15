@@ -57,12 +57,6 @@ except ImportError:
         DEVICE_AUTH_MASTER_SECRET,
     )
 
-if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
-    raise RuntimeError(
-        "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
-        "перед запуском — інакше HMAC-авторизація jaam_touch (/data_touch_v1) тривіально підробна."
-    )
-
 # Імпорт regions.json - спочатку з поточної папки, потім з батьківської
 regions = {}
 try:
@@ -1720,6 +1714,12 @@ async def process_response(connection: ServerConnection, request: Request, respo
 
 
 async def main():
+    if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
+        raise RuntimeError(
+            "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
+            "перед запуском — інакше HMAC-авторизація jaam_touch (/data_touch_v1) тривіально підробна."
+        )
+
     redis_client = redis.Redis(
         host=redis_host,
         port=redis_port,
