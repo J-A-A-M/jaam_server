@@ -72,6 +72,8 @@ class DeviceOut(BaseModel):
     is_prototype: bool | None = None
     order_number: str | None = None
     customer_info: str | None = None
+    secret_version: int = 0
+    whitelisted: bool = True
 
 
 class DeviceListOut(BaseModel):
