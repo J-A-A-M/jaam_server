@@ -37,9 +37,7 @@ async def seed_hw_versions() -> None:
 async def seed_redis_configs() -> None:
     """Ініціалізує redis_server_configs з env-змінних, якщо таблиця порожня."""
     async with SessionLocal() as session:
-        count = await session.scalar(
-            select(func.count()).select_from(RedisServerConfig)
-        )
+        count = await session.scalar(select(func.count()).select_from(RedisServerConfig))
         if count:
             return
         for idx, cfg in enumerate(parse_redis_hosts()):

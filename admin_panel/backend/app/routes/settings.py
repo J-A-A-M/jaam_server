@@ -17,9 +17,7 @@ async def list_hw_versions(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    result = await session.execute(
-        select(HardwareVersion).order_by(HardwareVersion.sort_order)
-    )
+    result = await session.execute(select(HardwareVersion).order_by(HardwareVersion.sort_order))
     return [HardwareVersionOut.model_validate(v) for v in result.scalars().all()]
 
 
@@ -32,14 +30,10 @@ async def create_hw_version(
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Назва не може бути порожньою")
-    exists = await session.scalar(
-        select(HardwareVersion).where(HardwareVersion.name == name)
-    )
+    exists = await session.scalar(select(HardwareVersion).where(HardwareVersion.name == name))
     if exists:
         raise HTTPException(status_code=409, detail="Таке значення вже є в списку")
-    max_order = await session.scalar(
-        select(HardwareVersion.sort_order).order_by(HardwareVersion.sort_order.desc())
-    )
+    max_order = await session.scalar(select(HardwareVersion.sort_order).order_by(HardwareVersion.sort_order.desc()))
     version = HardwareVersion(name=name, sort_order=(max_order or 0) + 1)
     session.add(version)
     await session.commit()
@@ -69,9 +63,7 @@ async def reorder_hw_versions(
     result = await session.execute(select(HardwareVersion))
     by_id = {v.id: v for v in result.scalars().all()}
     if set(ordered_ids) != set(by_id):
-        raise HTTPException(
-            status_code=400, detail="Список id не відповідає наявним значенням"
-        )
+        raise HTTPException(status_code=400, detail="Список id не відповідає наявним значенням")
     for idx, vid in enumerate(ordered_ids):
         by_id[vid].sort_order = idx
     await session.commit()
