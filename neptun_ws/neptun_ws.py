@@ -15,9 +15,11 @@ point-in-polygon по lat/lon (raions.geojson/oblasts.geojson з neptun.in.ua)
 import asyncio
 import json
 import logging
+import math
 import os
 import sys
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 import websockets
@@ -115,25 +117,90 @@ def resolve_region_id(lat, lon):
     return display_name, region_id
 
 
-async def handle_threat(redis_client, threat, ws_pending, debouncer):
-    """Резолвить регіон одного треку і планує запис {regionId: timestamp} у Redis."""
+def _haversine_km(lat1, lon1, lat2, lon2):
+    """Відстань по великому колу між двома точками (км)."""
+    R = 6371.0088
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
+def _bearing_deg(lat1, lon1, lat2, lon2):
+    """Азимут напрямку руху з точки 1 до точки 2 (градуси, 0=північ, за годинниковою)."""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dl = math.radians(lon2 - lon1)
+    x = math.sin(dl) * math.cos(p2)
+    y = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+    return (math.degrees(math.atan2(x, y)) + 360) % 360
+
+
+ID_WIDTH = 14  # "trk_00190926" (12) + запас - для вирівнювання колонок у логах
+
+
+def _id_col(threat_id):
+    return f"id={threat_id!s:<{ID_WIDTH}}"
+
+
+def _parse_updated_at(threat):
+    raw = threat.get("updatedAt")
+    if raw:
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            logger.warning(f"{_id_col(threat.get('id'))} ⚠️  не вдалось розпарсити updatedAt={raw!r}")
+    return datetime.now(timezone.utc)
+
+
+async def handle_threat(redis_client, threat, ws_pending, debouncer, track_state):
+    """Резолвить регіон одного треку; пише в Redis лише якщо regionId змінився з
+    попереднього відомого стану треку (дедуп повторних оновлень того самого trk_*)."""
+    threat_id = threat.get("id")
     threat_type = threat.get("type")
     config = NEPTUN_TYPE_CONFIG.get(threat_type)
     if not config:
-        logger.debug(f"⏭️  Тип '{threat_type}' не обробляється")
+        logger.debug(f"{_id_col(threat_id)} ⏭️  тип '{threat_type}' не обробляється")
         return
 
     data_name, ws_key = config
-    display_name, region_id = resolve_region_id(threat.get("lat"), threat.get("lon"))
+    lat, lon = threat.get("lat"), threat.get("lon")
+    display_name, region_id = resolve_region_id(lat, lon)
     if region_id is None:
-        logger.warning(
-            f"⚠️ Не вдалось визначити регіон: id={threat.get('id')} lat={threat.get('lat')} lon={threat.get('lon')}"
+        logger.warning(f"{_id_col(threat_id)} ⚠️  не вдалось визначити регіон lat={lat} lon={lon}")
+        return
+
+    updated_at = _parse_updated_at(threat)
+    prev = track_state.get(threat_id)
+    update_count = (prev["update_count"] + 1) if prev else 1
+
+    if prev and prev.get("lat") is not None and lat is not None and lon is not None:
+        distance_km = _haversine_km(prev["lat"], prev["lon"], lat, lon)
+        bearing = _bearing_deg(prev["lat"], prev["lon"], lat, lon)
+        dt = (updated_at - prev["updated_at"]).total_seconds()
+        speed_kmh = distance_km / (dt / 3600) if dt > 0 else None
+        speed_str = f"{speed_kmh:.1f}км/год" if speed_kmh is not None else "н/д"
+        logger.info(
+            f"{_id_col(threat_id)} 📐 (#{update_count:>2}) lat={lat:>9.5f} lon={lon:>9.5f}  "
+            f"Δ={distance_km:>7.2f}км  азимут={bearing:>3.0f}°  швидкість={speed_str:<11}  Δt={dt:>5.0f}с"
         )
+
+    region_changed = prev is None or prev["region_id"] != region_id
+    track_state[threat_id] = {
+        "region_id": region_id,
+        "lat": lat,
+        "lon": lon,
+        "updated_at": updated_at,
+        "update_count": update_count,
+    }
+
+    if not region_changed:
+        logger.debug(f"{_id_col(threat_id)} ⏭️  regionId не змінився ({region_id}), пропускаємо відправку")
         return
 
     ws_pending[data_name][str(region_id)] = get_current_datetime()
     await debouncer.call(lambda: flush(redis_client, ws_pending))
-    logger.info(f"✅ Оновлено {display_name} (regionId={region_id}), тип: {threat_type}, id={threat.get('id')}")
+    logger.info(f"{_id_col(threat_id)} ✅ оновлено {display_name} (regionId={region_id}), тип: {threat_type}")
 
 
 async def flush(redis_client, ws_pending):
@@ -147,18 +214,23 @@ async def flush(redis_client, ws_pending):
             logger.info(f"✅ {ws_key} flushed ({len(snapshot)} регіонів)")
 
 
-async def handle_frame(redis_client, raw_text, ws_pending, debouncer):
+async def handle_frame(redis_client, raw_text, ws_pending, debouncer, track_state):
     try:
         env = json.loads(raw_text)
         env_type = env.get("type", "unknown")
 
         if env_type == "upsert":
-            await handle_threat(redis_client, env.get("data") or {}, ws_pending, debouncer)
-        elif env_type == "snapshot":
-            for t in (env.get("data") or {}).get("threats", []):
-                await handle_threat(redis_client, t, ws_pending, debouncer)
+            data = env.get("data") or {}
+            logger.info(f"{_id_col(data.get('id'))} 📥 upsert отримано, тип={data.get('type')}")
+            await handle_threat(redis_client, data, ws_pending, debouncer, track_state)
+        # elif env_type == "snapshot":
+        #     for t in (env.get("data") or {}).get("threats", []):
+        #         logger.info(f"id={t.get('id')}: 📥 snapshot отримано, тип={t.get('type')}")
+        #         await handle_threat(redis_client, t, ws_pending, debouncer, track_state)
         elif env_type == "remove":
-            logger.info(f"🗑️ remove: id={(env.get('data') or {}).get('id')}")
+            threat_id = (env.get("data") or {}).get("id")
+            track_state.pop(threat_id, None)
+            logger.info(f"{_id_col(threat_id)} 🗑️ remove")
 
         await service_is_fine(logger, redis_client, "alerts:neptun_ws:last_call")
     except Exception as e:
@@ -169,6 +241,7 @@ async def handle_frame(redis_client, raw_text, ws_pending, debouncer):
 async def connect_neptun_ws(redis_client):
     ws_pending = defaultdict(dict)
     debouncer = Debouncer(neptun_ws_debounce)
+    track_state = {}  # trk_id -> {"region_id", "lat", "lon", "updated_at"} - живе в пам'яті процесу, без Redis
 
     while True:
         try:
@@ -176,15 +249,15 @@ async def connect_neptun_ws(redis_client):
             async with websockets.connect(neptun_ws_url) as ws:
                 logger.info("✅ Підключено до neptun WebSocket")
                 async for raw_text in ws:
-                    await handle_frame(redis_client, raw_text, ws_pending, debouncer)
+                    await handle_frame(redis_client, raw_text, ws_pending, debouncer, track_state)
         except websockets.exceptions.ConnectionClosed as e:
             logger.warning(f"⚠️ З'єднання закрито: {e}")
         except Exception as e:
             logger.error(f"❌ Помилка з'єднання: {e}")
             logger.debug("❌ Повний стек помилки:", exc_info=True)
 
-        logger.info("🔄 Повторне підключення через 5 секунд...")
-        await asyncio.sleep(5)
+        logger.info("🔄 Повторне підключення через 10 секунд...")
+        await asyncio.sleep(10)
 
 
 async def main():
