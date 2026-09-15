@@ -198,6 +198,12 @@ export interface RedisServerConfigUpdate {
   enabled?: boolean;
 }
 
+export interface HardwareVersion {
+  id: number;
+  name: string;
+  sort_order: number;
+}
+
 export interface PanelUser {
   id: number;
   username: string;
@@ -292,6 +298,13 @@ export const api = {
     req<void>(`/api/servers/config/${id}`, { method: "DELETE" }),
   testServerConfig: (id: number) =>
     req<ServerStatus>(`/api/servers/config/${id}/test`, { method: "POST" }),
+  hwVersions: () => req<HardwareVersion[]>("/api/settings/hw-versions"),
+  createHwVersion: (name: string) =>
+    req<HardwareVersion>("/api/settings/hw-versions", { method: "POST", body: JSON.stringify({ name }) }),
+  deleteHwVersion: (id: number) =>
+    req<void>(`/api/settings/hw-versions/${id}`, { method: "DELETE" }),
+  reorderHwVersions: (orderedIds: number[]) =>
+    req<HardwareVersion[]>("/api/settings/hw-versions/reorder", { method: "POST", body: JSON.stringify(orderedIds) }),
   inventory: (params: Record<string, string | number | undefined>) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {

@@ -1,9 +1,7 @@
 import React from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type JaamMap, type JaamMapInput } from "@/lib/api";
 import { Button, Input, Modal, Select, Spinner, Textarea } from "@/components/ui";
-
-const HW_VERSIONS = ["JAAM3.2", "JAAM3.1", "JAAM3.0", "JAAM2", "JAAM1", "NOT JAAM", ""];
 
 // Модалка редагує запис реєстру. Приймаємо і повний JaamMap (сторінка «Реєстр»),
 // і Device (сторінка мапи) — потрібні лише ці поля; is_prototype у Device може бути null.
@@ -22,7 +20,8 @@ export interface JaamMapModalProps {
 
 export function JaamMapModal({ open, onClose, editing, defaultChipId, onSuccess }: JaamMapModalProps) {
   const qc = useQueryClient();
-  const empty: JaamMapInput = { chip_id: "", map_id: "", hw_version: "JAAM3.2", is_prototype: false, order_number: "", customer_info: "" };
+  const { data: hwVersions } = useQuery({ queryKey: ["hw-versions"], queryFn: api.hwVersions, enabled: open });
+  const empty: JaamMapInput = { chip_id: "", map_id: "", hw_version: hwVersions?.[0]?.name ?? "", is_prototype: false, order_number: "", customer_info: "" };
 
   const [form, setForm] = React.useState<JaamMapInput>(empty);
   const [error, setError] = React.useState("");
@@ -78,7 +77,11 @@ export function JaamMapModal({ open, onClose, editing, defaultChipId, onSuccess 
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Тип</label>
             <Select value={form.hw_version ?? ""} onChange={(e) => setForm({ ...form, hw_version: e.target.value })}>
-              {HW_VERSIONS.map((v) => <option key={v} value={v}>{v || "—"}</option>)}
+              <option value="">—</option>
+              {hwVersions?.map((v) => <option key={v.id} value={v.name}>{v.name}</option>)}
+              {form.hw_version && !hwVersions?.some((v) => v.name === form.hw_version) && (
+                <option value={form.hw_version}>{form.hw_version}</option>
+              )}
             </Select>
           </div>
           <div>
