@@ -7,6 +7,7 @@ REDIS_DB="0"
 GITHUB_TOKEN=""
 PORT=8090
 LOGGING="INFO"
+DEVICE_AUTH_MASTER_SECRET="change-me-in-production"
 
 # Check for arguments
 while [[ $# -gt 0 ]]; do
@@ -33,6 +34,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -l|--logging)
             LOGGING="$2"
+            shift 2
+            ;;
+        -das|--device-auth-secret)
+            DEVICE_AUTH_MASTER_SECRET="$2"
             shift 2
             ;;
         *)
@@ -81,6 +86,7 @@ docker run --name map_update_server \
     --env REDIS_DB="$REDIS_DB" \
     --env GITHUB_TOKEN="$GITHUB_TOKEN" \
     --env LOGGING="$LOGGING" \
+    --env DEVICE_AUTH_MASTER_SECRET="$DEVICE_AUTH_MASTER_SECRET" \
     map_update_server
 
 echo "Container deployed successfully!"
