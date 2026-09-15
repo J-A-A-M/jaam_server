@@ -128,3 +128,21 @@ async def count_clients(client: redis.Redis) -> int:
         if cursor == 0:
             break
     return total
+
+
+async def mirror_device_auth(servers: list[RedisServer], chip_id: str, secret_version: int, whitelisted: bool) -> None:
+    """Дзеркалить {version, whitelisted} для chip_id у device_auth:<CHIP_ID> на всі сервери.
+
+    Postgres (jaam_maps) — одна спільна база без поділу на середовища, тому пишемо
+    на ВСІ enabled сервери без винятків (не "prod чи dev" рішення, а консистентне
+    дзеркалювання єдиного джерела правди в кожен кеш, який його читає: websocket_server
+    та update_server). Жодного секретного матеріалу тут немає — лише версія й прапорець,
+    сам секрет — похідний (device_auth.derive_device_secret) і ніде не зберігається.
+    """
+    key = f"device_auth:{chip_id.upper()}"
+    mapping = {"version": str(secret_version), "whitelisted": "1" if whitelisted else "0"}
+    for server in servers:
+        try:
+            await server.client.hset(key, mapping=mapping)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Не вдалося дзеркалити device_auth для %s на %s: %s", chip_id, server.name, exc)

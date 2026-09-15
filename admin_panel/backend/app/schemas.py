@@ -164,6 +164,8 @@ class JaamMapOut(BaseModel):
     is_prototype: bool
     order_number: str | None
     customer_info: str | None
+    secret_version: int = 0
+    whitelisted: bool = True
     created_at: datetime.datetime
     updated_at: datetime.datetime
     # Склейка зі станом онлайн
@@ -179,6 +181,20 @@ class JaamMapListOut(BaseModel):
     page: int
     page_size: int
     items: list[JaamMapOut]
+
+
+class ProvisionOut(BaseModel):
+    """Відповідь на POST /api/inventory/{chip_id}/provision — секрет повертається
+    один раз і ніде на сервері не зберігається (лише secret_version+whitelisted)."""
+
+    chip_id: str
+    secret_hex: str
+    secret_version: int
+    whitelisted: bool
+
+
+class WhitelistIn(BaseModel):
+    whitelisted: bool
 
 
 class DayPoint(BaseModel):

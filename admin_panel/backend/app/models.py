@@ -96,6 +96,10 @@ class JaamMap(Base):
     is_prototype: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     order_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     customer_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # jaam_touch device-auth whitelist: secret_version інкрементується при provision/rotate
+    # (сам секрет — похідний від DEVICE_AUTH_MASTER_SECRET, тут не зберігається).
+    secret_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
+    whitelisted: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
