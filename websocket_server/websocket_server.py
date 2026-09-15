@@ -7,6 +7,7 @@ import secrets
 import string
 import datetime
 import aiohttp
+from urllib.parse import urlsplit, parse_qs
 
 from geoip2 import database, errors
 from zoneinfo import ZoneInfo
@@ -30,6 +31,10 @@ try:
         TYPE_RADIATION_BATCH,
         TYPE_FIRMWARE_UPDATE_BETA_BATCH,
         TYPE_FIRMWARE_UPDATE_PROD_BATCH,
+        TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
+        TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
+        verify_device_auth,
+        DEVICE_AUTH_MASTER_SECRET,
     )
 except ImportError:
     parent_dir = Path(__file__).resolve().parent.parent
@@ -46,6 +51,10 @@ except ImportError:
         TYPE_RADIATION_BATCH,
         TYPE_FIRMWARE_UPDATE_BETA_BATCH,
         TYPE_FIRMWARE_UPDATE_PROD_BATCH,
+        TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
+        TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
+        verify_device_auth,
+        DEVICE_AUTH_MASTER_SECRET,
     )
 
 # Імпорт regions.json - спочатку з поточної папки, потім з батьківської
@@ -86,6 +95,9 @@ redis_port = int(os.environ.get("REDIS_PORT", 6379))
 redis_password = os.environ.get("REDIS_PASSWORD") or "redis"
 redis_db = int(os.environ.get("REDIS_DB", 0))
 environment = os.environ.get("ENVIRONMENT") or "PROD"
+# /data_touch_v1 (jaam_touch): "enforce" (дефолт, прод) — відхиляти невалідний auth;
+# "shadow" — лише логувати, ніколи не відхиляти (зручно для локального бринг-апу).
+touch_auth_mode = (os.environ.get("TOUCH_AUTH_MODE") or "enforce").lower()
 geo_lite_db_path = os.environ.get("GEO_PATH") or "GeoLite2-City.mmdb"
 ip_info_token = os.environ.get("IP_INFO_TOKEN") or ""
 geo_ip_cache_ttl = int(os.environ.get("GEO_IP_CACHE_TTL") or 86400)  # 24 hours by default
@@ -286,6 +298,19 @@ class AlertVersion:
 # --- Канали pub/sub ---------------------------------------------------------
 # Набір каналів однаковий для всіх клієнтів однієї версії, тому підписка одна
 # на процес (redis_fanout), а не одна на клієнта.
+
+# jaam_touch (/data_touch_v1): ті самі базові дані карти (alerts/weather/energy/radiation),
+# але ВЛАСНІ, ізольовані від jaam_fusion канали для прошивок — touch ніколи не отримує/
+# не публікує в releases:production/releases:beta (fusion), і навпаки.
+TOUCH_CHANNELS = [
+    "websocket:v1:fusion:alerts:updated",
+    WEATHER_UPDATED_CHANNEL,
+    "websocket:v1:fusion:energy:updated",
+    "websocket:v1:fusion:radiation:updated",
+    "websocket:v1:fusion:etryvoga:updated",
+    "releases:touch:production:updated",
+    "releases:touch:beta:updated",
+]
 
 FUSION_CHANNELS = [
     "websocket:v1:fusion:alerts:updated",
@@ -1027,6 +1052,150 @@ async def alerts_data_fusion(
             shared_data.unsubscribe(queue, FUSION_CHANNELS)
 
 
+async def alerts_data_touch(
+    websocket: ServerConnection,
+    client,
+    client_id,
+    client_ip,
+    shared_data: SharedData,
+    chip_id_event=None,
+    firmware_event=None,
+):
+    """Аналог alerts_data_fusion для /data_touch_v1: ті самі базові дані карти
+    (alerts/weather/energy/radiation), але ВЛАСНІ firmware-канали/opcodes (0xA8/0xA9,
+    releases:touch:*) — ізольовано від jaam_fusion (0xA6/0xA7, releases:beta/production)."""
+    queue = None
+    try:
+        chip_id = await get_client_chip_id(client, chip_id_event)
+        firmware = await get_client_firmware(client, firmware_event)
+        redis_client = shared_data.redis_client
+
+        queue = asyncio.Queue(maxsize=32)
+        shared_data.subscribe(queue, TOUCH_CHANNELS)
+
+        logger.debug(f"{client_ip}:{chip_id}: check")
+
+        async with shared_data.handshake_semaphore:
+            alerts_cache = await get_redis_data(
+                logger, redis_client, "websocket:v1:fusion:alerts:data", default_response=False
+            )
+            alerts_hash_actual = await get_redis_data(
+                logger, redis_client, "websocket:v1:fusion:alerts:hash_actual", default_response=0
+            )
+            alerts_hash_previous = await get_redis_data(
+                logger, redis_client, "websocket:v1:fusion:alerts:hash_previous", default_response=0
+            )
+            weather_cache = await get_redis_data(logger, redis_client, WEATHER_DATA_KEY, default_response={})
+            energy_cache = await get_redis_data(
+                logger, redis_client, "websocket:v1:fusion:energy:data", default_response={}
+            )
+            radiation_cache = await get_redis_data(
+                logger, redis_client, "websocket:v1:fusion:radiation:data", default_response={}
+            )
+            releases_touch_beta = await get_redis_data(logger, redis_client, "releases:touch:beta", default_response=[])
+            releases_touch_prod = await get_redis_data(
+                logger, redis_client, "releases:touch:production", default_response=[]
+            )
+
+        if alerts_cache:
+            alerts_header = struct.pack("<B", TYPE_ALERTS_BATCH)
+            alerts = bytearray()
+            for rid, flags16 in alerts_cache.items():
+                alerts += struct.pack("<H H", int(rid), flags16)
+            hash_actual = struct.pack("<H", alerts_hash_actual)
+            hash_previous = struct.pack("<H", alerts_hash_previous)
+            alerts_payload = alerts_header + hash_actual + hash_previous + alerts
+            await websocket.send(alerts_payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< initial alert packet")
+
+        if weather_cache:
+            weather_header = struct.pack("<B", TYPE_WEATHER_BATCH)
+            weather = bytearray()
+            for rid, flags8 in weather_cache.items():
+                weather += struct.pack("<H B", int(rid), int(flags8) & 0xFF)
+            weather_payload = weather_header + weather
+            await websocket.send(weather_payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< initial weather packet")
+
+        if energy_cache:
+            energy_header = struct.pack("<B", TYPE_GRID_BATCH)
+            energy_payload = energy_header + make_grid_batch(energy_cache)
+            await websocket.send(energy_payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< initial energy packet")
+
+        if radiation_cache:
+            radiation_header = struct.pack("<B", TYPE_RADIATION_BATCH)
+            radiation_payload = radiation_header + make_radiation_batch(radiation_cache)
+            await websocket.send(radiation_payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< initial radiation packet")
+
+        if releases_touch_beta:
+            firmware_payload = make_firmware_batch(releases_touch_beta, TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH)
+            await websocket.send(firmware_payload)
+            logger.debug(
+                f"{client_ip}:{chip_id} <<< initial touch firmware packet ({len(releases_touch_beta)} beta versions)"
+            )
+
+        if releases_touch_prod:
+            firmware_payload = make_firmware_batch(releases_touch_prod, TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH)
+            await websocket.send(firmware_payload)
+            logger.debug(
+                f"{client_ip}:{chip_id} <<< initial touch firmware packet ({len(releases_touch_prod)} production versions)"
+            )
+
+        client["initial"] = False
+
+        while True:
+            channel, data = await queue.get()
+            logger.debug(f"📬 {client_ip}:{chip_id} подія з каналу: {channel}")
+
+            match channel:
+                case "websocket:v1:fusion:alerts:updated":
+                    payload = hex_payload(data, "websocket:v1:fusion:payload:alerts", client_ip, chip_id)
+                    if payload is False:
+                        continue
+                    await websocket.send(payload)
+                    logger.debug(f"{client_ip}:{chip_id} <<< new alert packet")
+                case channel if channel == WEATHER_UPDATED_CHANNEL:
+                    payload = struct.pack("<B", TYPE_WEATHER_BATCH) + make_weather_batch(data)
+                    await websocket.send(payload)
+                    logger.debug(f"{client_ip}:{chip_id} <<< new weather packet")
+                case "websocket:v1:fusion:energy:updated":
+                    payload = struct.pack("<B", TYPE_GRID_BATCH) + make_grid_batch(data)
+                    await websocket.send(payload)
+                    logger.debug(f"{client_ip}:{chip_id} <<< new energy packet")
+                case "websocket:v1:fusion:radiation:updated":
+                    payload = struct.pack("<B", TYPE_RADIATION_BATCH) + make_radiation_batch(data)
+                    await websocket.send(payload)
+                    logger.debug(f"{client_ip}:{chip_id} <<< new radiation packet")
+                case "websocket:v1:fusion:etryvoga:updated":
+                    payload = hex_payload(data, "websocket:v1:fusion:payload:notifications", client_ip, chip_id)
+                    if payload is False:
+                        continue
+                    await websocket.send(payload)
+                    logger.debug(f"{client_ip}:{chip_id} <<< new notifications packet")
+                case "releases:touch:production:updated":
+                    await websocket.send(make_firmware_batch(data, TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH))
+                    logger.debug(f"{client_ip}:{chip_id} <<< updated touch firmware packet ({len(data)} prod versions)")
+                case "releases:touch:beta:updated":
+                    await websocket.send(make_firmware_batch(data, TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH))
+                    logger.debug(f"{client_ip}:{chip_id} <<< updated touch firmware packet ({len(data)} beta versions)")
+                case _:
+                    logger.warning(f"{client_ip}:{chip_id} !!! Невідомий канал: {channel}")
+
+    except asyncio.CancelledError as e:
+        logger.debug(f"{client_ip}:{client_id} !!! alerts_data_touch cancelled - {e}")
+    except ChipIdTimeoutException as e:
+        logger.debug(f"{client_ip}:{client_id} !!! chip_id timeout, closing connection - {e}")
+    except FirmwareTimeoutException as e:
+        logger.debug(f"{client_ip}:{client_id} !!! firmware timeout, closing connection - {e}")
+    except Exception as e:
+        logger.debug(f"{client_ip}:{client_id} !!! alerts_data_touch Exception - {e}", exc_info=True)
+    finally:
+        if queue is not None:
+            shared_data.unsubscribe(queue, TOUCH_CHANNELS)
+
+
 async def alerts_data(
     websocket: ServerConnection,
     client,
@@ -1225,7 +1394,10 @@ async def echo(websocket: ServerConnection):
         chip_id_event = asyncio.Event()
         firmware_event = asyncio.Event()
 
-        match websocket.request.path:
+        # /data_touch_v1 несе auth query-string (chip_id/ts/mac) — відкидаємо її для матчингу шляху.
+        request_path = urlsplit(websocket.request.path).path
+
+        match request_path:
             case "/data_v1":
                 producer_task = asyncio.create_task(
                     alerts_data(
@@ -1295,6 +1467,20 @@ async def echo(websocket: ServerConnection):
                         client_ip,
                         shared_data,
                         AlertVersion.v1,
+                        chip_id_event,
+                        firmware_event,
+                    ),
+                    name=f"alerts_data_{client_id}",
+                )
+
+            case "/data_touch_v1":
+                producer_task = asyncio.create_task(
+                    alerts_data_touch(
+                        websocket,
+                        client,
+                        client_id,
+                        client_ip,
+                        shared_data,
                         chip_id_event,
                         firmware_event,
                     ),
@@ -1489,10 +1675,34 @@ async def process_request(connection: ServerConnection, request: Request):
     if request.path == "/healthz":
         logger.info(f"{client_ip}: health check")
         return connection.respond(HTTPStatus.OK, "OK\n")
+
+    split = urlsplit(request.path)
+    path = split.path
+
     # check for valid path
-    if not request.path.startswith("/data_v") and not request.path.startswith("/data_fusion_v"):
+    if not (path.startswith("/data_v") or path.startswith("/data_fusion_v") or path == "/data_touch_v1"):
         logger.error(f"{client_ip}: invalid path - {request.path}")
         return connection.respond(HTTPStatus.NOT_FOUND, "Not Found\n")
+
+    # jaam_touch: окремий, ізольований від jaam_fusion шлях — обов'язкова HMAC-перевірка
+    # chip_id-whitelist ДО апгрейду WS-з'єднання. Немає legacy-трафіку на цьому шляху,
+    # тож enforce вмикається одразу (без shadow-фази на рівні гейту).
+    if path == "/data_touch_v1":
+        qs = parse_qs(split.query)
+        chip_id = qs.get("chip_id", [None])[0]
+        ok, reason = await verify_device_auth(
+            shared_data.redis_client,
+            chip_id,
+            qs.get("ts", [None])[0],
+            qs.get("mac", [None])[0],
+            domain="WS",
+        )
+        if not ok:
+            if touch_auth_mode == "shadow":
+                logger.warning(f"{client_ip}:{chip_id} !!! TOUCH AUTH SHADOW-FAIL ({reason})")
+            else:
+                logger.warning(f"{client_ip}:{chip_id} !!! TOUCH AUTH REJECT ({reason})")
+                return connection.respond(HTTPStatus.UNAUTHORIZED, f"unauthorized: {reason}\n")
 
 
 async def process_response(connection: ServerConnection, request: Request, response: Response):
@@ -1504,6 +1714,12 @@ async def process_response(connection: ServerConnection, request: Request, respo
 
 
 async def main():
+    if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
+        raise RuntimeError(
+            "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
+            "перед запуском — інакше HMAC-авторизація jaam_touch (/data_touch_v1) тривіально підробна."
+        )
+
     redis_client = redis.Redis(
         host=redis_host,
         port=redis_port,

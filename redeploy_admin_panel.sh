@@ -10,6 +10,7 @@ REDIS_PASSWORD="redis"
 REDIS_DB="0"
 DATABASE_URL="postgresql+asyncpg://jaam:jaam@postgres:5432/jaam_admin"
 JWT_SECRET="change-me-in-production"
+DEVICE_AUTH_MASTER_SECRET="change-me-in-production"
 ADMIN_USER="admin"
 ADMIN_PASSWORD="jaam_rocks"
 COLLECT_INTERVAL="20"
@@ -28,6 +29,7 @@ while [[ $# -gt 0 ]]; do
         -db|--redis-db) REDIS_DB="$2"; shift 2;;
         -d|--database-url) DATABASE_URL="$2"; shift 2;;
         -s|--jwt-secret) JWT_SECRET="$2"; shift 2;;
+        -das|--device-auth-secret) DEVICE_AUTH_MASTER_SECRET="$2"; shift 2;;
         -au|--admin-user) ADMIN_USER="$2"; shift 2;;
         -ap|--admin-password) ADMIN_PASSWORD="$2"; shift 2;;
         -ci|--collect-interval) COLLECT_INTERVAL="$2"; shift 2;;
@@ -72,6 +74,7 @@ docker run --name jaam_admin_panel \
     --env REDIS_DB="$REDIS_DB" \
     --env DATABASE_URL="$DATABASE_URL" \
     --env JWT_SECRET="$JWT_SECRET" \
+    --env DEVICE_AUTH_MASTER_SECRET="$DEVICE_AUTH_MASTER_SECRET" \
     --env ADMIN_USER="$ADMIN_USER" \
     --env ADMIN_PASSWORD="$ADMIN_PASSWORD" \
     --env COLLECT_INTERVAL="$COLLECT_INTERVAL" \

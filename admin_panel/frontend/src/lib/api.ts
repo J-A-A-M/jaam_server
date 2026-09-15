@@ -26,6 +26,8 @@ export interface Device {
   is_prototype: boolean | null;
   order_number: string | null;
   customer_info: string | null;
+  secret_version: number;
+  whitelisted: boolean;
 }
 
 export interface JaamMap {
@@ -35,6 +37,8 @@ export interface JaamMap {
   is_prototype: boolean;
   order_number: string | null;
   customer_info: string | null;
+  secret_version: number;
+  whitelisted: boolean;
   created_at: string;
   updated_at: string;
   ever_seen: boolean;
@@ -42,6 +46,15 @@ export interface JaamMap {
   last_seen: string | null;
   firmware: string | null;
   firmware_id: string | null;
+}
+
+// POST /api/inventory/{chip_id}/provision — секрет повертається лише в цій відповіді,
+// сервер його ніде не зберігає, тож показати користувачу можна лише один раз, одразу тут.
+export interface ProvisionResult {
+  chip_id: string;
+  secret_hex: string;
+  secret_version: number;
+  whitelisted: boolean;
 }
 
 export interface JaamMapList {
@@ -198,6 +211,12 @@ export interface RedisServerConfigUpdate {
   enabled?: boolean;
 }
 
+export interface HardwareVersion {
+  id: number;
+  name: string;
+  sort_order: number;
+}
+
 export interface PanelUser {
   id: number;
   username: string;
@@ -292,6 +311,13 @@ export const api = {
     req<void>(`/api/servers/config/${id}`, { method: "DELETE" }),
   testServerConfig: (id: number) =>
     req<ServerStatus>(`/api/servers/config/${id}/test`, { method: "POST" }),
+  hwVersions: () => req<HardwareVersion[]>("/api/settings/hw-versions"),
+  createHwVersion: (name: string) =>
+    req<HardwareVersion>("/api/settings/hw-versions", { method: "POST", body: JSON.stringify({ name }) }),
+  deleteHwVersion: (id: number) =>
+    req<void>(`/api/settings/hw-versions/${id}`, { method: "DELETE" }),
+  reorderHwVersions: (orderedIds: number[]) =>
+    req<HardwareVersion[]>("/api/settings/hw-versions/reorder", { method: "POST", body: JSON.stringify(orderedIds) }),
   inventory: (params: Record<string, string | number | undefined>) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
@@ -308,6 +334,13 @@ export const api = {
     }),
   deleteMap: (chipId: string) =>
     req<void>(`/api/inventory/${encodeURIComponent(chipId)}`, { method: "DELETE" }),
+  provisionDevice: (chipId: string) =>
+    req<ProvisionResult>(`/api/inventory/${encodeURIComponent(chipId)}/provision`, { method: "POST" }),
+  setDeviceWhitelisted: (chipId: string, whitelisted: boolean) =>
+    req<JaamMap>(`/api/inventory/${encodeURIComponent(chipId)}/whitelist`, {
+      method: "PATCH",
+      body: JSON.stringify({ whitelisted }),
+    }),
   events: (params: { page?: number; pageSize?: number; q?: string; type?: string; period?: string; sort?: string; order?: string } = {}) => {
     const { page = 1, pageSize = 50, q, type, period, sort, order } = params;
     const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) });

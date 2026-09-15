@@ -17,8 +17,20 @@ from .retention import run_retention
 from .db import SessionLocal, init_models
 from .models import RedisServerConfig
 from .redis_util import build_server_from_config
-from .routes import auth, devices, events, geo, inventory, overview, servers, stream, users, webauthn
-from .seed import seed_admin, seed_redis_configs
+from .routes import (
+    auth,
+    devices,
+    events,
+    geo,
+    inventory,
+    overview,
+    servers,
+    settings,
+    stream,
+    users,
+    webauthn,
+)
+from .seed import seed_admin, seed_hw_versions, seed_redis_configs
 from sqlalchemy import select
 
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
@@ -33,6 +45,7 @@ async def lifespan(app: FastAPI):
     await init_models()
     await seed_admin()
     await seed_redis_configs()
+    await seed_hw_versions()
     async with SessionLocal() as s:
         result = await s.execute(
             select(RedisServerConfig).where(RedisServerConfig.enabled.is_(True)).order_by(RedisServerConfig.id)
@@ -66,6 +79,7 @@ app.include_router(events.router)
 app.include_router(inventory.router)
 app.include_router(geo.router)
 app.include_router(servers.router)
+app.include_router(settings.router)
 app.include_router(stream.router)
 app.include_router(users.router)
 

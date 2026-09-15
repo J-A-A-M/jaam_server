@@ -2,6 +2,10 @@ import json
 import datetime
 import random
 import asyncio
+import hmac
+import hashlib
+import os
+import time
 
 TYPE_ALERTS_BATCH = 0xA1
 TYPE_NOTIFICATIONS_BATCH = 0xA2
@@ -10,6 +14,64 @@ TYPE_GRID_BATCH = 0xA4
 TYPE_RADIATION_BATCH = 0xA5
 TYPE_FIRMWARE_UPDATE_BETA_BATCH = 0xA6
 TYPE_FIRMWARE_UPDATE_PROD_BATCH = 0xA7
+# jaam_touch має власні opcodes — не перевикористовує 0xA6/0xA7 jaam_fusion,
+# щоб touch-прошивка не могла отримувати/парсити fusion-специфічні дані і навпаки.
+TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH = 0xA8
+TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH = 0xA9
+
+
+# --- Device auth (jaam_touch chip_id whitelist) -----------------------------
+# Секрет пристрою — похідний, не зберігається на сервері: derive_device_secret
+# з тим самим DEVICE_AUTH_MASTER_SECRET обчислюється і в admin_panel (щоб один раз
+# видати технiку), і тут (щоб перевірити HMAC від прошивки). У Redis/Postgres
+# зберігається лише secret_version+whitelisted, жодного секретного матеріалу.
+DEVICE_AUTH_MASTER_SECRET = (os.environ.get("DEVICE_AUTH_MASTER_SECRET") or "change-me-in-production").encode()
+DEVICE_AUTH_TS_WINDOW_S = 120
+
+
+def derive_device_secret(chip_id: str, secret_version: int) -> bytes:
+    return hmac.new(DEVICE_AUTH_MASTER_SECRET, f"{chip_id.upper()}:{secret_version}".encode(), hashlib.sha256).digest()
+
+
+async def verify_device_auth(redis_client, chip_id, ts_str, mac_hex, domain: str) -> tuple[bool, str]:
+    """Перевіряє HMAC-триплет (chip_id, ts, mac) пристрою jaam_touch проти whitelist у Redis.
+
+    `domain` розділяє контексти підпису (напр. "WS" чи "OTA:<filename>"), щоб захоплений
+    токен для одного контексту був непридатний для іншого. Повертає (ok, reason).
+    """
+    if not chip_id or not ts_str or not mac_hex:
+        return False, "missing_fields"
+    try:
+        ts = int(ts_str)
+    except (TypeError, ValueError):
+        return False, "bad_ts"
+    if abs(time.time() - ts) > DEVICE_AUTH_TS_WINDOW_S:
+        return False, "ts_out_of_window"
+
+    chip_id_upper = chip_id.upper()
+    auth = await redis_client.hgetall(f"device_auth:{chip_id_upper}")
+    if not auth or auth.get("whitelisted") != "1":
+        return False, "not_whitelisted"
+
+    try:
+        secret_version = int(auth.get("version", 0))
+    except (TypeError, ValueError):
+        secret_version = 0
+
+    secret = derive_device_secret(chip_id_upper, secret_version)
+    expected = hmac.new(secret, f"{domain}:{chip_id_upper}:{ts}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, mac_hex.lower()):
+        return False, "bad_mac"
+    return True, "ok"
+
+
+# Фільтр для бета-версій touch (одна апаратна версія — без c3/s3/lite винятків)
+def touch_beta_filter(name):
+    return "JAAM_TOUCH" in name and "-b" in name
+
+
+def touch_release_filter(name):
+    return "JAAM_TOUCH" in name and "-b" not in name
 
 
 def truncate_name(name, max_length=30):

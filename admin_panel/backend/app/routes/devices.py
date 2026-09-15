@@ -22,6 +22,8 @@ def _device_out(d: Device, reg: JaamMap | None, include_pii: bool = True) -> Dev
         # PII клієнтів — лише для адміністраторів
         out.order_number = reg.order_number if include_pii else None
         out.customer_info = reg.customer_info if include_pii else None
+        out.secret_version = reg.secret_version
+        out.whitelisted = reg.whitelisted
     return out
 
 
@@ -189,6 +191,8 @@ async def device_detail(
             is_prototype=reg.is_prototype,
             order_number=reg.order_number if is_admin else None,
             customer_info=reg.customer_info if is_admin else None,
+            secret_version=reg.secret_version,
+            whitelisted=reg.whitelisted,
         )
         return DeviceDetailOut(device=stub, sessions=[], events=[])
 

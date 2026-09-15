@@ -2,15 +2,17 @@
 
 import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import Integer, case, cast, func, or_, outerjoin, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..deps import get_current_user, require_admin
+from ..device_auth import derive_device_secret
 from ..models import Device, JaamMap
-from ..schemas import JaamMapIn, JaamMapListOut, JaamMapOut
+from ..redis_util import mirror_device_auth
+from ..schemas import JaamMapIn, JaamMapListOut, JaamMapOut, ProvisionOut, WhitelistIn
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -165,3 +167,56 @@ async def delete_map(
         raise HTTPException(status_code=404, detail="Запис не знайдено")
     await session.delete(m)
     await session.commit()
+
+
+@router.post("/{chip_id}/provision", response_model=ProvisionOut)
+async def provision_secret(
+    chip_id: str,
+    request: Request,
+    admin: dict = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Видає (ротує) device-secret для jaam_touch: bump secret_version, whitelisted=True,
+    дзеркалить {version, whitelisted} у Redis на всі сервери, повертає plaintext-секрет
+    ОДИН раз — ніде на сервері не зберігається (секрет — похідний від chip_id+version)."""
+    m = await session.get(JaamMap, chip_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Запис не знайдено")
+
+    m.secret_version += 1
+    m.whitelisted = True
+    await session.commit()
+
+    secret_hex = derive_device_secret(chip_id, m.secret_version).hex()
+    await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
+
+    return ProvisionOut(
+        chip_id=chip_id,
+        secret_hex=secret_hex,
+        secret_version=m.secret_version,
+        whitelisted=m.whitelisted,
+    )
+
+
+@router.patch("/{chip_id}/whitelist", response_model=JaamMapOut)
+async def set_whitelisted(
+    chip_id: str,
+    body: WhitelistIn,
+    request: Request,
+    admin: dict = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Вмикає/вимикає доступ пристрою без ротації секрету (напр. швидке відкликання
+    вкраденого/повернутого пристрою)."""
+    m = await session.get(JaamMap, chip_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Запис не знайдено")
+
+    m.whitelisted = body.whitelisted
+    await session.commit()
+    await session.refresh(m)
+
+    await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
+
+    device = await session.get(Device, chip_id)
+    return _to_out(m, device)

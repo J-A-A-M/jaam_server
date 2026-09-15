@@ -11,6 +11,7 @@ PING_TIMEOUT_COUNT=1
 LOGGING="WARNING"
 IP_INFO_TOKEN=""
 WEATHER_SOURCE="openmeteo"  # openweathermap or openmeteo
+DEVICE_AUTH_MASTER_SECRET="change-me-in-production"
 
 # Check for arguments
 while [[ $# -gt 0 ]]; do
@@ -53,6 +54,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -w|--weather-source)
             WEATHER_SOURCE="$2"
+            shift 2
+            ;;
+        -das|--device-auth-secret)
+            DEVICE_AUTH_MASTER_SECRET="$2"
             shift 2
             ;;
         *)
@@ -107,6 +112,7 @@ docker run --name map_websocket_server_dev \
     --env LOGGING="$LOGGING" \
     --env IP_INFO_TOKEN="$IP_INFO_TOKEN" \
     --env WEATHER_SOURCE="$WEATHER_SOURCE" \
+    --env DEVICE_AUTH_MASTER_SECRET="$DEVICE_AUTH_MASTER_SECRET" \
     map_websocket_server_dev
 
 echo "Container deployed successfully!"

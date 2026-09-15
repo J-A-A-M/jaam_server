@@ -16,6 +16,8 @@ try:
         get_file_names,
         release_filter,
         beta_filter,
+        touch_release_filter,
+        touch_beta_filter,
         Debouncer,
         Throttler,
         TYPE_ALERTS_BATCH,
@@ -33,6 +35,8 @@ except ImportError:
         get_file_names,
         release_filter,
         beta_filter,
+        touch_release_filter,
+        touch_beta_filter,
         Debouncer,
         Throttler,
         TYPE_ALERTS_BATCH,
@@ -99,6 +103,9 @@ redis_db = int(os.environ.get("REDIS_DB", 0))
 shared_path = os.environ.get("SHARED_PATH") or "/shared_data/releases"
 shared_path_beta = os.environ.get("SHARED_PATH_BETA") or "/shared_data/beta"
 sink_local_files = os.environ.get("SINK_LOCAL_FILES", "True").lower() == "true"
+# jaam_touch — окремий диск від jaam_fusion вище, не перетинається з shared_path/shared_path_beta.
+shared_path_touch = os.environ.get("SHARED_PATH_TOUCH") or "/shared_data/releases_touch"
+shared_path_touch_beta = os.environ.get("SHARED_PATH_TOUCH_BETA") or "/shared_data/beta_touch"
 fusion_alerts_debounce = float(os.environ.get("FUSION_ALERTS_DEBOUNCE", 1))
 fusion_alerts_throttle = float(os.environ.get("FUSION_ALERTS_THROTTLE", 0))
 fusion_etryvoga_throttle = float(os.environ.get("FUSION_ETRYVOGA_THROTTLE", 0))
@@ -515,6 +522,82 @@ async def update_releases_v1(redis_client, run_once=False):
     )
 
 
+async def update_releases_touch_v1(redis_client, run_once=False):
+    """Аналог update_releases_v1, але для окремого приватного репозиторію jaam_touch:
+    releases:touch:data -> releases:touch:production / releases:touch:beta, окремий диск
+    (shared_path_touch/shared_path_touch_beta) — не перетинається з jaam_fusion вище."""
+
+    async def process_releases():
+        try:
+            releases_cache, stored_data = await asyncio.gather(
+                get_redis_data(logger, redis_client, "releases:touch:data", default_response=[]),
+                get_redis_data(logger, redis_client, "releases:touch:production", default_response={}),
+            )
+
+            data = releases.select_release_files(
+                releases_cache,
+                lambda r: not r["prerelease"] and touch_release_filter(r["name"]),
+                get_file_names,
+                logger,
+                strip_pattern="JAAM_TOUCH_",
+                limit=5,
+            )
+            if data != stored_data:
+                if sink_local_files:
+                    await sync_local_files(data, shared_path_touch)
+
+                logger.debug("💾 Зберігаємо releases:touch:production")
+                await set_redis_data(logger, redis_client, "releases:touch:production", data)
+                await redis_client.publish("releases:touch:production:updated", "1")
+                logger.info("✅ releases:touch:production збережено")
+            else:
+                logger.info("ℹ️  releases:touch:production не змінився")
+        except Exception as e:
+            logger.error(f"❌ update_releases_touch_v1(process_releases): {str(e)}")
+            logger.debug("❌ Повний стек помилки:", exc_info=True)
+
+    async def process_beta():
+        try:
+            releases_cache, stored_data = await asyncio.gather(
+                get_redis_data(logger, redis_client, "releases:touch:data", default_response=[]),
+                get_redis_data(logger, redis_client, "releases:touch:beta", default_response={}),
+            )
+
+            data = releases.select_release_files(
+                releases_cache,
+                lambda r: touch_beta_filter(r["name"]),
+                get_file_names,
+                logger,
+                strip_pattern="JAAM_TOUCH_",
+                limit=10,
+            )
+            if data != stored_data:
+                if sink_local_files:
+                    await sync_local_files(data, shared_path_touch_beta)
+
+                logger.debug("💾 Зберігаємо releases:touch:beta")
+                await set_redis_data(logger, redis_client, "releases:touch:beta", data)
+                await redis_client.publish("releases:touch:beta:updated", "1")
+                logger.info("✅ releases:touch:beta збережено")
+            else:
+                logger.info("ℹ️  releases:touch:beta не змінився")
+        except Exception as e:
+            logger.error(f"❌ update_releases_touch_v1(process_beta): {str(e)}")
+            logger.debug("❌ Повний стек помилки:", exc_info=True)
+
+    async def process(_channel=None):
+        await asyncio.gather(process_releases(), process_beta())
+
+    await run_pubsub_loop(
+        redis_client,
+        ["releases:touch:data:updated"],
+        process,
+        "update_releases_touch_v1",
+        logger,
+        run_once=run_once,
+    )
+
+
 async def update_websocket_fusion_v1_alerts(redis_client, run_once=False):
     async def process_alerts(_channel=None):
         try:
@@ -863,6 +946,9 @@ async def main():
                 )
             ),
             asyncio.create_task(run_with_restart(logger, update_releases_v1, redis_client, "update_releases_v1")),
+            asyncio.create_task(
+                run_with_restart(logger, update_releases_touch_v1, redis_client, "update_releases_touch_v1")
+            ),
             asyncio.create_task(
                 run_with_restart(
                     logger, update_websocket_fusion_v1_alerts, redis_client, "update_websocket_fusion_v1_alerts"

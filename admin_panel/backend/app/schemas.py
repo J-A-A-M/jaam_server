@@ -72,6 +72,8 @@ class DeviceOut(BaseModel):
     is_prototype: bool | None = None
     order_number: str | None = None
     customer_info: str | None = None
+    secret_version: int = 0
+    whitelisted: bool = True
 
 
 class DeviceListOut(BaseModel):
@@ -164,6 +166,8 @@ class JaamMapOut(BaseModel):
     is_prototype: bool
     order_number: str | None
     customer_info: str | None
+    secret_version: int = 0
+    whitelisted: bool = True
     created_at: datetime.datetime
     updated_at: datetime.datetime
     # Склейка зі станом онлайн
@@ -179,6 +183,20 @@ class JaamMapListOut(BaseModel):
     page: int
     page_size: int
     items: list[JaamMapOut]
+
+
+class ProvisionOut(BaseModel):
+    """Відповідь на POST /api/inventory/{chip_id}/provision — секрет повертається
+    один раз і ніде на сервері не зберігається (лише secret_version+whitelisted)."""
+
+    chip_id: str
+    secret_hex: str
+    secret_version: int
+    whitelisted: bool
+
+
+class WhitelistIn(BaseModel):
+    whitelisted: bool
 
 
 class DayPoint(BaseModel):
@@ -239,6 +257,18 @@ class ServerStatus(BaseModel):
     ok: bool
     online: int
     checked_at: datetime.datetime
+
+
+class HardwareVersionIn(BaseModel):
+    name: str
+
+
+class HardwareVersionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    sort_order: int
 
 
 class RedisServerConfigIn(BaseModel):

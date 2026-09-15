@@ -25,6 +25,10 @@ try:
         beta_filter,
         release_filter,
         get_file_names,
+        touch_beta_filter,
+        touch_release_filter,
+        verify_device_auth,
+        DEVICE_AUTH_MASTER_SECRET,
     )
 except ImportError:
     parent_dir = Path(__file__).resolve().parent.parent
@@ -38,6 +42,10 @@ except ImportError:
         beta_filter,
         release_filter,
         get_file_names,
+        touch_beta_filter,
+        touch_release_filter,
+        verify_device_auth,
+        DEVICE_AUTH_MASTER_SECRET,
     )
 
 debug_level = os.environ.get("LOGGING") or "INFO"
@@ -51,6 +59,12 @@ shared_path = os.environ.get("SHARED_PATH") or "/shared_data/releases"
 shared_path_beta = os.environ.get("SHARED_PATH_BETA") or "/shared_data/beta"
 update_loop_time = int(os.environ.get("UPDATE_PERIOD", 3600))
 github_token = os.environ.get("GITHUB_TOKEN")  # Optional: для підвищення ліміту API
+
+# jaam_touch — повністю окремий пайплайн від jaam_fusion вище: власний приватний репозиторій,
+# власні шляхи/диск/Redis-ключі. Читання приватних релізів потребує github_token з repo-scope.
+github_repo_touch = os.environ.get("GITHUB_REPO_TOUCH") or "J-A-A-M/jaam_touch"
+shared_path_touch = os.environ.get("SHARED_PATH_TOUCH") or "/shared_data/releases_touch"
+shared_path_touch_beta = os.environ.get("SHARED_PATH_TOUCH_BETA") or "/shared_data/beta_touch"
 
 
 if not isinstance(port, int) or not (1024 <= port <= 65535):
@@ -175,6 +189,56 @@ async def fetch_github_releases():
         return None
 
 
+async def fetch_github_releases_touch():
+    """Те саме, що fetch_github_releases, але для приватного репозиторію jaam_touch.
+    Потребує github_token з repo-scope (приватний репозиторій)."""
+    try:
+        headers = {"Accept": "application/vnd.github+json"}
+        if github_token:
+            headers["Authorization"] = f"Bearer {github_token}"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://api.github.com/repos/{github_repo_touch}/releases",
+                headers=headers,
+                params={"per_page": 100},
+                timeout=10.0,
+            )
+            response.raise_for_status()
+            releases = response.json()
+
+            if "X-RateLimit-Remaining" in response.headers:
+                logger.info(
+                    f"GitHub API (touch) rate limit remaining: {response.headers['X-RateLimit-Remaining']}/{response.headers.get('X-RateLimit-Limit', 'unknown')}"
+                )
+            logger.info(f"Fetched {len(releases)} touch releases from GitHub")
+
+            files_with_urls = []
+            for release in releases:
+                if release.get("draft", False):
+                    logger.debug(f"Skipping draft touch release: {release.get('tag_name', 'unknown')}")
+                    continue
+
+                if "assets" in release:
+                    for asset in release["assets"]:
+                        name = asset["name"]
+                        if name.endswith(".bin"):
+                            files_with_urls.append(
+                                {
+                                    "name": name,
+                                    "tag": release["tag_name"],
+                                    "prerelease": release["prerelease"],
+                                    "url": asset["browser_download_url"],
+                                }
+                            )
+
+            logger.info(f"Filtered {len(files_with_urls)} touch .bin files")
+            return files_with_urls
+    except Exception as e:
+        logger.error(f"Error fetching touch releases from GitHub: {e}")
+        return None
+
+
 async def list(request):
     redis_client = request.app.state.redis_client
 
@@ -287,6 +351,50 @@ async def update_fusion_beta(request):
         raise HTTPException(status_code=404, detail=f"File {target_filename} not found")
 
 
+async def _check_touch_auth(request, filename: str):
+    """chip_id + HMAC(secret, 'OTA:<filename>:chip_id:ts') — domain включає ім'я файлу,
+    щоб захоплений токен для однієї версії був непридатний для іншої."""
+    redis_client = request.app.state.redis_client
+    qs = request.query_params
+    ok, reason = await verify_device_auth(
+        redis_client,
+        qs.get("chip_id"),
+        qs.get("ts"),
+        qs.get("mac"),
+        domain=f"OTA:{filename}",
+    )
+    if not ok:
+        raise HTTPException(status_code=401, detail=f"unauthorized: {reason}")
+
+
+async def update_touch(request):
+    filename = request.path_params["filename"]
+    await _check_touch_auth(request, filename)
+
+    redis_client = request.app.state.redis_client
+    files_data = await get_redis_data(logger, redis_client, "releases:touch:production", default_response=[])
+
+    target_filename = f"{filename}.bin"
+    for file_info in files_data:
+        if file_info["name"] == target_filename:
+            return FileResponse(f"{shared_path_touch}/{file_info['name']}")
+    raise HTTPException(status_code=404, detail=f"File {target_filename} not found")
+
+
+async def update_touch_beta(request):
+    filename = request.path_params["filename"]
+    await _check_touch_auth(request, filename)
+
+    redis_client = request.app.state.redis_client
+    files_data = await get_redis_data(logger, redis_client, "releases:touch:beta", default_response=[])
+
+    target_filename = f"{filename}.bin"
+    for file_info in files_data:
+        if file_info["name"] == target_filename:
+            return FileResponse(f"{shared_path_touch_beta}/{file_info['name']}")
+    raise HTTPException(status_code=404, detail=f"File {target_filename} not found")
+
+
 # Legacy function - disabled (shared_path not defined)
 # async def update_board(request):
 #     return FileResponse(f'{shared_path}/{request.path_params["board"]}/{request.path_params["filename"]}.bin')
@@ -354,6 +462,37 @@ async def update_cache(redis_client):
             await asyncio.sleep(update_loop_time)
 
 
+async def update_cache_touch(redis_client):
+    """Аналог update_cache, але для окремого приватного репозиторію jaam_touch
+    (releases:touch:data, а не releases:data — не перетинається з jaam_fusion)."""
+    while True:
+        try:
+            logger.debug("start update_cache_touch")
+
+            old_data = await get_redis_data(logger, redis_client, "releases:touch:data", default_response=[])
+
+            releases = await fetch_github_releases_touch()
+            if releases:
+                if releases != old_data:
+                    await set_redis_data(logger, redis_client, "releases:touch:data", releases)
+                    await redis_client.publish("releases:touch:data:updated", "1")
+                    logger.info(f"✅ Оновлені дані releases:touch:data {len(releases)} збережено в Redis")
+                else:
+                    logger.debug("⏭️  Дані touch не змінилися, пропускаємо збереження")
+            else:
+                logger.debug("❌  Дані touch відсутні, пропускаємо збереження")
+            logger.debug("end update_cache_touch")
+            await asyncio.sleep(update_loop_time)
+        except asyncio.CancelledError:
+            logger.error("❌ update_cache_touch: task canceled. Shutting down...")
+            await redis_client.close()
+            break
+        except Exception as e:
+            logger.error(f"❌ Error in update_cache_touch: {e}")
+            logger.debug(f"❌ Повний стек помилки:", exc_info=True)
+            await asyncio.sleep(update_loop_time)
+
+
 @asynccontextmanager
 async def lifespan(app: Starlette):
     # Startup: create Redis connection
@@ -378,16 +517,21 @@ async def lifespan(app: Starlette):
 
         # Start background tasks
         update_cache_task = asyncio.create_task(run_with_restart(logger, update_cache, redis_client, "update_cache"))
+        update_cache_touch_task = asyncio.create_task(
+            run_with_restart(logger, update_cache_touch, redis_client, "update_cache_touch")
+        )
 
         yield
 
         # Shutdown: cleanup
         logger.info("⏹️  Shutting down...")
         update_cache_task.cancel()
-        try:
-            await update_cache_task
-        except asyncio.CancelledError:
-            pass
+        update_cache_touch_task.cancel()
+        for task in (update_cache_task, update_cache_touch_task):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     except redis.ConnectionError as e:
         logger.error(f"❌ Failed to connect to Redis: {e}")
@@ -418,10 +562,19 @@ app = Starlette(
         Route("/beta/{filename}.bin", update_beta),
         Route("/fusion/{filename}.bin", update_fusion),
         Route("/fusion/beta/{filename}.bin", update_fusion_beta),
+        # jaam_touch: окремий, auth-gated пайплайн (див. _check_touch_auth) — ізольований
+        # від /fusion/*.bin вище.
+        Route("/touch/{filename}.bin", update_touch),
+        Route("/touch/beta/{filename}.bin", update_touch_beta),
         # Route("/{board}/{filename}.bin", update_board),
         # Route("/beta/{board}/{filename}.bin", update_beta_board),
     ],
 )
 
 if __name__ == "__main__":
+    if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
+        raise RuntimeError(
+            "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
+            "перед запуском — інакше auth-токени OTA-завантаження /touch/*.bin тривіально підробні."
+        )
     uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, forwarded_allow_ips=["*"])
