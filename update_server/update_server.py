@@ -232,7 +232,15 @@ async def fetch_github_releases_touch():
                                     "name": name,
                                     "tag": release["tag_name"],
                                     "prerelease": release["prerelease"],
-                                    "url": asset["browser_download_url"],
+                                    # asset["url"] (api.github.com/.../releases/assets/{id}), NOT
+                                    # browser_download_url - the latter is the web-UI download
+                                    # link and 404s for a private repo even with a valid Bearer
+                                    # token attached (it expects a browser session, not an API
+                                    # token). The API asset endpoint redirects to a signed,
+                                    # time-limited URL when hit with Accept: application/octet-
+                                    # stream + Authorization - see updater/files.py's
+                                    # download_file(), which sends exactly that.
+                                    "url": asset["url"],
                                 }
                             )
 
