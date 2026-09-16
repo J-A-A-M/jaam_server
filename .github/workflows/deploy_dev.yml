@@ -1,0 +1,22 @@
+name: 🧪 Deploy Dev Stack (Compose)
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        type: string
+        default: ''
+        description: >-
+          Сервіси для точкового оновлення, через пробіл (напр. "websocket_server_dev
+          admin_panel_dev"). Порожньо = підняти/оновити весь dev-стек.
+
+run-name: Deploy Dev Stack from '${{ github.ref_name }}' branch
+permissions:
+  contents: read
+jobs:
+  stub:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder
+        run: |
+          echo "Це заглушка на develop - реальна логіка деплою dev-стеку ще не змержена сюди."
+          echo "Диспатч з --ref на гілку, де є повна версія цього файлу (docker-compose.dev.yml + SSH-деплой), виконає ЇЇ версію workflow, не цю."
