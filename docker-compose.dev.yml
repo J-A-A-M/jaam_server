@@ -11,8 +11,8 @@
 # DEV_ADMIN_PANEL_JWT_SECRET, DEV_DEVICE_AUTH_MASTER_SECRET, DEV_CLOUDFLARE_TUNNEL_TOKEN
 # (генерується .github/workflows/deploy_dev.yml з GitHub Actions secrets) + ті самі зовнішні
 # API-ключі, що вже використовує prod (WEATHER_TOKEN, SAVEECOBOT_*, UKRENERGO_*,
-# AIR_ALARM_API_KEY, ETRYVOGA_WS_HOST, ALERTS_HTTP_*, PROXIES, WEB_TOKEN, WS_SERVERS_LIST,
-# IP_INFO_TOKEN) - спільні з prod, окремого dev-варіанту не потребують (див. план,
+# AIR_ALARM_API_KEY, ETRYVOGA_WS_HOST, ALERTS_HTTP_*, PROXIES, WEB_TOKEN, IP_INFO_TOKEN) -
+# спільні з prod, окремого dev-варіанту не потребують (див. план,
 # "Нові секрети").
 #
 # WS (websocket_server_dev) свідомо НЕ йде через cloudflared_dev - прямий проброшений порт,
@@ -205,7 +205,10 @@ services:
       REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
       REDIS_DB: 0
       LOGGING: WARNING
-      WS_SERVERS: ${WS_SERVERS_LIST}
+      # Не перевикористовуємо WS_SERVERS_LIST (prod-секрет, значення саме по собі містить
+      # зайві одинарні лапки - не наша проблема цього деплою, лишаємо як є) - dev не показує
+      # реальний статус prod WS-серверів, {} - валідний порожній список, код це підтримує.
+      WS_SERVERS: "{}"
     # HEALTHCHECK вже в web_server/Dockerfile (urllib GET /healthz)
 
   weather_openmeteo_dev:
