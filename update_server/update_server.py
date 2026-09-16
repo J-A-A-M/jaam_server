@@ -365,14 +365,20 @@ async def update_fusion_beta(request):
 
 async def _check_touch_auth(request, filename: str):
     """chip_id + HMAC(secret, 'OTA:<filename>:chip_id:ts') — domain включає ім'я файлу,
-    щоб захоплений токен для однієї версії був непридатний для іншої."""
+    щоб захоплений токен для однієї версії був непридатний для іншої.
+
+    Triplet приходить у HTTP-заголовках (X-Chip-Id/X-Ts/X-Mac), НЕ query-string - Cloudflare
+    (принаймні на dev-update.jaam.net.ua, за замовчуванням, без жодного Page Rule) обрізає
+    query-string для будь-якого шляху, що закінчується на розпізнане "статичне" розширення
+    типу .bin, ще до origin - підтверджено прямим порівнянням: той самий запит на /healthz
+    (без .bin) зберігав query-string, а на /touch/beta/<x>.bin - ні. Заголовки цій евристиці
+    не підлягають."""
     redis_client = request.app.state.redis_client
-    qs = request.query_params
     ok, reason = await verify_device_auth(
         redis_client,
-        qs.get("chip_id"),
-        qs.get("ts"),
-        qs.get("mac"),
+        request.headers.get("x-chip-id"),
+        request.headers.get("x-ts"),
+        request.headers.get("x-mac"),
         domain=f"OTA:{filename}",
     )
     if not ok:
