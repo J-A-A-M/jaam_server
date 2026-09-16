@@ -19,6 +19,15 @@
 # як і сьогодні на prod. Cloudflare Tunnel завжди термінує TLS клієнт-side, і форсити wss://
 # на ESP32-пристроях лише для dev тестувало б інший шлях, ніж prod. OTA (update_server_dev)
 # вже й так HTTPS - той код лишається без змін.
+#
+# nginx_dev: окремий nginx-контейнер, живе ЛИШЕ в цьому стеку (jaam-dev мережа, власний
+# nginx/nginx.dev.conf) - НЕ підключений до prod-мережі jaam і не чіпає nginx/nginx.conf.
+# Prod nginx вже займає host-порт 80 на єдиній публічній IP Server 2, тому "порт 80 як на
+# проді" для dev неможливий без даунтайму prod - замість цього обрано вільний host-порт 8081
+# (перевірено `ss -tlnp` на Server 2 перед вибором). Пристрої йдуть на dev-ws-direct.jaam.net.ua:8081
+# -> nginx_dev -> map_websocket_server_dev:38447, а не на прямий 38447 - той порт лишається
+# опублікованим окремо як прямий шлях для діагностики, дзеркалячи те, що на проді nginx і
+# map_websocket_server теж співіснують (обидва мають прямий доступ ззовні).
 
 networks:
   jaam-dev:
@@ -81,6 +90,25 @@ services:
       TUNNEL_TOKEN: ${DEV_CLOUDFLARE_TUNNEL_TOKEN}
     # Офіційний образ вже має власний HEALTHCHECK - нічого додавати не треба
     # (підтверджено в сусідньому проєкті: усі tunnel-контейнери показують healthy).
+
+  nginx_dev:
+    image: nginx:latest
+    container_name: nginx_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      websocket_server_dev:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # --- Фаза 1: ядро для jaam_touch ---
 
