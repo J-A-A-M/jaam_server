@@ -30,8 +30,12 @@ services:
 
   redis_dev:
     build:
-      context: .
-      dockerfile: redis/Dockerfile
+      # redis/Dockerfile COPYs docker-entrypoint.sh with no directory prefix (matches how
+      # redeploy_redis.sh builds it: `cd redis && docker build -f Dockerfile .`) - every
+      # other service's Dockerfile prefixes COPY paths with its own dir and uses repo-root
+      # context instead, this one doesn't.
+      context: ./redis
+      dockerfile: Dockerfile
     container_name: redis_dev
     restart: unless-stopped
     networks: [jaam-dev]
