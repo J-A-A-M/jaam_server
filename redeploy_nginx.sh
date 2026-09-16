@@ -104,11 +104,5 @@ docker run --name nginx \
     -v "$LOGGING_PATH":/var/log/nginx \
     nginx:latest
 
-# Also join jaam-dev so nginx can resolve/reach dev-stack containers by name (e.g.
-# map_websocket_server_dev for the dev-ws-direct.jaam.net.ua:80 block) - `docker run` only
-# takes one --network, so this is a second, separate attach. Safe to ignore if the network
-# doesn't exist yet (e.g. before the dev stack's first deploy).
-docker network connect jaam-dev nginx 2>/dev/null || true
-
 echo "Container deployed successfully!"
 
