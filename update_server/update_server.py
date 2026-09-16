@@ -3,6 +3,8 @@ import uvicorn
 import logging
 import json
 import asyncio
+import hashlib
+import hmac
 import httpx
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
@@ -28,6 +30,7 @@ try:
         touch_beta_filter,
         touch_release_filter,
         verify_device_auth,
+        derive_device_secret,
         DEVICE_AUTH_MASTER_SECRET,
     )
 except ImportError:
@@ -45,6 +48,7 @@ except ImportError:
         touch_beta_filter,
         touch_release_filter,
         verify_device_auth,
+        derive_device_secret,
         DEVICE_AUTH_MASTER_SECRET,
     )
 
@@ -367,6 +371,53 @@ async def _check_touch_auth(request, filename: str):
         raise HTTPException(status_code=401, detail=f"unauthorized: {reason}")
 
 
+CLAIM_MAX_ATTEMPTS = 5
+CLAIM_REJECT_DELAY_S = 1.5  # невелика затримка на невдалій спробі - не робить oracle миттєвим
+
+
+async def claim_touch_secret(request):
+    """Кінцевий користувач: chip_id + короткий одноразовий код (видає admin_panel's
+    "Видати код активації") замість Serial PROVISION з комп'ютера. device_claim:<CHIP_ID>
+    (code_hash, attempts, TTL) мирориться сюди з admin_panel при видачі коду - тут лише
+    звіряємо хеш і за збігу віддаємо той самий похідний секрет, що verify_device_auth рахує
+    для звичайної WS/OTA перевірки. Одноразовий - ключ видаляється одразу після успіху; на
+    CLAIM_MAX_ATTEMPTS невдалих спроб код теж згорає, щоб не давати необмежений перебір."""
+    redis_client = request.app.state.redis_client
+    body = await request.json()
+    chip_id = body.get("chip_id")
+    code = body.get("code")
+    if not chip_id or not code:
+        raise HTTPException(status_code=400, detail="chip_id and code required")
+
+    chip_id_upper = chip_id.upper()
+    key = f"device_claim:{chip_id_upper}"
+    ticket = await redis_client.hgetall(key)
+    if not ticket:
+        await asyncio.sleep(CLAIM_REJECT_DELAY_S)
+        raise HTTPException(status_code=401, detail="invalid or expired code")
+
+    code_hash = hashlib.sha256(code.encode()).hexdigest()
+    if not hmac.compare_digest(code_hash, ticket.get("code_hash", "")):
+        attempts = await redis_client.hincrby(key, "attempts", 1)
+        if attempts >= CLAIM_MAX_ATTEMPTS:
+            await redis_client.delete(key)
+            logger.warning(f"{chip_id_upper} !!! claim code burned after {attempts} failed attempts")
+        await asyncio.sleep(CLAIM_REJECT_DELAY_S)
+        raise HTTPException(status_code=401, detail="invalid or expired code")
+
+    await redis_client.delete(key)  # одноразовий - незалежно від подальшого результату
+
+    auth = await redis_client.hgetall(f"device_auth:{chip_id_upper}")
+    try:
+        secret_version = int(auth.get("version", 0))
+    except (TypeError, ValueError):
+        secret_version = 0
+
+    secret_hex = derive_device_secret(chip_id_upper, secret_version).hex()
+    logger.info(f"{chip_id_upper} >>> claimed secret_version={secret_version} via claim code")
+    return JSONResponse({"chip_id": chip_id_upper, "secret_hex": secret_hex, "secret_version": secret_version})
+
+
 async def update_touch(request):
     filename = request.path_params["filename"]
     await _check_touch_auth(request, filename)
@@ -571,6 +622,9 @@ app = Starlette(
         # від /fusion/*.bin вище.
         Route("/touch/{filename}.bin", update_touch),
         Route("/touch/beta/{filename}.bin", update_touch_beta),
+        # Кінцевий користувач активує пристрій коротким кодом замість Serial PROVISION -
+        # не потребує auth-заголовків, самé тіло запиту (chip_id+code) є авторизацією.
+        Route("/touch/claim", claim_touch_secret, methods=["POST"]),
         # Route("/{board}/{filename}.bin", update_board),
         # Route("/beta/{board}/{filename}.bin", update_beta_board),
     ],

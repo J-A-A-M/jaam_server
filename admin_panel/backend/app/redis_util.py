@@ -130,7 +130,9 @@ async def count_clients(client: redis.Redis) -> int:
     return total
 
 
-async def mirror_device_auth(servers: list[RedisServer], chip_id: str, secret_version: int, whitelisted: bool) -> None:
+async def mirror_device_auth(
+    servers: list[RedisServer], chip_id: str, secret_version: int, whitelisted: bool
+) -> None:
     """Дзеркалить {version, whitelisted} для chip_id у device_auth:<CHIP_ID> на всі сервери.
 
     Postgres (jaam_maps) — одна спільна база без поділу на середовища, тому пишемо
@@ -140,9 +142,41 @@ async def mirror_device_auth(servers: list[RedisServer], chip_id: str, secret_ve
     сам секрет — похідний (device_auth.derive_device_secret) і ніде не зберігається.
     """
     key = f"device_auth:{chip_id.upper()}"
-    mapping = {"version": str(secret_version), "whitelisted": "1" if whitelisted else "0"}
+    mapping = {
+        "version": str(secret_version),
+        "whitelisted": "1" if whitelisted else "0",
+    }
     for server in servers:
         try:
             await server.client.hset(key, mapping=mapping)
         except Exception as exc:  # noqa: BLE001
-            logger.error("Не вдалося дзеркалити device_auth для %s на %s: %s", chip_id, server.name, exc)
+            logger.error(
+                "Не вдалося дзеркалити device_auth для %s на %s: %s",
+                chip_id,
+                server.name,
+                exc,
+            )
+
+
+async def mirror_claim_code(
+    servers: list[RedisServer], chip_id: str, code_hash: str, ttl_s: int
+) -> None:
+    """Пише одноразовий квиток активації device_claim:<CHIP_ID> ({code_hash, attempts=0}, TTL)
+    на всі сервери - update_server's /touch/claim звіряє код пристрою з ним і сам похідний
+    секрет (не тут) віддає за matching-ом. TTL - єдине джерело "минув термін дії", Postgres
+    нічого про сам код не зберігає (лише secret_version, який уже мирориться mirror_device_auth
+    окремим викликом до цього)."""
+    key = f"device_claim:{chip_id.upper()}"
+    for server in servers:
+        try:
+            await server.client.hset(
+                key, mapping={"code_hash": code_hash, "attempts": "0"}
+            )
+            await server.client.expire(key, ttl_s)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Не вдалося дзеркалити claim-код для %s на %s: %s",
+                chip_id,
+                server.name,
+                exc,
+            )

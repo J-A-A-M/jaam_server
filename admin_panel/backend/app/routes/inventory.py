@@ -1,6 +1,8 @@
 """Реєстр офіційних JAAM-мап (jaam_maps): CRUD, склейка зі станом онлайн."""
 
 import datetime
+import hashlib
+import secrets as pysecrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import Integer, case, cast, func, or_, outerjoin, select
@@ -11,8 +13,20 @@ from ..db import get_session
 from ..deps import get_current_user, require_admin
 from ..device_auth import derive_device_secret
 from ..models import Device, JaamMap
-from ..redis_util import mirror_device_auth
-from ..schemas import JaamMapIn, JaamMapListOut, JaamMapOut, ProvisionOut, WhitelistIn
+from ..redis_util import mirror_claim_code, mirror_device_auth
+from ..schemas import (
+    ClaimCodeOut,
+    JaamMapIn,
+    JaamMapListOut,
+    JaamMapOut,
+    ProvisionOut,
+    WhitelistIn,
+)
+
+# Без неоднозначних символів (0/O, 1/I) - код читають/диктують вголос кінцевому користувачу.
+_CLAIM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+_CLAIM_CODE_LENGTH = 8
+_CLAIM_CODE_TTL_S = 24 * 3600
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -56,8 +70,12 @@ def _to_out(m: JaamMap, device: Device | None, include_pii: bool = True) -> Jaam
 async def list_maps(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-    q: str | None = Query(None, description="Пошук за chip_id / map_id / order / customer_info"),
-    status_: str | None = Query(None, alias="status", description="online|offline|never"),
+    q: str | None = Query(
+        None, description="Пошук за chip_id / map_id / order / customer_info"
+    ),
+    status_: str | None = Query(
+        None, alias="status", description="online|offline|never"
+    ),
     is_prototype: bool | None = None,
     sort: str = "chip_id",
     order: str = "asc",
@@ -86,11 +104,16 @@ async def list_maps(
         filters.append(Device.chip_id.is_(None))
 
     total = await session.scalar(
-        select(func.count()).select_from(JaamMap).outerjoin(Device, JaamMap.chip_id == Device.chip_id).where(*filters)
+        select(func.count())
+        .select_from(JaamMap)
+        .outerjoin(Device, JaamMap.chip_id == Device.chip_id)
+        .where(*filters)
     )
 
     sort_col = _SORT_COLUMNS.get(sort, JaamMap.chip_id)
-    sort_expr = sort_col.desc().nulls_last() if order == "desc" else sort_col.asc().nulls_last()
+    sort_expr = (
+        sort_col.desc().nulls_last() if order == "desc" else sort_col.asc().nulls_last()
+    )
 
     result = await session.execute(
         select(JaamMap, Device)
@@ -129,7 +152,9 @@ async def create_map(
         await session.commit()
     except IntegrityError:
         await session.rollback()
-        raise HTTPException(status_code=409, detail="Мапа з таким chip_id вже є в реєстрі")
+        raise HTTPException(
+            status_code=409, detail="Мапа з таким chip_id вже є в реєстрі"
+        )
     await session.refresh(m)
     device = await session.get(Device, chip_id)
     return _to_out(m, device)
@@ -178,7 +203,8 @@ async def provision_secret(
 ):
     """Видає (ротує) device-secret для jaam_touch: bump secret_version, whitelisted=True,
     дзеркалить {version, whitelisted} у Redis на всі сервери, повертає plaintext-секрет
-    ОДИН раз — ніде на сервері не зберігається (секрет — похідний від chip_id+version)."""
+    ОДИН раз — ніде на сервері не зберігається (секрет — похідний від chip_id+version).
+    """
     m = await session.get(JaamMap, chip_id)
     if not m:
         raise HTTPException(status_code=404, detail="Запис не знайдено")
@@ -188,13 +214,56 @@ async def provision_secret(
     await session.commit()
 
     secret_hex = derive_device_secret(chip_id, m.secret_version).hex()
-    await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
+    await mirror_device_auth(
+        request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted
+    )
 
     return ProvisionOut(
         chip_id=chip_id,
         secret_hex=secret_hex,
         secret_version=m.secret_version,
         whitelisted=m.whitelisted,
+    )
+
+
+@router.post("/{chip_id}/claim-code", response_model=ClaimCodeOut)
+async def issue_claim_code(
+    chip_id: str,
+    request: Request,
+    admin: dict = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Для кінцевого користувача, не техніка з серійним портом: ротує secret_version (як і
+    /provision), але замість 64-символьного hex видає короткий одноразовий код (24г). Пристрій
+    сам забирає похідний секрет через POST /touch/claim на update_server (chip_id+code) -
+    жодного комп'ютера чи кабелю не потрібно, лише WiFi. Код ніде не зберігається у відкритому
+    вигляді - лише SHA-256 хеш, мирориться в Redis (device_claim:<CHIP_ID>, TTL) тим самим
+    шляхом, яким /provision мирориться device_auth."""
+    m = await session.get(JaamMap, chip_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Запис не знайдено")
+
+    m.secret_version += 1
+    m.whitelisted = True
+    await session.commit()
+
+    code = "".join(
+        pysecrets.choice(_CLAIM_CODE_ALPHABET) for _ in range(_CLAIM_CODE_LENGTH)
+    )
+    code_hash = hashlib.sha256(code.encode()).hexdigest()
+
+    await mirror_device_auth(
+        request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted
+    )
+    await mirror_claim_code(
+        request.app.state.redis_servers, chip_id, code_hash, _CLAIM_CODE_TTL_S
+    )
+
+    return ClaimCodeOut(
+        chip_id=chip_id,
+        claim_code=code,
+        secret_version=m.secret_version,
+        expires_in_s=_CLAIM_CODE_TTL_S,
     )
 
 
@@ -216,7 +285,9 @@ async def set_whitelisted(
     await session.commit()
     await session.refresh(m)
 
-    await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
+    await mirror_device_auth(
+        request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted
+    )
 
     device = await session.get(Device, chip_id)
     return _to_out(m, device)

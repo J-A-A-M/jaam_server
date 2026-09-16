@@ -185,6 +185,16 @@ class JaamMapListOut(BaseModel):
     items: list[JaamMapOut]
 
 
+class ClaimCodeOut(BaseModel):
+    """Відповідь на POST /api/inventory/{chip_id}/claim-code — код показується один раз,
+    сервер зберігає лише його SHA-256 (у Redis, з TTL), не сам код."""
+
+    chip_id: str
+    claim_code: str
+    secret_version: int
+    expires_in_s: int
+
+
 class ProvisionOut(BaseModel):
     """Відповідь на POST /api/inventory/{chip_id}/provision — секрет повертається
     один раз і ніде на сервері не зберігається (лише secret_version+whitelisted)."""
