@@ -1,6 +1,6 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type JaamMap, type JaamMapInput, type ProvisionResult } from "@/lib/api";
+import { api, type ClaimCodeResult, type JaamMap, type JaamMapInput, type ProvisionResult } from "@/lib/api";
 import { Badge, Button, Input, Modal, Select, Spinner, Textarea } from "@/components/ui";
 import { useAuth } from "@/components/AuthContext";
 
@@ -30,6 +30,10 @@ export function JaamMapModal({ open, onClose, editing, defaultChipId, onSuccess 
   // Секрет повертається лише один раз, одразу у відповіді на provision — сервер його ніде
   // не зберігає, тож показуємо саме цей результат, поки модалка не закриється/не перезайде.
   const [provisioned, setProvisioned] = React.useState<ProvisionResult | null>(null);
+  // Так само одноразовий - показується лише в цій відповіді, ніде на сервері не зберігається
+  // (лише SHA-256 хеш у Redis з TTL). Незалежний від provisioned - адмін бачить, який саме
+  // з двох щойно видав.
+  const [claimed, setClaimed] = React.useState<ClaimCodeResult | null>(null);
   const [whitelisted, setWhitelisted] = React.useState(true);
   const [secretVersion, setSecretVersion] = React.useState(0);
 
@@ -51,6 +55,7 @@ export function JaamMapModal({ open, onClose, editing, defaultChipId, onSuccess 
       setSecretVersion(0);
     }
     setProvisioned(null);
+    setClaimed(null);
     setError("");
   }, [editing, defaultChipId, open]);
 
@@ -58,7 +63,21 @@ export function JaamMapModal({ open, onClose, editing, defaultChipId, onSuccess 
     mutationFn: () => api.provisionDevice(editing!.chip_id),
     onSuccess: (res) => {
       setProvisioned(res);
+      setClaimed(null);
       setWhitelisted(res.whitelisted);
+      setSecretVersion(res.secret_version);
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["device"] });
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const claimCodeMut = useMutation({
+    mutationFn: () => api.issueClaimCode(editing!.chip_id),
+    onSuccess: (res) => {
+      setClaimed(res);
+      setProvisioned(null);
+      setWhitelisted(true);
       setSecretVersion(res.secret_version);
       qc.invalidateQueries({ queryKey: ["inventory"] });
       qc.invalidateQueries({ queryKey: ["device"] });
@@ -146,9 +165,19 @@ export function JaamMapModal({ open, onClose, editing, defaultChipId, onSuccess 
                 type="button"
                 onClick={() => provisionMut.mutate()}
                 disabled={provisionMut.isPending}
+                title="Секрет одразу в hex-вигляді — для техніка з серійним кабелем (PROVISION у serial-монітор)"
                 className="ml-auto rounded border border-border/[0.1] px-3 py-1.5 text-xs transition hover:bg-muted hover:text-foreground disabled:opacity-40"
               >
                 {provisionMut.isPending ? <Spinner /> : secretVersion > 0 ? "Перевидати секрет" : "Видати секрет"}
+              </button>
+              <button
+                type="button"
+                onClick={() => claimCodeMut.mutate()}
+                disabled={claimCodeMut.isPending}
+                title="Короткий одноразовий код (24г) — кінцевий користувач вводить його на екрані пристрою (Меню > Про пристрій > Ввести код активації), без комп'ютера"
+                className="rounded border border-border/[0.1] px-3 py-1.5 text-xs transition hover:bg-muted hover:text-foreground disabled:opacity-40"
+              >
+                {claimCodeMut.isPending ? <Spinner /> : "Видати код активації"}
               </button>
               <button
                 type="button"
@@ -169,6 +198,23 @@ export function JaamMapModal({ open, onClose, editing, defaultChipId, onSuccess 
                   <button
                     type="button"
                     onClick={() => navigator.clipboard?.writeText(provisioned.secret_hex)}
+                    className="shrink-0 rounded border border-border/[0.1] px-2 py-1 text-xs transition hover:bg-muted hover:text-foreground"
+                  >
+                    Копіювати
+                  </button>
+                </div>
+              </div>
+            )}
+            {claimed && (
+              <div className="space-y-1 rounded border border-primary/30 bg-primary/5 p-2">
+                <div className="text-xs text-danger">
+                  Код показується лише один раз, діє {Math.round(claimed.expires_in_s / 3600)} год і одноразовий — передайте користувачу зараз.
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 select-all break-all rounded bg-muted px-2 py-1 text-base tracking-wider">{claimed.claim_code}</code>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(claimed.claim_code)}
                     className="shrink-0 rounded border border-border/[0.1] px-2 py-1 text-xs transition hover:bg-muted hover:text-foreground"
                   >
                     Копіювати

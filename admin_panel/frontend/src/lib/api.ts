@@ -57,6 +57,15 @@ export interface ProvisionResult {
   whitelisted: boolean;
 }
 
+// POST /api/inventory/{chip_id}/claim-code — короткий одноразовий код (24г) для активації
+// пристрою через WiFi (ClaimScreen), замість 64-символьного секрету по Serial.
+export interface ClaimCodeResult {
+  chip_id: string;
+  claim_code: string;
+  secret_version: number;
+  expires_in_s: number;
+}
+
 export interface JaamMapList {
   total: number;
   page: number;
@@ -336,6 +345,8 @@ export const api = {
     req<void>(`/api/inventory/${encodeURIComponent(chipId)}`, { method: "DELETE" }),
   provisionDevice: (chipId: string) =>
     req<ProvisionResult>(`/api/inventory/${encodeURIComponent(chipId)}/provision`, { method: "POST" }),
+  issueClaimCode: (chipId: string) =>
+    req<ClaimCodeResult>(`/api/inventory/${encodeURIComponent(chipId)}/claim-code`, { method: "POST" }),
   setDeviceWhitelisted: (chipId: string, whitelisted: boolean) =>
     req<JaamMap>(`/api/inventory/${encodeURIComponent(chipId)}/whitelist`, {
       method: "PATCH",
