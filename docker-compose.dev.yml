@@ -1,0 +1,348 @@
+# Ізольований dev/staging-стенд jaam_server на Server 2, окремо від prod (мережа `jaam`,
+# Redis, Postgres, nginx) - див. /root/.claude/plans/spicy-cuddling-shamir.md для повного
+# обґрунтування архітектури.
+#
+# Запуск (завжди з project name jaam-dev, щоб Compose неймспейсив мережу/volume-и/контейнери
+# окремо від будь-якого іншого стеку на цьому хості):
+#   docker compose -f docker-compose.dev.yml -p jaam-dev up -d --build
+#   docker compose -f docker-compose.dev.yml -p jaam-dev up -d --build <service1> <service2>  # точково
+#
+# Потребує .env поруч (не комітиться) з: DEV_REDIS_PASSWORD, DEV_ADMIN_PANEL_DB_PASSWORD,
+# DEV_ADMIN_PANEL_JWT_SECRET, DEV_DEVICE_AUTH_MASTER_SECRET, DEV_CLOUDFLARE_TUNNEL_TOKEN
+# (генерується .github/workflows/deploy_dev.yml з GitHub Actions secrets) + ті самі зовнішні
+# API-ключі, що вже використовує prod (WEATHER_TOKEN, SAVEECOBOT_*, UKRENERGO_*,
+# AIR_ALARM_API_KEY, ETRYVOGA_WS_HOST, ALERTS_HTTP_*, PROXIES, WEB_TOKEN, WS_SERVERS_LIST,
+# IP_INFO_TOKEN) - спільні з prod, окремого dev-варіанту не потребують (див. план,
+# "Нові секрети").
+#
+# WS (websocket_server_dev) свідомо НЕ йде через cloudflared_dev - прямий проброшений порт,
+# як і сьогодні на prod. Cloudflare Tunnel завжди термінує TLS клієнт-side, і форсити wss://
+# на ESP32-пристроях лише для dev тестувало б інший шлях, ніж prod. OTA (update_server_dev)
+# вже й так HTTPS - той код лишається без змін.
+
+networks:
+  jaam-dev:
+    name: jaam-dev
+    driver: bridge
+
+services:
+  # --- Інфраструктура ---
+
+  redis_dev:
+    build:
+      context: .
+      dockerfile: redis/Dockerfile
+    container_name: redis_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    volumes:
+      - /shared_data_dev/redis:/data
+    environment:
+      REDIS_PORT: 6379
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_SAVE_INTERVAL: "900 1 300 10 60 10000"
+      REDIS_APPENDONLY: "yes"
+      LOGGING: INFO
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${DEV_REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres_dev:
+    image: postgres:16-alpine
+    container_name: postgres_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    volumes:
+      - /shared_data_dev/postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: jaam
+      POSTGRES_PASSWORD: ${DEV_ADMIN_PANEL_DB_PASSWORD}
+      POSTGRES_DB: jaam_admin_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jaam -d jaam_admin_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cloudflared_dev:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${DEV_CLOUDFLARE_TUNNEL_TOKEN}
+    # Офіційний образ вже має власний HEALTHCHECK - нічого додавати не треба
+    # (підтверджено в сусідньому проєкті: усі tunnel-контейнери показують healthy).
+
+  # --- Фаза 1: ядро для jaam_touch ---
+
+  websocket_server_dev:
+    build:
+      context: .
+      dockerfile: websocket_server/Dockerfile
+    container_name: map_websocket_server_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    ports:
+      - "38447:38447" # прямий проброс, НЕ через cloudflared_dev - див. коментар зверху файлу
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      WEBSOCKET_PORT: 38447
+      PING_INTERVAL: 60
+      PING_TIMEOUT: 30
+      PING_TIMEOUT_COUNT: 1
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      LOGGING: DEBUG
+      IP_INFO_TOKEN: ${IP_INFO_TOKEN}
+      WEATHER_SOURCE: openmeteo
+      DEVICE_AUTH_MASTER_SECRET: ${DEV_DEVICE_AUTH_MASTER_SECRET}
+    # HEALTHCHECK вже в websocket_server/Dockerfile (curl-less urllib GET /healthz)
+
+  updater_dev:
+    build:
+      context: .
+      dockerfile: updater/Dockerfile
+    container_name: map_updater_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    volumes:
+      - /shared_data_dev:/shared_data
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      LOGGING: INFO
+    # HEALTHCHECK вже в updater/Dockerfile (heartbeat_loop -> updater:heartbeat:last_call)
+
+  update_server_dev:
+    build:
+      context: .
+      dockerfile: update_server/Dockerfile
+    container_name: map_update_server_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    volumes:
+      - /shared_data_dev:/shared_data
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      PORT: 8090
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      GITHUB_TOKEN: ${G_TOKEN}
+      LOGGING: INFO
+      DEVICE_AUTH_MASTER_SECRET: ${DEV_DEVICE_AUTH_MASTER_SECRET}
+    # HEALTHCHECK вже в update_server/Dockerfile (urllib GET /healthz)
+
+  admin_panel_dev:
+    build:
+      context: ./admin_panel
+      dockerfile: Dockerfile
+    container_name: jaam_admin_panel_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    depends_on:
+      postgres_dev:
+        condition: service_healthy
+      redis_dev:
+        condition: service_healthy
+    environment:
+      PORT: "8099"
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: "0"
+      DATABASE_URL: postgresql+asyncpg://jaam:${DEV_ADMIN_PANEL_DB_PASSWORD}@postgres_dev:5432/jaam_admin_dev
+      JWT_SECRET: ${DEV_ADMIN_PANEL_JWT_SECRET}
+      DEVICE_AUTH_MASTER_SECRET: ${DEV_DEVICE_AUTH_MASTER_SECRET}
+      ADMIN_USER: admin
+      # Окремого секрету не заведено навмисно - dev-стенд без реальних даних, не варто ще
+      # одного GitHub secret заради логін-пароля до ізольованого середовища. Змінити тут
+      # вручну в .env на сервері, якщо потрібен нетривіальний пароль.
+      ADMIN_PASSWORD: dev-jaam-admin
+      COLLECT_INTERVAL: "20"
+      COOKIE_SECURE: "true"
+      LOGGING: INFO
+      SERVER_TZ: Europe/Kyiv
+      APP_ORIGIN: https://dev-admin.jaam.net.ua
+      RP_ID: dev-admin.jaam.net.ua
+    # HEALTHCHECK вже в admin_panel/Dockerfile (urllib GET /api/health)
+
+  # --- Фаза 2: паритет ---
+
+  web_server_dev:
+    build:
+      context: .
+      dockerfile: web_server/Dockerfile
+    container_name: map_web_server_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    volumes:
+      - /shared_data_dev:/shared_data
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      DATA_TOKEN: ${WEB_TOKEN}
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      LOGGING: WARNING
+      WS_SERVERS: ${WS_SERVERS_LIST}
+    # HEALTHCHECK вже в web_server/Dockerfile (urllib GET /healthz)
+
+  weather_openmeteo_dev:
+    build:
+      context: .
+      dockerfile: weather_openmeteo/Dockerfile
+    container_name: map_weather_openmeteo_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      OPENMETEO_PERIOD: 3600
+      OPENMETEO_PARAMS: "temperature_2m,relative_humidity_2m,weather_code"
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      LOGGING: INFO
+    # HEALTHCHECK вже в Dockerfile (weather:openmeteo:last_call)
+
+  alerts_dev:
+    build:
+      context: .
+      dockerfile: alerts/Dockerfile
+    container_name: map_alerts_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      ALERT_TOKEN: ${AIR_ALARM_API_KEY}
+      ALERT_PERIOD: 10
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      LOGGING: INFO
+    # HEALTHCHECK вже в Dockerfile (alerts:api:last_call)
+
+  alerts_http_dev:
+    build:
+      context: .
+      dockerfile: alerts_http/Dockerfile
+    container_name: map_alerts_http_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      LOGGING: INFO
+      PROXIES: ${PROXIES}
+      SOURCE_URL: ${ALERTS_HTTP_SOURCE_URL}
+      UPDATE_URL: ${ALERTS_HTTP_UPDATE_URL}
+      POLL_INTERVAL: "10"
+      FIELDS: ${ALERT_HTTP_FIELDS}
+    # HEALTHCHECK вже в Dockerfile (alerts:http:last_call)
+
+  etryvoga_ws_dev:
+    build:
+      context: .
+      dockerfile: etryvoga_ws/Dockerfile
+    container_name: map_etryvoga_ws_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      ETRYVOGA_WS_HOST: ${ETRYVOGA_WS_HOST}
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      LOGGING: INFO
+    # HEALTHCHECK вже в Dockerfile (alerts:etryvoga_ws:last_call)
+
+  ukrenergo_dev:
+    build:
+      context: .
+      dockerfile: ukrenergo/Dockerfile
+    container_name: map_ukrenergo_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      UKRENERGO_REQUEST_PERIOD: ${UKRENERGO_REQUEST_PERIOD}
+      UKRENERGO_UPDATE_PERIOD: ${UKRENERGO_UPDATE_PERIOD}
+      UKRENERGO_SOURCE_URL: ${UKRENERGO_SOURCE_URL}
+      PROXIES: ${PROXIES}
+      UKRENERGO_USER_AGENT: ${UKRENERGO_USER_AGENT}
+      UKRENERGO_MATRIX: ${UKRENERGO_MATRIX}
+      LOGGING: INFO
+    # HEALTHCHECK вже в Dockerfile (energy:ukrenergo:last_call)
+
+  radiation_dev:
+    build:
+      context: .
+      dockerfile: radiation/Dockerfile
+    container_name: map_radiation_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      SAVEECOBOT_API_KEY: ${SAVEECOBOT_API_KEY}
+      SAVEECOBOT_SENSORS_URL: ${SAVEECOBOT_SENSORS_URL}
+      SAVEECOBOT_DATA_URL: ${SAVEECOBOT_DATA_URL}
+      SAVEECOBOT_SENSORS_UPDATE_PERIOD: "43200"
+      SAVEECOBOT_DATA_UPDATE_PERIOD: "1800"
+      PROXIES: ${PROXIES}
+      LOGGING: INFO
+    # HEALTHCHECK вже в Dockerfile (radiation:saveecobot:data:last_call)
+
+  svg_generator_dev:
+    build:
+      context: .
+      dockerfile: svg_generator/Dockerfile
+    container_name: map_svg_generator_dev
+    restart: unless-stopped
+    networks: [jaam-dev]
+    volumes:
+      - /shared_data_dev:/shared_data
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis_dev
+      REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
+      REDIS_DB: 0
+      LOGGING: INFO
+    # HEALTHCHECK вже в Dockerfile (svg_generator:alerts:last_call)

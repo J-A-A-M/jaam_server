@@ -1155,6 +1155,10 @@ async def etryvoga_full(request):
         return JSONResponse({})
 
 
+async def healthz(request):
+    return PlainTextResponse("OK\n")
+
+
 async def deprecated_endpoint(request):
     return JSONResponse(
         {
@@ -1346,6 +1350,7 @@ app = Starlette(
     exception_handlers=exception_handlers,
     routes=[
         Route("/", main),
+        Route("/healthz", healthz),
         Route("/alerts_statuses_v1.json", alerts_v1),
         Route("/alerts_statuses_v2.json", alerts_v2),
         Route("/alerts_statuses_v3.json", alerts_v3),

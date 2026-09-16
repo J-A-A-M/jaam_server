@@ -1,0 +1,116 @@
+name: 🧪 Deploy Dev Stack (Compose)
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        type: string
+        default: ''
+        description: >-
+          Сервіси для точкового оновлення, через пробіл (напр. "websocket_server_dev
+          admin_panel_dev"). Порожньо = підняти/оновити весь dev-стек (усі 15 сервісів).
+
+run-name: Deploy Dev Stack from '${{ github.ref_name }}' branch
+permissions:
+  contents: read
+jobs:
+  pytests:
+    uses: ./.github/workflows/pytests.yml
+  deploy_dev:
+    needs: pytests
+    runs-on: ubuntu-latest
+    env:
+      SERVER_IP: ${{ secrets.CLOUD_SERVER_2_IP }}
+      SERVER_USER: ${{ secrets.CLOUD_SERVER_2_USER }}
+      SERVER_SSH_KEY: ${{ secrets.CLOUD_SERVER_2_SSH_KEY }}
+    steps:
+      - name: Deploy dev stack
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          # Dev-only secrets (окремі від прод-значень) - див. план, "Нові секрети".
+          DEV_REDIS_PASSWORD: ${{ secrets.DEV_REDIS_PASSWORD }}
+          DEV_ADMIN_PANEL_DB_PASSWORD: ${{ secrets.DEV_ADMIN_PANEL_DB_PASSWORD }}
+          DEV_ADMIN_PANEL_JWT_SECRET: ${{ secrets.DEV_ADMIN_PANEL_JWT_SECRET }}
+          DEV_DEVICE_AUTH_MASTER_SECRET: ${{ secrets.DEV_DEVICE_AUTH_MASTER_SECRET }}
+          DEV_CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.DEV_CLOUDFLARE_TUNNEL_TOKEN }}
+          # Зовнішні API-ключі/URL - ті самі значення, що й prod використовує (план: спільне
+          # використання prod/dev тут не створює ризику, це ключі до зовнішніх джерел даних).
+          G_TOKEN: ${{ secrets.G_TOKEN }}
+          IP_INFO_TOKEN: ${{ secrets.IP_INFO_TOKEN }}
+          WEB_TOKEN: ${{ secrets.WEB_TOKEN }}
+          WS_SERVERS_LIST: ${{ secrets.WS_SERVERS_LIST }}
+          AIR_ALARM_API_KEY: ${{ secrets.AIR_ALARM_API_KEY }}
+          ALERTS_HTTP_SOURCE_URL: ${{ secrets.ALERTS_HTTP_SOURCE_URL }}
+          ALERTS_HTTP_UPDATE_URL: ${{ secrets.ALERTS_HTTP_UPDATE_URL }}
+          ALERT_HTTP_FIELDS: ${{ secrets.ALERT_HTTP_FIELDS }}
+          PROXIES: ${{ secrets.PROXIES }}
+          ETRYVOGA_WS_HOST: ${{ secrets.ETRYVOGA_WS_HOST }}
+          UKRENERGO_REQUEST_PERIOD: ${{ secrets.UKRENERGO_REQUEST_PERIOD }}
+          UKRENERGO_UPDATE_PERIOD: ${{ secrets.UKRENERGO_UPDATE_PERIOD }}
+          UKRENERGO_SOURCE_URL: ${{ secrets.UKRENERGO_SOURCE_URL }}
+          UKRENERGO_USER_AGENT: ${{ secrets.UKRENERGO_USER_AGENT }}
+          UKRENERGO_MATRIX: ${{ secrets.UKRENERGO_MATRIX }}
+          SAVEECOBOT_API_KEY: ${{ secrets.SAVEECOBOT_API_KEY }}
+          SAVEECOBOT_SENSORS_URL: ${{ secrets.SAVEECOBOT_SENSORS_URL }}
+          SAVEECOBOT_DATA_URL: ${{ secrets.SAVEECOBOT_DATA_URL }}
+          SERVICES: ${{ inputs.services }}
+          REF_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        with:
+          host: ${{ env.SERVER_IP }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ env.SERVER_SSH_KEY }}
+          envs: >-
+            DEV_REDIS_PASSWORD,DEV_ADMIN_PANEL_DB_PASSWORD,DEV_ADMIN_PANEL_JWT_SECRET,
+            DEV_DEVICE_AUTH_MASTER_SECRET,DEV_CLOUDFLARE_TUNNEL_TOKEN,G_TOKEN,IP_INFO_TOKEN,
+            WEB_TOKEN,WS_SERVERS_LIST,AIR_ALARM_API_KEY,ALERTS_HTTP_SOURCE_URL,
+            ALERTS_HTTP_UPDATE_URL,ALERT_HTTP_FIELDS,PROXIES,ETRYVOGA_WS_HOST,
+            UKRENERGO_REQUEST_PERIOD,UKRENERGO_UPDATE_PERIOD,UKRENERGO_SOURCE_URL,
+            UKRENERGO_USER_AGENT,UKRENERGO_MATRIX,SAVEECOBOT_API_KEY,SAVEECOBOT_SENSORS_URL,
+            SAVEECOBOT_DATA_URL,SERVICES,REF_NAME,REPO
+          script: |
+            set -euo pipefail
+            TEMP_DIR=$(mktemp -d)
+            trap 'rm -rf "$TEMP_DIR"' EXIT
+            cd "$TEMP_DIR"
+            git clone --branch "$REF_NAME" "https://github.com/$REPO.git" .
+
+            mkdir -p /shared_data_dev
+            docker network create --driver bridge jaam-dev 2>/dev/null || true
+
+            cat > .env <<EOF
+            DEV_REDIS_PASSWORD=$DEV_REDIS_PASSWORD
+            DEV_ADMIN_PANEL_DB_PASSWORD=$DEV_ADMIN_PANEL_DB_PASSWORD
+            DEV_ADMIN_PANEL_JWT_SECRET=$DEV_ADMIN_PANEL_JWT_SECRET
+            DEV_DEVICE_AUTH_MASTER_SECRET=$DEV_DEVICE_AUTH_MASTER_SECRET
+            DEV_CLOUDFLARE_TUNNEL_TOKEN=$DEV_CLOUDFLARE_TUNNEL_TOKEN
+            G_TOKEN=$G_TOKEN
+            IP_INFO_TOKEN=$IP_INFO_TOKEN
+            WEB_TOKEN=$WEB_TOKEN
+            WS_SERVERS_LIST=$WS_SERVERS_LIST
+            AIR_ALARM_API_KEY=$AIR_ALARM_API_KEY
+            ALERTS_HTTP_SOURCE_URL=$ALERTS_HTTP_SOURCE_URL
+            ALERTS_HTTP_UPDATE_URL=$ALERTS_HTTP_UPDATE_URL
+            ALERT_HTTP_FIELDS=$ALERT_HTTP_FIELDS
+            PROXIES=$PROXIES
+            ETRYVOGA_WS_HOST=$ETRYVOGA_WS_HOST
+            UKRENERGO_REQUEST_PERIOD=$UKRENERGO_REQUEST_PERIOD
+            UKRENERGO_UPDATE_PERIOD=$UKRENERGO_UPDATE_PERIOD
+            UKRENERGO_SOURCE_URL=$UKRENERGO_SOURCE_URL
+            UKRENERGO_USER_AGENT=$UKRENERGO_USER_AGENT
+            UKRENERGO_MATRIX=$UKRENERGO_MATRIX
+            SAVEECOBOT_API_KEY=$SAVEECOBOT_API_KEY
+            SAVEECOBOT_SENSORS_URL=$SAVEECOBOT_SENSORS_URL
+            SAVEECOBOT_DATA_URL=$SAVEECOBOT_DATA_URL
+            EOF
+
+            # SERVICES порожній -> весь стек; інакше лише перелічені сервіси (Compose підніме
+            # тільки їх + депенденсі типу redis_dev/postgres_dev, якщо ще не підняті).
+            docker compose -f docker-compose.dev.yml -p jaam-dev up -d --build $SERVICES
+      - name: Clear unused images
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.SERVER_IP }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ env.SERVER_SSH_KEY }}
+          script: |
+            docker image prune -f

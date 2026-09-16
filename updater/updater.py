@@ -22,6 +22,7 @@ try:
         Throttler,
         TYPE_ALERTS_BATCH,
         TYPE_NOTIFICATIONS_BATCH,
+        service_is_fine,
     )
 except ImportError:
     parent_dir = Path(__file__).resolve().parent.parent
@@ -41,6 +42,7 @@ except ImportError:
         Throttler,
         TYPE_ALERTS_BATCH,
         TYPE_NOTIFICATIONS_BATCH,
+        service_is_fine,
     )
 
 # Модулі обробки даних. Flat-імпорт (docker: `python updater.py`) з fallback
@@ -898,6 +900,18 @@ async def update_websocket_fusion_v1_weather_openmeteo(redis_client, run_once=Fa
     )
 
 
+async def heartbeat_loop(redis_client, run_once=False):
+    """Мінімальний heartbeat для Docker HEALTHCHECK - updater.py не пише heartbeat в жоден
+    з ~15 наявних тасків (кожен відповідає лише за свій канал), тож самого лише service_is_fine
+    в одному з них недостатньо, щоб довести живий event loop. Цей таск нічого не робить,
+    крім доведення "event loop не завис, Redis доступний" кожні 15с."""
+    while True:
+        await service_is_fine(logger, redis_client, "updater:heartbeat:last_call")
+        if run_once:
+            return
+        await asyncio.sleep(15)
+
+
 async def main():
     redis_client = redis.Redis(
         host=redis_host,
@@ -990,6 +1004,7 @@ async def main():
                     "update_websocket_fusion_v1_weather_openmeteo",
                 )
             ),
+            asyncio.create_task(run_with_restart(logger, heartbeat_loop, redis_client, "heartbeat_loop")),
         ]
 
         await asyncio.gather(*tasks)

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
+from starlette.responses import JSONResponse, FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from starlette.routing import Route
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -550,12 +550,17 @@ async def home(request):
     return HTMLResponse(response)
 
 
+async def healthz(request):
+    return PlainTextResponse("OK\n")
+
+
 app = Starlette(
     debug=debug,
     exception_handlers=exception_handlers,
     lifespan=lifespan,
     routes=[
         Route("/", home),
+        Route("/healthz", healthz),
         Route("/list", list),
         Route("/betalist", list_beta),
         Route("/{filename}.bin", update),

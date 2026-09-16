@@ -20,4 +20,6 @@ COPY backend/app ./app
 COPY --from=frontend /frontend/dist ./static
 
 EXPOSE 8099
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8099/api/health', timeout=3).status==200 else 1)"
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8099", "--proxy-headers", "--forwarded-allow-ips", "*"]
