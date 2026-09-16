@@ -75,7 +75,6 @@ jobs:
             git clone --branch "$REF_NAME" "https://github.com/$REPO.git" .
 
             mkdir -p /shared_data_dev
-            docker network create --driver bridge jaam-dev 2>/dev/null || true
 
             cat > .env <<EOF
             DEV_REDIS_PASSWORD=$DEV_REDIS_PASSWORD
