@@ -98,6 +98,9 @@ environment = os.environ.get("ENVIRONMENT") or "PROD"
 # /data_touch_v1 (jaam_touch): "enforce" (дефолт, прод) — відхиляти невалідний auth;
 # "shadow" — лише логувати, ніколи не відхиляти (зручно для локального бринг-апу).
 touch_auth_mode = (os.environ.get("TOUCH_AUTH_MODE") or "enforce").lower()
+# Затримка перед 401 для неавторизованого /data_touch_v1 - ззовні відмова має виглядати як
+# звичайний мережевий таймаут, а не миттєвий "так/ні" oracle для перебору chip_id.
+TOUCH_AUTH_REJECT_DELAY_S = float(os.environ.get("TOUCH_AUTH_REJECT_DELAY_S") or 5)
 geo_lite_db_path = os.environ.get("GEO_PATH") or "GeoLite2-City.mmdb"
 ip_info_token = os.environ.get("IP_INFO_TOKEN") or ""
 geo_ip_cache_ttl = int(os.environ.get("GEO_IP_CACHE_TTL") or 86400)  # 24 hours by default
@@ -1669,6 +1672,26 @@ def hex_payload(payload_hex, redis_key: str, client_ip: str = "", chip_id: str =
         return False
 
 
+async def record_rejected_touch_client(redis_client, client_ip: str, chip_id: str) -> None:
+    """Пише звичайний websocket:clients:* запис для НЕавторизованої спроби /data_touch_v1 -
+    тим самим шляхом, яким admin_panel's collector уже підхоплює справжніх клієнтів у Мапи/
+    Реєстр JAAM (жодного окремого кешу/таблиці) - адмін бачить chip_id у консолі й може
+    одразу створити для нього запис і видати секрет, замість копіювати chip_id з логів.
+    firmware="unauthorized" - явний маркер у списку мап, що це саме непровіжинена спроба,
+    не жива сесія. TTL короткий (60с): це лише слід, природно згасне без повторних спроб."""
+    client_id = generate_random_hash(8)
+    data = {
+        "chip_id": chip_id.upper(),
+        "firmware": "unauthorized",
+        "hardware": "ESP32-S3",
+        "connect_time": datetime.datetime.now(tz=server_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    try:
+        await set_redis_data(logger, redis_client, f"websocket:clients:{client_ip}:{client_id}", data, expiry=60)
+    except Exception as e:
+        logger.error(f"{client_ip}:{chip_id} !!! failed to record rejected touch client: {e}")
+
+
 async def process_request(connection: ServerConnection, request: Request):
     client_ip = await get_client_ip(connection)
     # health check
@@ -1702,6 +1725,10 @@ async def process_request(connection: ServerConnection, request: Request):
                 logger.warning(f"{client_ip}:{chip_id} !!! TOUCH AUTH SHADOW-FAIL ({reason})")
             else:
                 logger.warning(f"{client_ip}:{chip_id} !!! TOUCH AUTH REJECT ({reason})")
+                if chip_id:
+                    await record_rejected_touch_client(shared_data.redis_client, client_ip, chip_id)
+                # Затримка ДО відповіді - ззовні виглядає як таймаут, не як миттєвий oracle.
+                await asyncio.sleep(TOUCH_AUTH_REJECT_DELAY_S)
                 return connection.respond(HTTPStatus.UNAUTHORIZED, f"unauthorized: {reason}\n")
 
 

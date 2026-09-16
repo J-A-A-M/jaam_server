@@ -50,7 +50,12 @@ async def verify_device_auth(redis_client, chip_id, ts_str, mac_hex, domain: str
 
     chip_id_upper = chip_id.upper()
     auth = await redis_client.hgetall(f"device_auth:{chip_id_upper}")
-    if not auth or auth.get("whitelisted") != "1":
+    # "unknown_device" (жодного запису - admin_panel ще не бачив цей chip_id) відрізняємо від
+    # "not_whitelisted" (запис є, але адмін явно зняв whitelisted) лише для чіткості логів -
+    # обидва однаково ведуть до відмови нижче за викликом.
+    if not auth:
+        return False, "unknown_device"
+    if auth.get("whitelisted") != "1":
         return False, "not_whitelisted"
 
     try:
