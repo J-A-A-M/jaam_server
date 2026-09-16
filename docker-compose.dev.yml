@@ -155,6 +155,9 @@ services:
       REDIS_PASSWORD: ${DEV_REDIS_PASSWORD}
       REDIS_DB: 0
       LOGGING: INFO
+      # jaam_touch - приватний репозиторій, download_file() 404-ить на browser_download_url
+      # без цього (на відміну від публічного jaam_fusion, де токен не потрібен).
+      GITHUB_TOKEN: ${G_TOKEN}
     # HEALTHCHECK вже в updater/Dockerfile (heartbeat_loop -> updater:heartbeat:last_call)
 
   update_server_dev:

@@ -38,7 +38,8 @@ jobs:
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
                 bash redeploy_updater.sh \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
-                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }} \
+                  -g ${{ secrets.G_TOKEN }}
           - name: Clear unused images
             uses: appleboy/ssh-action@v1.2.0
             with:

@@ -9,12 +9,12 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-async def download_file(url, filepath):
+async def download_file(url, filepath, headers=None):
     """Завантажує файл з URL та зберігає його локально"""
     try:
 
         async with httpx.AsyncClient() as client:
-            async with client.stream("GET", url, follow_redirects=True, timeout=60.0) as response:
+            async with client.stream("GET", url, headers=headers, follow_redirects=True, timeout=60.0) as response:
                 response.raise_for_status()
                 with open(filepath, "wb") as f:
                     async for chunk in response.aiter_bytes(chunk_size=8192):
@@ -26,8 +26,12 @@ async def download_file(url, filepath):
         return False
 
 
-async def sync_local_files(files_data, files_path):
-    """Синхронізує локальні файли з даними releases"""
+async def sync_local_files(files_data, files_path, headers=None):
+    """Синхронізує локальні файли з даними releases.
+
+    headers: передається у кожен download_file (напр. Authorization для приватного
+    репозиторію jaam_touch - GitHub's browser_download_url 404-ить без нього для
+    приватних репо, на відміну від публічного jaam_fusion, де це працює й без токена)."""
     if not files_data:
         return
 
@@ -69,7 +73,7 @@ async def sync_local_files(files_data, files_path):
         for filename in files_to_download:
             url = remote_files[filename]
             filepath = os.path.join(files_path, filename)
-            if not await download_file(url, filepath):
+            if not await download_file(url, filepath, headers=headers):
                 failed.append(filename)
         if failed:
             logger.error(f"❌ Не вдалося завантажити файли: {', '.join(failed)}")

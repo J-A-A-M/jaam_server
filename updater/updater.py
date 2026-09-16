@@ -108,6 +108,12 @@ sink_local_files = os.environ.get("SINK_LOCAL_FILES", "True").lower() == "true"
 # jaam_touch — окремий диск від jaam_fusion вище, не перетинається з shared_path/shared_path_beta.
 shared_path_touch = os.environ.get("SHARED_PATH_TOUCH") or "/shared_data/releases_touch"
 shared_path_touch_beta = os.environ.get("SHARED_PATH_TOUCH_BETA") or "/shared_data/beta_touch"
+# jaam_touch — приватний репозиторій: GitHub's browser_download_url (files_data[*]["url"])
+# 404-ить без Bearer-токена, на відміну від публічного jaam_fusion, де download_file() і так
+# завжди працював без нього. update_server.py вже має цей самий токен для читання /releases -
+# тут він потрібен ще й для власне завантаження .bin (див. touch_download_headers нижче).
+github_token = os.environ.get("GITHUB_TOKEN")
+touch_download_headers = {"Authorization": f"Bearer {github_token}"} if github_token else None
 fusion_alerts_debounce = float(os.environ.get("FUSION_ALERTS_DEBOUNCE", 1))
 fusion_alerts_throttle = float(os.environ.get("FUSION_ALERTS_THROTTLE", 0))
 fusion_etryvoga_throttle = float(os.environ.get("FUSION_ETRYVOGA_THROTTLE", 0))
@@ -546,7 +552,7 @@ async def update_releases_touch_v1(redis_client, run_once=False):
             )
             if data != stored_data:
                 if sink_local_files:
-                    await sync_local_files(data, shared_path_touch)
+                    await sync_local_files(data, shared_path_touch, headers=touch_download_headers)
 
                 logger.debug("💾 Зберігаємо releases:touch:production")
                 await set_redis_data(logger, redis_client, "releases:touch:production", data)
@@ -575,7 +581,7 @@ async def update_releases_touch_v1(redis_client, run_once=False):
             )
             if data != stored_data:
                 if sink_local_files:
-                    await sync_local_files(data, shared_path_touch_beta)
+                    await sync_local_files(data, shared_path_touch_beta, headers=touch_download_headers)
 
                 logger.debug("💾 Зберігаємо releases:touch:beta")
                 await set_redis_data(logger, redis_client, "releases:touch:beta", data)

@@ -6,6 +6,7 @@ REDIS_PASSWORD="redis"
 REDIS_DB="0"
 FUSION_ALERTS_DEBOUNCE=1
 LOGGING="INFO"
+GITHUB_TOKEN=""
 
 # Check for arguments
 while [[ $# -gt 0 ]]; do
@@ -30,6 +31,10 @@ while [[ $# -gt 0 ]]; do
             LOGGING="$2"
             shift 2
             ;;
+        -g|--github-token)
+            GITHUB_TOKEN="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown argument: $1"
             exit 1
@@ -44,6 +49,7 @@ echo "REDIS_PASSWORD: $REDIS_PASSWORD"
 echo "REDIS_DB: $REDIS_DB"
 echo "FUSION_ALERTS_DEBOUNCE: $FUSION_ALERTS_DEBOUNCE"
 echo "LOGGING: $LOGGING"
+echo "GITHUB_TOKEN: [hidden]"
 
 
 # Updating the Git repo
@@ -72,6 +78,7 @@ docker run --name map_updater \
     --env REDIS_PASSWORD="$REDIS_PASSWORD" \
     --env REDIS_DB="$REDIS_DB" \
     --env LOGGING="$LOGGING" \
+    --env GITHUB_TOKEN="$GITHUB_TOKEN" \
     map_updater
 
 echo "Container deployed successfully!"
