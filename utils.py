@@ -20,6 +20,15 @@ TYPE_FIRMWARE_UPDATE_PROD_BATCH = 0xA7
 # щоб touch-прошивка не могла отримувати/парсити fusion-специфічні дані і навпаки.
 TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH = 0xA8
 TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH = 0xA9
+# Явне підтвердження відмови в touch chip_id-автентифікації (echo(), не process_request() -
+# WS upgrade навмисно ЗАВЖДИ завершується, навіть для відхилених спроб, щоб це повідомлення
+# і close-фрейм, що йде одразу за ним, могли дійти по вже встановленому WS-з'єднанню). Раніше
+# клієнт вгадував "точно відмовлено" по CloseReason не-101 HTTP-відповіді - та сама ознака, що
+# й у 502/503 від nginx/cloudflared під час рестарту бекенду, тож перезапуск сервера, що
+# збігався з 3 поспіль спробами реконекту, міг залатчити пристрій у unauthorized НАЗАВЖДИ.
+# Цей opcode - єдине джерело правди для unauthorized-латчу на боці прошивки (WsClient.cpp),
+# окрім локального "секрет не провіжинений" факту.
+TYPE_TOUCH_AUTH_REJECTED = 0xAA
 
 
 # --- Device auth (jaam_touch chip_id whitelist) -----------------------------

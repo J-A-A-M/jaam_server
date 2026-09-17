@@ -35,6 +35,7 @@ try:
         TYPE_FIRMWARE_UPDATE_PROD_BATCH,
         TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
         TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
+        TYPE_TOUCH_AUTH_REJECTED,
         verify_device_auth,
         require_device_auth_master_secret_configured,
     )
@@ -55,6 +56,7 @@ except ImportError:
         TYPE_FIRMWARE_UPDATE_PROD_BATCH,
         TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
         TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
+        TYPE_TOUCH_AUTH_REJECTED,
         verify_device_auth,
         require_device_auth_master_secret_configured,
     )
@@ -1388,6 +1390,28 @@ async def echo(websocket: ServerConnection):
         client_id = generate_random_hash(8)
         # get real header from websocket
         client_ip = await get_client_ip(websocket)
+
+        # process_request() already ran verify_device_auth() for /data_touch_v1 and, on
+        # failure, deliberately let the WS upgrade complete anyway instead of responding with a
+        # pre-upgrade HTTP 401 (see its own comment) - this is the other half of that: send the
+        # explicit rejection opcode over the now-established connection, then close. Before any
+        # of the heavier per-connection setup below (geo-ip, redis-backed client, producer
+        # tasks) - a rejected attempt should cost as little as the old pre-upgrade path did.
+        touch_auth_reject_reason = getattr(websocket, "touch_auth_reject_reason", None)
+        if touch_auth_reject_reason:
+            logger.info(f"{client_ip}:{client_id} >>> sending TOUCH_AUTH_REJECTED ({touch_auth_reject_reason})")
+            try:
+                payload = struct.pack("<B", TYPE_TOUCH_AUTH_REJECTED) + touch_auth_reject_reason.encode("ascii")
+                await websocket.send(payload)
+                # TCP delivers frames on one connection in order, so this close frame can never
+                # overtake the data frame above - the client is guaranteed to see the rejection
+                # message (if it ever processes anything on this connection at all) before it
+                # sees the close.
+                await websocket.close(code=1008, reason=f"unauthorized:{touch_auth_reject_reason}")
+            except Exception as e:
+                logger.debug(f"{client_ip}:{client_id} !!! failed to deliver TOUCH_AUTH_REJECTED - {e}")
+            return
+
         secure_connection = websocket.request.headers.get("X-Connection-Secure", "false")
         logger.info(f"{client_ip}:{client_id} >>> new client")
 
@@ -1798,9 +1822,18 @@ async def process_request(connection: ServerConnection, request: Request):
                 logger.warning(f"{client_ip}:{chip_id} !!! TOUCH AUTH REJECT ({reason})")
                 if chip_id:
                     await record_rejected_touch_client(shared_data.redis_client, client_ip, chip_id)
-                # Затримка ДО відповіді - ззовні виглядає як таймаут, не як миттєвий oracle.
+                # Затримка ДО завершення хендшейку - ззовні виглядає як таймаут, не як
+                # миттєвий oracle.
                 await asyncio.sleep(TOUCH_AUTH_REJECT_DELAY_S)
-                return connection.respond(HTTPStatus.UNAUTHORIZED, f"unauthorized: {reason}\n")
+                # НЕ відповідаємо тут HTTP 401 - навмисно даємо WS upgrade завершитись
+                # (return нічого = process_request не втручається, бібліотека апгрейдить як
+                # звичайно). echo() зчитує це звідси і шле явний TYPE_TOUCH_AUTH_REJECTED
+                # (opcode 0xAA) по вже встановленому WS-з'єднанню, а вже потім закриває його -
+                # єдиний спосіб дати прошивці ГАРАНТОВАНО відрізнити "наш сервер підтвердив
+                # відмову" від "проксі/бекенд лежить" (502/503 від nginx під час рестарту
+                # виглядали для WS-бібліотеки клієнта ідентично до реальної відмови - саме це
+                # й спричиняло хибний unauthorized-латч під час рестарту сервера).
+                connection.touch_auth_reject_reason = reason
         else:
             # HMAC-верифікований chip_id прив'язуємо до самого з'єднання (не до client dict -
             # той створюється пізніше в echo()). Далі echo() читає це звідси, щоб ревокація
