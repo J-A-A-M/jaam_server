@@ -109,7 +109,17 @@ jobs:
 
             # SERVICES порожній -> весь стек; інакше лише перелічені сервіси (Compose підніме
             # тільки їх + депенденсі типу redis_dev/postgres_dev, якщо ще не підняті).
-            docker compose -f docker-compose.dev.yml -p jaam-dev up -d --build $SERVICES
+            #
+            # BUILDX_NO_DEFAULT_ATTESTATIONS=1 - без цього кожен --build (навіть таргетований
+            # на один сервіс) перезбирає ще й будь-яку його build:-залежність (тут -
+            # redis_dev), а BuildKit-атестації (provenance/SBOM) вбудовують у фінальний
+            # manifest list мітку часу збірки - тож навіть на 100% закешованому, побайтово
+            # ідентичному образі щоразу виходить НОВИЙ digest. Compose бачить "інший" образ і
+            # робить Recreate вже здоровому, не зачепленому цим деплоєм redis_dev - підтверджено
+            # живим відтворенням (redis_dev перезапускався і рвав з'єднання іншим сервісам
+            # рівно в момент кожного точкового деплою). Підтверджено й фікс: з цим env var
+            # повторний up на незмінному стеку більше не рекрейтить redis_dev взагалі.
+            BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker compose -f docker-compose.dev.yml -p jaam-dev up -d --build $SERVICES
       - name: Clear unused images
         uses: appleboy/ssh-action@v1.2.0
         with:
