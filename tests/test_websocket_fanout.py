@@ -11,6 +11,7 @@ os.environ.setdefault(
 from websocket_server.websocket_server import (  # noqa: E402
     ALL_CHANNELS,
     CLIENT_SYNC_CONCURRENCY,
+    DEVICE_AUTH_REVOKED_CHANNEL,
     GEO_IP_CONCURRENCY,
     HANDSHAKE_CONCURRENCY,
     REDIS_MAX_CONNECTIONS,
@@ -18,6 +19,7 @@ from websocket_server.websocket_server import (  # noqa: E402
     FUSION_CHANNELS,
     LEGACY_VERSION_CHANNELS,
     SharedData,
+    TOUCH_CHANNELS,
     WEATHER_DATA_KEY,
     WEATHER_UPDATED_CHANNEL,
     channel_source,
@@ -56,15 +58,27 @@ def test_channel_source_fusion_overrides():
     assert channel_source(WEATHER_UPDATED_CHANNEL) == (WEATHER_DATA_KEY, {})
     assert channel_source("websocket:v1:fusion:energy:updated") == ("websocket:v1:fusion:energy:data", {})
     assert channel_source("releases:beta:updated") == ("releases:beta", [])
+    # updater.py публікує releases:touch:production/beta:updated лишень після set_redis_data
+    # на releases:touch:production/beta (без ":updated") - жодного override для цих двох у
+    # _CHANNEL_KEY_OVERRIDES, generic-шлях (removesuffix) мусить сам вивести правильний ключ.
+    assert channel_source("releases:touch:production:updated") == ("releases:touch:production", [])
+    assert channel_source("releases:touch:beta:updated") == ("releases:touch:beta", [])
 
 
 def test_all_channels_cover_every_subscriber():
-    """Спільний listener підписаний лише на ALL_CHANNELS — там має бути все, на що підписуються клієнти."""
+    """Спільний listener підписаний лише на ALL_CHANNELS — там має бути все, на що підписуються
+    клієнти. TOUCH_CHANNELS/DEVICE_AUTH_REVOKED_CHANNEL раніше тут не перевірялись - саме тому
+    releases:touch:production/beta:updated мовчки ніколи не доходили до redis_fanout, попри те,
+    що alerts_data_touch на них підписаний (channel_source() підбирав правильний Redis-ключ,
+    але сам listener на канал не був підписаний узагалі - повідомлення просто не приходили)."""
     for version in (AlertVersion.v1, AlertVersion.v2, AlertVersion.v3, AlertVersion.v4):
         for channel in legacy_channels(version):
             assert channel in ALL_CHANNELS, channel
     for channel in FUSION_CHANNELS:
         assert channel in ALL_CHANNELS, channel
+    for channel in TOUCH_CHANNELS:
+        assert channel in ALL_CHANNELS, channel
+    assert DEVICE_AUTH_REVOKED_CHANNEL in ALL_CHANNELS
 
 
 def test_subscribe_unsubscribe():

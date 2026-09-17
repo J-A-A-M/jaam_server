@@ -175,14 +175,38 @@ async def update_map(
 @router.delete("/{chip_id}", status_code=204)
 async def delete_map(
     chip_id: str,
+    request: Request,
     admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     m = await session.get(JaamMap, chip_id)
     if not m:
         raise HTTPException(status_code=404, detail="Запис не знайдено")
+    secret_version = m.secret_version
     await session.delete(m)
     await session.commit()
+
+    # Postgres більше не має запису - без явної ревокації тут device_auth:<CHIP_ID> лишався б
+    # whitelisted=1 у Redis назавжди (verify_device_auth() читає лише Redis, ніколи Postgres),
+    # і видалений/переданий пристрій продовжував би авторизовуватись на WS/OTA. Той самий
+    # шлях, яким /whitelist знімає доступ - публікує в DEVICE_AUTH_REVOKED_CHANNEL, форсуючи
+    # розрив уже живого з'єднання.
+    failed = await mirror_device_auth(request.app.state.redis_servers, chip_id, secret_version, False)
+    _raise_if_mirror_failed(failed, "видалення пристрою")
+    await delete_claim_code(request.app.state.redis_servers, chip_id)
+
+
+def _raise_if_mirror_failed(failed: list[str], action: str) -> None:
+    """Постгрес уже закомічено на момент виклику - тут лише піднімаємо помилку адміну, а не
+    відкочуємо (мирорінг у Redis retry-able сам по собі: повторний /whitelist чи /provision
+    просто перепише той самий стан). Без цього admin_panel мовчки повертав би 200, доки один
+    із дзеркальних Redis-серверів лишався зі застарілим device_auth-записом (див. code review:
+    mirror_device_auth/mirror_claim_code лише логували відмову, виклик про неї не дізнавався)."""
+    if failed:
+        raise HTTPException(
+            status_code=502,
+            detail=f"{action}: не вдалося оновити Redis на {', '.join(failed)} - стан пристрою там міг лишитись застарілим",
+        )
 
 
 async def _get_map_or_404(session: AsyncSession, chip_id: str) -> JaamMap:
@@ -201,7 +225,8 @@ async def _rotate_and_whitelist(session: AsyncSession, request: Request, m: Jaam
     m.secret_version += 1
     m.whitelisted = True
     await session.commit()
-    await mirror_device_auth(request.app.state.redis_servers, m.chip_id, m.secret_version, m.whitelisted)
+    failed = await mirror_device_auth(request.app.state.redis_servers, m.chip_id, m.secret_version, m.whitelisted)
+    _raise_if_mirror_failed(failed, "видача доступу")
 
 
 @router.post("/{chip_id}/provision", response_model=ProvisionOut)
@@ -246,7 +271,8 @@ async def issue_claim_code(
 
     code = "".join(pysecrets.choice(_CLAIM_CODE_ALPHABET) for _ in range(_CLAIM_CODE_LENGTH))
     code_hash = hashlib.sha256(code.encode()).hexdigest()
-    await mirror_claim_code(request.app.state.redis_servers, chip_id, code_hash, _CLAIM_CODE_TTL_S)
+    failed = await mirror_claim_code(request.app.state.redis_servers, chip_id, code_hash, _CLAIM_CODE_TTL_S)
+    _raise_if_mirror_failed(failed, "видача коду активації")
 
     return ClaimCodeOut(
         chip_id=chip_id,
@@ -276,7 +302,8 @@ async def set_whitelisted(
         m.whitelisted = body.whitelisted
         await session.commit()
         await session.refresh(m)
-        await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
+        failed = await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
+        _raise_if_mirror_failed(failed, "зміна доступу")
 
     if not body.whitelisted:
         await delete_claim_code(request.app.state.redis_servers, chip_id)

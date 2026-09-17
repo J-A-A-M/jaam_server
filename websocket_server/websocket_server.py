@@ -8,6 +8,7 @@ import secrets
 import string
 import datetime
 import aiohttp
+from typing import NamedTuple
 from urllib.parse import urlsplit, parse_qs
 
 from geoip2 import database, errors
@@ -310,6 +311,15 @@ class AlertVersion:
 # (whitelist перевіряється лише один раз, у process_request() перед WS upgrade).
 DEVICE_AUTH_REVOKED_CHANNEL = "device:auth:revoked"
 
+# jaam_touch-only канали для прошивок, не спільні з FUSION_CHANNELS - тому мусять бути
+# явно домішані в ALL_CHANNELS нижче (сам union будувався лише з FUSION_CHANNELS + legacy,
+# TOUCH_CHANNELS ніколи туди не потрапляв - тож redis_fanout's raw pubsub-з'єднання ніколи
+# фактично не підписувалось на ці два рядки, попри те, що alerts_data_touch на них чекає).
+TOUCH_ONLY_RELEASE_CHANNELS = [
+    "releases:touch:production:updated",
+    "releases:touch:beta:updated",
+]
+
 # jaam_touch (/data_touch_v1): ті самі базові дані карти (alerts/weather/energy/radiation),
 # але ВЛАСНІ, ізольовані від jaam_fusion канали для прошивок — touch ніколи не отримує/
 # не публікує в releases:production/releases:beta (fusion), і навпаки.
@@ -319,8 +329,7 @@ TOUCH_CHANNELS = [
     "websocket:v1:fusion:energy:updated",
     "websocket:v1:fusion:radiation:updated",
     "websocket:v1:fusion:etryvoga:updated",
-    "releases:touch:production:updated",
-    "releases:touch:beta:updated",
+    *TOUCH_ONLY_RELEASE_CHANNELS,
     # DEVICE_AUTH_REVOKED_CHANNEL навмисно НЕ тут - alerts_data_touch підписує на нього
     # окрему необмежену чергу (revoke_queue), щоб drop-oldest політика основної обмеженої
     # черги ніколи не могла витіснити одноразову команду форс-дисконнекту.
@@ -415,7 +424,12 @@ def legacy_channels(alert_version) -> list[str]:
 
 # Union усіх версій: v1 слухає v1-канал алертів, v2+ — v2-канал, тож v4 сам по собі не покриває все
 ALL_CHANNELS = sorted(
-    {DEVICE_AUTH_REVOKED_CHANNEL, *FUSION_CHANNELS, *(ch for v in LEGACY_VERSION_CHANNELS for ch in legacy_channels(v))}
+    {
+        DEVICE_AUTH_REVOKED_CHANNEL,
+        *TOUCH_ONLY_RELEASE_CHANNELS,
+        *FUSION_CHANNELS,
+        *(ch for v in LEGACY_VERSION_CHANNELS for ch in legacy_channels(v)),
+    }
 )
 
 # Канали, чий redis_key не виводиться як channel.removesuffix(":updated")
@@ -921,6 +935,155 @@ async def redis_fanout(shared_data: SharedData):
         await asyncio.sleep(5)
 
 
+class _MapSnapshot(NamedTuple):
+    """Спільний initial-снепшот для alerts_data_fusion (v1) і alerts_data_touch - базові дані
+    карти однакові для обох, лише список релізів прошивки (releases_beta/releases_prod) читається
+    з різних Redis-ключів для кожного (fusion: releases:beta/production, touch: releases:touch:*)."""
+
+    alerts_cache: dict | bool
+    alerts_hash_actual: int
+    alerts_hash_previous: int
+    weather_cache: dict
+    energy_cache: dict
+    radiation_cache: dict
+    releases_beta: list
+    releases_prod: list
+
+
+async def _fetch_map_and_firmware_snapshot(
+    shared_data: SharedData, firmware_beta_key: str, firmware_prod_key: str
+) -> _MapSnapshot:
+    """8 читань під ОДНИМ acquire handshake_semaphore, навмисно послідовно (не gather) - 8
+    паралельних Redis-конекшнів на клієнта якраз і давало пік у пулі під час масового
+    реконекту (стеля 50 колись була замалою саме через це - див. handshake_semaphore's власний
+    коментар). Розбиття цих читань на два окремих acquire (спільні дані карти окремо від
+    firmware-специфічних) лишило б частину негейтованою - тому firmware-ключі теж параметр
+    тут, а не окремий виклик після return."""
+    redis_client = shared_data.redis_client
+    async with shared_data.handshake_semaphore:
+        alerts_cache = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:alerts:data", default_response=False
+        )
+        alerts_hash_actual = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:alerts:hash_actual", default_response=0
+        )
+        alerts_hash_previous = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:alerts:hash_previous", default_response=0
+        )
+        weather_cache = await get_redis_data(logger, redis_client, WEATHER_DATA_KEY, default_response={})
+        energy_cache = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:energy:data", default_response={}
+        )
+        radiation_cache = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:radiation:data", default_response={}
+        )
+        releases_beta = await get_redis_data(logger, redis_client, firmware_beta_key, default_response=[])
+        releases_prod = await get_redis_data(logger, redis_client, firmware_prod_key, default_response=[])
+    return _MapSnapshot(
+        alerts_cache,
+        alerts_hash_actual,
+        alerts_hash_previous,
+        weather_cache,
+        energy_cache,
+        radiation_cache,
+        releases_beta,
+        releases_prod,
+    )
+
+
+async def _send_initial_map_packets(
+    websocket: ServerConnection,
+    client_ip,
+    chip_id,
+    snap: _MapSnapshot,
+    firmware_beta_opcode,
+    firmware_prod_opcode,
+    firmware_log_prefix: str,
+) -> None:
+    """Надсилає initial-пакети з _fetch_map_and_firmware_snapshot - спільно для
+    alerts_data_fusion (v1) і alerts_data_touch, лише opcode/лог-префікс firmware різні."""
+    if snap.alerts_cache:
+        alerts_header = struct.pack("<B", TYPE_ALERTS_BATCH)
+        alerts = bytearray()
+        for rid, flags16 in snap.alerts_cache.items():
+            alerts += struct.pack("<H H", int(rid), flags16)
+        hash_actual = struct.pack("<H", snap.alerts_hash_actual)
+        hash_previous = struct.pack("<H", snap.alerts_hash_previous)
+        await websocket.send(alerts_header + hash_actual + hash_previous + alerts)
+        logger.debug(f"{client_ip}:{chip_id} <<< initial alert packet")
+
+    if snap.weather_cache:
+        weather_header = struct.pack("<B", TYPE_WEATHER_BATCH)
+        weather = bytearray()
+        for rid, flags8 in snap.weather_cache.items():
+            weather += struct.pack("<H B", int(rid), int(flags8) & 0xFF)
+        await websocket.send(weather_header + weather)
+        logger.debug(f"{client_ip}:{chip_id} <<< initial weather packet")
+
+    if snap.energy_cache:
+        energy_header = struct.pack("<B", TYPE_GRID_BATCH)
+        await websocket.send(energy_header + make_grid_batch(snap.energy_cache))
+        logger.debug(f"{client_ip}:{chip_id} <<< initial energy packet")
+
+    if snap.radiation_cache:
+        radiation_header = struct.pack("<B", TYPE_RADIATION_BATCH)
+        await websocket.send(radiation_header + make_radiation_batch(snap.radiation_cache))
+        logger.debug(f"{client_ip}:{chip_id} <<< initial radiation packet")
+
+    if snap.releases_beta:
+        await websocket.send(make_firmware_batch(snap.releases_beta, firmware_beta_opcode))
+        logger.debug(
+            f"{client_ip}:{chip_id} <<< initial {firmware_log_prefix}firmware packet "
+            f"({len(snap.releases_beta)} beta versions)"
+        )
+
+    if snap.releases_prod:
+        await websocket.send(make_firmware_batch(snap.releases_prod, firmware_prod_opcode))
+        logger.debug(
+            f"{client_ip}:{chip_id} <<< initial {firmware_log_prefix}firmware packet "
+            f"({len(snap.releases_prod)} production versions)"
+        )
+
+
+async def _dispatch_common_map_channel(websocket: ServerConnection, client_ip, chip_id, channel, data) -> bool:
+    """Обробляє 5 канали, спільні для alerts_data_fusion (v1) і alerts_data_touch (базова карта:
+    alerts/weather/energy/radiation + etryvoga-нотифікації) - повертає True, якщо `channel`
+    впізнано й оброблено (навіть коли після hex_payload()'s False-санітизації надсилати
+    нічого не треба), False - якщо це не один із цих п'яти, і виклику треба перевірити власні
+    (прошивочні) case'и у своєму match. Раніше цей блок був побайтово продубльований в обох
+    функціях - будь-який фікс сюди довелось би вручну переносити в другу копію."""
+    match channel:
+        case "websocket:v1:fusion:alerts:updated":
+            payload = hex_payload(data, "websocket:v1:fusion:payload:alerts", client_ip, chip_id)
+            if payload is not False:
+                await websocket.send(payload)
+                logger.debug(f"{client_ip}:{chip_id} <<< new alert packet")
+            return True
+        case channel if channel == WEATHER_UPDATED_CHANNEL:
+            payload = struct.pack("<B", TYPE_WEATHER_BATCH) + make_weather_batch(data)
+            await websocket.send(payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< new weather packet")
+            return True
+        case "websocket:v1:fusion:energy:updated":
+            payload = struct.pack("<B", TYPE_GRID_BATCH) + make_grid_batch(data)
+            await websocket.send(payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< new energy packet")
+            return True
+        case "websocket:v1:fusion:radiation:updated":
+            payload = struct.pack("<B", TYPE_RADIATION_BATCH) + make_radiation_batch(data)
+            await websocket.send(payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< new radiation packet")
+            return True
+        case "websocket:v1:fusion:etryvoga:updated":
+            payload = hex_payload(data, "websocket:v1:fusion:payload:notifications", client_ip, chip_id)
+            if payload is not False:
+                await websocket.send(payload)
+                logger.debug(f"{client_ip}:{chip_id} <<< new notifications packet")
+            return True
+        case _:
+            return False
+
+
 async def alerts_data_fusion(
     websocket: ServerConnection,
     client,
@@ -935,7 +1098,6 @@ async def alerts_data_fusion(
     try:
         chip_id = await get_client_chip_id(client, chip_id_event)
         firmware = await get_client_firmware(client, firmware_event)
-        redis_client = shared_data.redis_client
 
         # Підписуємось ДО initial read: дублікат пакета нешкідливий, втрачена подія — ні.
         queue = asyncio.Queue(maxsize=32)
@@ -944,78 +1106,16 @@ async def alerts_data_fusion(
         logger.debug(f"{client_ip}:{chip_id}: check")
         match alert_version:
             case AlertVersion.v1:
-                # Послідовно, не gather: 8 паралельних читань = 8 одночасних Redis-конекшнів
-                # на клієнта, що при масовому реконекті і давало пік у пулі.
-                # ponytail: 16 RTT (~3 мс на bridge). Якщо стане вузьким — pipeline,
-                # але тоді треба явно знати тип кожного ключа (set_redis_data пише dict як Hash).
-                async with shared_data.handshake_semaphore:
-                    alerts_cache = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:alerts:data", default_response=False
-                    )
-                    alerts_hash_actual = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:alerts:hash_actual", default_response=0
-                    )
-                    alerts_hash_previous = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:alerts:hash_previous", default_response=0
-                    )
-                    weather_cache = await get_redis_data(logger, redis_client, WEATHER_DATA_KEY, default_response={})
-                    energy_cache = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:energy:data", default_response={}
-                    )
-                    radiation_cache = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:radiation:data", default_response={}
-                    )
-                    releases_beta = await get_redis_data(logger, redis_client, "releases:beta", default_response=[])
-                    releases_prod = await get_redis_data(
-                        logger, redis_client, "releases:production", default_response=[]
-                    )
-
-                if alerts_cache:
-                    alerts_header = struct.pack("<B", TYPE_ALERTS_BATCH)
-                    alerts = bytearray()
-                    for rid, flags16 in alerts_cache.items():
-                        alerts += struct.pack("<H H", int(rid), flags16)
-                    hash_actual = struct.pack("<H", alerts_hash_actual)
-                    hash_previous = struct.pack("<H", alerts_hash_previous)
-                    alerts_payload = alerts_header + hash_actual + hash_previous + alerts
-                    await websocket.send(alerts_payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< initial alert packet")
-
-                if weather_cache:
-                    weather_header = struct.pack("<B", TYPE_WEATHER_BATCH)
-                    weather = bytearray()
-                    for rid, flags8 in weather_cache.items():
-                        weather += struct.pack("<H B", int(rid), int(flags8) & 0xFF)
-                    weather_payload = weather_header + weather
-                    await websocket.send(weather_payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< initial weather packet")
-
-                if energy_cache:
-                    energy_header = struct.pack("<B", TYPE_GRID_BATCH)
-                    energy_payload = energy_header + make_grid_batch(energy_cache)
-                    await websocket.send(energy_payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< initial energy packet")
-
-                if radiation_cache:
-                    radiation_header = struct.pack("<B", TYPE_RADIATION_BATCH)
-                    radiation_payload = radiation_header + make_radiation_batch(radiation_cache)
-                    await websocket.send(radiation_payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< initial radiation packet")
-
-                if releases_beta:
-                    firmware_payload = make_firmware_batch(releases_beta, TYPE_FIRMWARE_UPDATE_BETA_BATCH)
-                    await websocket.send(firmware_payload)
-                    logger.debug(
-                        f"{client_ip}:{chip_id} <<< initial firmware packet ({len(releases_beta)} beta versions)"
-                    )
-
-                if releases_prod:
-                    firmware_payload = make_firmware_batch(releases_prod, TYPE_FIRMWARE_UPDATE_PROD_BATCH)
-                    await websocket.send(firmware_payload)
-                    logger.debug(
-                        f"{client_ip}:{chip_id} <<< initial firmware packet ({len(releases_prod)} production versions)"
-                    )
-
+                snap = await _fetch_map_and_firmware_snapshot(shared_data, "releases:beta", "releases:production")
+                await _send_initial_map_packets(
+                    websocket,
+                    client_ip,
+                    chip_id,
+                    snap,
+                    TYPE_FIRMWARE_UPDATE_BETA_BATCH,
+                    TYPE_FIRMWARE_UPDATE_PROD_BATCH,
+                    "",
+                )
                 client["initial"] = False
 
                 # Дані вже прочитані спільним redis_fanout — тут лише формування пакета і send
@@ -1023,31 +1123,10 @@ async def alerts_data_fusion(
                     channel, data = await queue.get()
                     logger.debug(f"📬 {client_ip}:{chip_id} подія з каналу: {channel}")
 
+                    if await _dispatch_common_map_channel(websocket, client_ip, chip_id, channel, data):
+                        continue
+
                     match channel:
-                        case "websocket:v1:fusion:alerts:updated":
-                            payload = hex_payload(data, "websocket:v1:fusion:payload:alerts", client_ip, chip_id)
-                            if payload is False:
-                                continue
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new alert packet")
-                        case channel if channel == WEATHER_UPDATED_CHANNEL:
-                            payload = struct.pack("<B", TYPE_WEATHER_BATCH) + make_weather_batch(data)
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new weather packet")
-                        case "websocket:v1:fusion:energy:updated":
-                            payload = struct.pack("<B", TYPE_GRID_BATCH) + make_grid_batch(data)
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new energy packet")
-                        case "websocket:v1:fusion:radiation:updated":
-                            payload = struct.pack("<B", TYPE_RADIATION_BATCH) + make_radiation_batch(data)
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new radiation packet")
-                        case "websocket:v1:fusion:etryvoga:updated":
-                            payload = hex_payload(data, "websocket:v1:fusion:payload:notifications", client_ip, chip_id)
-                            if payload is False:
-                                continue
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new notifications packet")
                         case "releases:production:updated":
                             await websocket.send(make_firmware_batch(data, TYPE_FIRMWARE_UPDATE_PROD_BATCH))
                             logger.debug(
@@ -1091,7 +1170,6 @@ async def alerts_data_touch(
     try:
         chip_id = await get_client_chip_id(client, chip_id_event)
         firmware = await get_client_firmware(client, firmware_event)
-        redis_client = shared_data.redis_client
 
         queue = asyncio.Queue(maxsize=32)
         shared_data.subscribe(queue, TOUCH_CHANNELS)
@@ -1104,73 +1182,16 @@ async def alerts_data_touch(
 
         logger.debug(f"{client_ip}:{chip_id}: check")
 
-        async with shared_data.handshake_semaphore:
-            alerts_cache = await get_redis_data(
-                logger, redis_client, "websocket:v1:fusion:alerts:data", default_response=False
-            )
-            alerts_hash_actual = await get_redis_data(
-                logger, redis_client, "websocket:v1:fusion:alerts:hash_actual", default_response=0
-            )
-            alerts_hash_previous = await get_redis_data(
-                logger, redis_client, "websocket:v1:fusion:alerts:hash_previous", default_response=0
-            )
-            weather_cache = await get_redis_data(logger, redis_client, WEATHER_DATA_KEY, default_response={})
-            energy_cache = await get_redis_data(
-                logger, redis_client, "websocket:v1:fusion:energy:data", default_response={}
-            )
-            radiation_cache = await get_redis_data(
-                logger, redis_client, "websocket:v1:fusion:radiation:data", default_response={}
-            )
-            releases_touch_beta = await get_redis_data(logger, redis_client, "releases:touch:beta", default_response=[])
-            releases_touch_prod = await get_redis_data(
-                logger, redis_client, "releases:touch:production", default_response=[]
-            )
-
-        if alerts_cache:
-            alerts_header = struct.pack("<B", TYPE_ALERTS_BATCH)
-            alerts = bytearray()
-            for rid, flags16 in alerts_cache.items():
-                alerts += struct.pack("<H H", int(rid), flags16)
-            hash_actual = struct.pack("<H", alerts_hash_actual)
-            hash_previous = struct.pack("<H", alerts_hash_previous)
-            alerts_payload = alerts_header + hash_actual + hash_previous + alerts
-            await websocket.send(alerts_payload)
-            logger.debug(f"{client_ip}:{chip_id} <<< initial alert packet")
-
-        if weather_cache:
-            weather_header = struct.pack("<B", TYPE_WEATHER_BATCH)
-            weather = bytearray()
-            for rid, flags8 in weather_cache.items():
-                weather += struct.pack("<H B", int(rid), int(flags8) & 0xFF)
-            weather_payload = weather_header + weather
-            await websocket.send(weather_payload)
-            logger.debug(f"{client_ip}:{chip_id} <<< initial weather packet")
-
-        if energy_cache:
-            energy_header = struct.pack("<B", TYPE_GRID_BATCH)
-            energy_payload = energy_header + make_grid_batch(energy_cache)
-            await websocket.send(energy_payload)
-            logger.debug(f"{client_ip}:{chip_id} <<< initial energy packet")
-
-        if radiation_cache:
-            radiation_header = struct.pack("<B", TYPE_RADIATION_BATCH)
-            radiation_payload = radiation_header + make_radiation_batch(radiation_cache)
-            await websocket.send(radiation_payload)
-            logger.debug(f"{client_ip}:{chip_id} <<< initial radiation packet")
-
-        if releases_touch_beta:
-            firmware_payload = make_firmware_batch(releases_touch_beta, TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH)
-            await websocket.send(firmware_payload)
-            logger.debug(
-                f"{client_ip}:{chip_id} <<< initial touch firmware packet ({len(releases_touch_beta)} beta versions)"
-            )
-
-        if releases_touch_prod:
-            firmware_payload = make_firmware_batch(releases_touch_prod, TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH)
-            await websocket.send(firmware_payload)
-            logger.debug(
-                f"{client_ip}:{chip_id} <<< initial touch firmware packet ({len(releases_touch_prod)} production versions)"
-            )
+        snap = await _fetch_map_and_firmware_snapshot(shared_data, "releases:touch:beta", "releases:touch:production")
+        await _send_initial_map_packets(
+            websocket,
+            client_ip,
+            chip_id,
+            snap,
+            TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
+            TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
+            "touch ",
+        )
 
         client["initial"] = False
 
@@ -1201,31 +1222,10 @@ async def alerts_data_touch(
             channel, data = queue_get.result()
             logger.debug(f"📬 {client_ip}:{chip_id} подія з каналу: {channel}")
 
+            if await _dispatch_common_map_channel(websocket, client_ip, chip_id, channel, data):
+                continue
+
             match channel:
-                case "websocket:v1:fusion:alerts:updated":
-                    payload = hex_payload(data, "websocket:v1:fusion:payload:alerts", client_ip, chip_id)
-                    if payload is False:
-                        continue
-                    await websocket.send(payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< new alert packet")
-                case channel if channel == WEATHER_UPDATED_CHANNEL:
-                    payload = struct.pack("<B", TYPE_WEATHER_BATCH) + make_weather_batch(data)
-                    await websocket.send(payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< new weather packet")
-                case "websocket:v1:fusion:energy:updated":
-                    payload = struct.pack("<B", TYPE_GRID_BATCH) + make_grid_batch(data)
-                    await websocket.send(payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< new energy packet")
-                case "websocket:v1:fusion:radiation:updated":
-                    payload = struct.pack("<B", TYPE_RADIATION_BATCH) + make_radiation_batch(data)
-                    await websocket.send(payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< new radiation packet")
-                case "websocket:v1:fusion:etryvoga:updated":
-                    payload = hex_payload(data, "websocket:v1:fusion:payload:notifications", client_ip, chip_id)
-                    if payload is False:
-                        continue
-                    await websocket.send(payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< new notifications packet")
                 case "releases:touch:production:updated":
                     await websocket.send(make_firmware_batch(data, TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH))
                     logger.debug(f"{client_ip}:{chip_id} <<< updated touch firmware packet ({len(data)} prod versions)")
