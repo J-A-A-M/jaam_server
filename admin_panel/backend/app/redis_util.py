@@ -4,6 +4,7 @@
 але повертає повні значення клієнтів (не лише connect_time), бо адмінці потрібні всі поля.
 """
 
+import asyncio
 import json
 import logging
 
@@ -153,7 +154,8 @@ async def mirror_device_auth(servers: list[RedisServer], chip_id: str, secret_ve
         "version": str(secret_version),
         "whitelisted": "1" if whitelisted else "0",
     }
-    for server in servers:
+
+    async def _mirror_one(server: RedisServer) -> None:
         try:
             await server.client.hset(key, mapping=mapping)
             if not whitelisted:
@@ -166,6 +168,9 @@ async def mirror_device_auth(servers: list[RedisServer], chip_id: str, secret_ve
                 exc,
             )
 
+    # Незалежні Redis-сервери/хости - пишемо конкурентно, а не по черзі (N x RTT).
+    await asyncio.gather(*(_mirror_one(server) for server in servers))
+
 
 async def mirror_claim_code(servers: list[RedisServer], chip_id: str, code_hash: str, ttl_s: int) -> None:
     """Пише одноразовий квиток активації device_claim:<CHIP_ID> ({code_hash, attempts=0}, TTL)
@@ -174,10 +179,13 @@ async def mirror_claim_code(servers: list[RedisServer], chip_id: str, code_hash:
     нічого про сам код не зберігає (лише secret_version, який уже мирориться mirror_device_auth
     окремим викликом до цього)."""
     key = f"device_claim:{chip_id.upper()}"
-    for server in servers:
+
+    async def _mirror_one(server: RedisServer) -> None:
         try:
-            await server.client.hset(key, mapping={"code_hash": code_hash, "attempts": "0"})
-            await server.client.expire(key, ttl_s)
+            async with server.client.pipeline(transaction=False) as pipe:
+                pipe.hset(key, mapping={"code_hash": code_hash, "attempts": "0"})
+                pipe.expire(key, ttl_s)
+                await pipe.execute()
         except Exception as exc:  # noqa: BLE001
             logger.error(
                 "Не вдалося дзеркалити claim-код для %s на %s: %s",
@@ -185,3 +193,25 @@ async def mirror_claim_code(servers: list[RedisServer], chip_id: str, code_hash:
                 server.name,
                 exc,
             )
+
+    await asyncio.gather(*(_mirror_one(server) for server in servers))
+
+
+async def delete_claim_code(servers: list[RedisServer], chip_id: str) -> None:
+    """Видаляє device_claim:<CHIP_ID> на всіх серверах. Викликається при знятті whitelisted -
+    інакше вже видний, ще не активований claim-код лишався б робочим і після ревокації
+    (claim_touch_secret сам собою цього не знає, доки не звернеться до device_auth)."""
+    key = f"device_claim:{chip_id.upper()}"
+
+    async def _delete_one(server: RedisServer) -> None:
+        try:
+            await server.client.delete(key)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Не вдалося видалити claim-код для %s на %s: %s",
+                chip_id,
+                server.name,
+                exc,
+            )
+
+    await asyncio.gather(*(_delete_one(server) for server in servers))

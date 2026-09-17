@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import json
+import re
 import struct
 import secrets
 import string
@@ -34,7 +35,7 @@ try:
         TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
         TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
         verify_device_auth,
-        DEVICE_AUTH_MASTER_SECRET,
+        require_device_auth_master_secret_configured,
     )
 except ImportError:
     parent_dir = Path(__file__).resolve().parent.parent
@@ -54,7 +55,7 @@ except ImportError:
         TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
         TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
         verify_device_auth,
-        DEVICE_AUTH_MASTER_SECRET,
+        require_device_auth_master_secret_configured,
     )
 
 # Імпорт regions.json - спочатку з поточної папки, потім з батьківської
@@ -320,7 +321,9 @@ TOUCH_CHANNELS = [
     "websocket:v1:fusion:etryvoga:updated",
     "releases:touch:production:updated",
     "releases:touch:beta:updated",
-    DEVICE_AUTH_REVOKED_CHANNEL,
+    # DEVICE_AUTH_REVOKED_CHANNEL навмисно НЕ тут - alerts_data_touch підписує на нього
+    # окрему необмежену чергу (revoke_queue), щоб drop-oldest політика основної обмеженої
+    # черги ніколи не могла витіснити одноразову команду форс-дисконнекту.
 ]
 
 FUSION_CHANNELS = [
@@ -1084,6 +1087,7 @@ async def alerts_data_touch(
     (alerts/weather/energy/radiation), але ВЛАСНІ firmware-канали/opcodes (0xA8/0xA9,
     releases:touch:*) — ізольовано від jaam_fusion (0xA6/0xA7, releases:beta/production)."""
     queue = None
+    revoke_queue = None
     try:
         chip_id = await get_client_chip_id(client, chip_id_event)
         firmware = await get_client_firmware(client, firmware_event)
@@ -1091,6 +1095,12 @@ async def alerts_data_touch(
 
         queue = asyncio.Queue(maxsize=32)
         shared_data.subscribe(queue, TOUCH_CHANNELS)
+        # DEVICE_AUTH_REVOKED_CHANNEL - окрема необмежена черга. Основна queue має maxsize=32
+        # з drop-oldest політикою (redis_fanout) - під навантаженням станом-каналів вона могла
+        # б витіснити ще непрочитану одноразову команду форс-дисконнекту. Ця черга отримує
+        # лише рідкісні revoke-події, тож необмеженість тут не ризикує пам'яттю.
+        revoke_queue = asyncio.Queue()
+        shared_data.subscribe(revoke_queue, [DEVICE_AUTH_REVOKED_CHANNEL])
 
         logger.debug(f"{client_ip}:{chip_id}: check")
 
@@ -1165,7 +1175,30 @@ async def alerts_data_touch(
         client["initial"] = False
 
         while True:
-            channel, data = await queue.get()
+            # Ганяємо основну (обмежену) і revoke (необмежену) черги разом - перша подія, яка
+            # прийде, і обробляється; необроблений get() з іншої черги скасовується безпечно
+            # (asyncio.Queue.get() не забирає елемент, якщо його очікування скасовано до resolve).
+            queue_get = asyncio.ensure_future(queue.get())
+            revoke_get = asyncio.ensure_future(revoke_queue.get())
+            try:
+                done, pending = await asyncio.wait({queue_get, revoke_get}, return_when=asyncio.FIRST_COMPLETED)
+            except asyncio.CancelledError:
+                queue_get.cancel()
+                revoke_get.cancel()
+                raise
+            for task in pending:
+                task.cancel()
+
+            if revoke_get in done:
+                _, revoked_chip_id = revoke_get.result()
+                revoke_target = client.get("verified_chip_id") or chip_id.upper()
+                if revoked_chip_id != revoke_target:
+                    continue
+                logger.warning(f"{client_ip}:{chip_id} !!! whitelist revoked from admin panel - closing connection")
+                await websocket.close(code=1008, reason="unauthorized")
+                return
+
+            channel, data = queue_get.result()
             logger.debug(f"📬 {client_ip}:{chip_id} подія з каналу: {channel}")
 
             match channel:
@@ -1199,12 +1232,6 @@ async def alerts_data_touch(
                 case "releases:touch:beta:updated":
                     await websocket.send(make_firmware_batch(data, TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH))
                     logger.debug(f"{client_ip}:{chip_id} <<< updated touch firmware packet ({len(data)} beta versions)")
-                case c if c == DEVICE_AUTH_REVOKED_CHANNEL:
-                    if data != chip_id.upper():
-                        continue
-                    logger.warning(f"{client_ip}:{chip_id} !!! whitelist revoked from admin panel - closing connection")
-                    await websocket.close(code=1008, reason="unauthorized")
-                    return
                 case _:
                     logger.warning(f"{client_ip}:{chip_id} !!! Невідомий канал: {channel}")
 
@@ -1219,6 +1246,8 @@ async def alerts_data_touch(
     finally:
         if queue is not None:
             shared_data.unsubscribe(queue, TOUCH_CHANNELS)
+        if revoke_queue is not None:
+            shared_data.unsubscribe(revoke_queue, [DEVICE_AUTH_REVOKED_CHANNEL])
 
 
 async def alerts_data(
@@ -1415,6 +1444,13 @@ async def echo(websocket: ServerConnection):
         client = await create_redis_backed_client(client_key, shared_data.redis_client, initial_data, ttl=120)
         # Зберігаємо клієнта в shared_data.clients для доступу з фонових задач
         shared_data.clients[client_key] = client
+
+        # Якщо process_request встиг HMAC-верифікувати chip_id (/data_touch_v1, не shadow-fail) -
+        # переносимо його на client окремим ключем, який alerts_data_touch довірятиме для
+        # ревокації замість неавтентифікованого in-band "chip_id:<...>" повідомлення.
+        verified_touch_chip_id = getattr(websocket, "verified_touch_chip_id", None)
+        if verified_touch_chip_id:
+            client["verified_chip_id"] = verified_touch_chip_id
 
         chip_id_event = asyncio.Event()
         firmware_event = asyncio.Event()
@@ -1694,16 +1730,29 @@ def hex_payload(payload_hex, redis_key: str, client_ip: str = "", chip_id: str =
         return False
 
 
+_CHIP_ID_RE = re.compile(r"^[0-9A-F]{12}$")
+
+
 async def record_rejected_touch_client(redis_client, client_ip: str, chip_id: str) -> None:
     """Пише звичайний websocket:clients:* запис для НЕавторизованої спроби /data_touch_v1 -
     тим самим шляхом, яким admin_panel's collector уже підхоплює справжніх клієнтів у Мапи/
     Реєстр JAAM (жодного окремого кешу/таблиці) - адмін бачить chip_id у консолі й може
     одразу створити для нього запис і видати секрет, замість копіювати chip_id з логів.
     firmware="unauthorized" - явний маркер у списку мап, що це саме непровіжинена спроба,
-    не жива сесія. TTL короткий (60с): це лише слід, природно згасне без повторних спроб."""
+    не жива сесія. TTL короткий (60с): це лише слід, природно згасне без повторних спроб.
+
+    Цей запис — з НЕавтентифікованого запиту (HMAC не пройшов), тому chip_id тут — те, що
+    прислав клієнт, а не перевірений факт. Приймаємо лише значення форми справжнього
+    chip_id (12 hex-символів, як реальний ESP32 efuse MAC) - інакше довільний рядок від
+    анонімного клієнта міг би засмічувати адмінський реєстр і провокувати провіжн
+    неіснуючого пристрою під довільним ім'ям."""
+    chip_id_upper = chip_id.upper()
+    if not _CHIP_ID_RE.match(chip_id_upper):
+        logger.debug(f"{client_ip}:{chip_id} !!! rejected touch client chip_id malformed, not recording")
+        return
     client_id = generate_random_hash(8)
     data = {
-        "chip_id": chip_id.upper(),
+        "chip_id": chip_id_upper,
         "firmware": "unauthorized",
         "hardware": "ESP32-S3",
         "connect_time": datetime.datetime.now(tz=server_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
@@ -1752,6 +1801,12 @@ async def process_request(connection: ServerConnection, request: Request):
                 # Затримка ДО відповіді - ззовні виглядає як таймаут, не як миттєвий oracle.
                 await asyncio.sleep(TOUCH_AUTH_REJECT_DELAY_S)
                 return connection.respond(HTTPStatus.UNAUTHORIZED, f"unauthorized: {reason}\n")
+        else:
+            # HMAC-верифікований chip_id прив'язуємо до самого з'єднання (не до client dict -
+            # той створюється пізніше в echo()). Далі echo() читає це звідси, щоб ревокація
+            # звірялась із дійсно перевіреним chip_id, а не з неавтентифікованим "chip_id:<...>"
+            # повідомленням, яке message_handler приймає від будь-кого пост-хендшейку.
+            connection.verified_touch_chip_id = chip_id.upper()
 
 
 async def process_response(connection: ServerConnection, request: Request, response: Response):
@@ -1763,11 +1818,9 @@ async def process_response(connection: ServerConnection, request: Request, respo
 
 
 async def main():
-    if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
-        raise RuntimeError(
-            "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
-            "перед запуском — інакше HMAC-авторизація jaam_touch (/data_touch_v1) тривіально підробна."
-        )
+    require_device_auth_master_secret_configured(
+        "HMAC-авторизація jaam_touch (/data_touch_v1) тривіально підробна"
+    )
 
     redis_client = redis.Redis(
         host=redis_host,

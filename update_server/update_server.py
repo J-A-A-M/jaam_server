@@ -31,7 +31,9 @@ try:
         touch_release_filter,
         verify_device_auth,
         derive_device_secret,
-        DEVICE_AUTH_MASTER_SECRET,
+        require_device_auth_master_secret_configured,
+        device_auth_key,
+        device_claim_key,
     )
 except ImportError:
     parent_dir = Path(__file__).resolve().parent.parent
@@ -49,7 +51,9 @@ except ImportError:
         touch_release_filter,
         verify_device_auth,
         derive_device_secret,
-        DEVICE_AUTH_MASTER_SECRET,
+        require_device_auth_master_secret_configured,
+        device_auth_key,
+        device_claim_key,
     )
 
 debug_level = os.environ.get("LOGGING") or "INFO"
@@ -69,6 +73,12 @@ github_token = os.environ.get("GITHUB_TOKEN")  # Optional: для підвище
 github_repo_touch = os.environ.get("GITHUB_REPO_TOUCH") or "J-A-A-M/jaam_touch"
 shared_path_touch = os.environ.get("SHARED_PATH_TOUCH") or "/shared_data/releases_touch"
 shared_path_touch_beta = os.environ.get("SHARED_PATH_TOUCH_BETA") or "/shared_data/beta_touch"
+
+# Той самий TOUCH_AUTH_MODE, що й у websocket_server: "shadow" лише логує невдалу
+# HMAC-перевірку, не блокує запит - зручно для локального бринг-апу touch-пристроїв
+# без валідного device-auth. Без цього прапорця OTA hard-fail'ив 401 навіть коли
+# websocket_server вже пропускав ті самі пристрої в shadow-режимі.
+touch_auth_mode = (os.environ.get("TOUCH_AUTH_MODE") or "enforce").lower()
 
 
 if not isinstance(port, int) or not (1024 <= port <= 65535):
@@ -382,7 +392,10 @@ async def _check_touch_auth(request, filename: str):
         domain=f"OTA:{filename}",
     )
     if not ok:
-        raise HTTPException(status_code=401, detail=f"unauthorized: {reason}")
+        if touch_auth_mode == "shadow":
+            logger.warning(f"{request.headers.get('x-chip-id')} !!! TOUCH AUTH SHADOW-FAIL ({reason})")
+        else:
+            raise HTTPException(status_code=401, detail=f"unauthorized: {reason}")
 
 
 CLAIM_MAX_ATTEMPTS = 5
@@ -404,7 +417,7 @@ async def claim_touch_secret(request):
         raise HTTPException(status_code=400, detail="chip_id and code required")
 
     chip_id_upper = chip_id.upper()
-    key = f"device_claim:{chip_id_upper}"
+    key = device_claim_key(chip_id_upper)
     ticket = await redis_client.hgetall(key)
     if not ticket:
         await asyncio.sleep(CLAIM_REJECT_DELAY_S)
@@ -421,7 +434,14 @@ async def claim_touch_secret(request):
 
     await redis_client.delete(key)  # одноразовий - незалежно від подальшого результату
 
-    auth = await redis_client.hgetall(f"device_auth:{chip_id_upper}")
+    auth = await redis_client.hgetall(device_auth_key(chip_id_upper))
+    # Адмін міг зняти whitelisted між видачею коду і його активацією (напр. пристрій
+    # заявлено загубленим ще в дорозі) - той самий "invalid or expired code" відгук,
+    # що і для інших відмов вище, щоб не давати timing/response oracle "код був
+    # правильний, але пристрій заблокований".
+    if auth.get("whitelisted") != "1":
+        await asyncio.sleep(CLAIM_REJECT_DELAY_S)
+        raise HTTPException(status_code=401, detail="invalid or expired code")
     try:
         secret_version = int(auth.get("version", 0))
     except (TypeError, ValueError):
@@ -645,9 +665,7 @@ app = Starlette(
 )
 
 if __name__ == "__main__":
-    if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
-        raise RuntimeError(
-            "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
-            "перед запуском — інакше auth-токени OTA-завантаження /touch/*.bin тривіально підробні."
-        )
+    require_device_auth_master_secret_configured(
+        "auth-токени OTA-завантаження /touch/*.bin тривіально підробні"
+    )
     uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, forwarded_allow_ips=["*"])

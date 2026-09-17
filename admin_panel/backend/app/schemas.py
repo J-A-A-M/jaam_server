@@ -72,8 +72,8 @@ class DeviceOut(BaseModel):
     is_prototype: bool | None = None
     order_number: str | None = None
     customer_info: str | None = None
-    secret_version: int = 0
-    whitelisted: bool = True
+    secret_version: int | None = 0
+    whitelisted: bool | None = True
 
 
 class DeviceListOut(BaseModel):
@@ -166,8 +166,8 @@ class JaamMapOut(BaseModel):
     is_prototype: bool
     order_number: str | None
     customer_info: str | None
-    secret_version: int = 0
-    whitelisted: bool = True
+    secret_version: int | None = 0
+    whitelisted: bool | None = True
     created_at: datetime.datetime
     updated_at: datetime.datetime
     # Склейка зі станом онлайн

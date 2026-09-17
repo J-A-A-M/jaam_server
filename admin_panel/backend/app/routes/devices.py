@@ -19,11 +19,11 @@ def _device_out(d: Device, reg: JaamMap | None, include_pii: bool = True) -> Dev
         out.map_id = reg.map_id
         out.hw_version = reg.hw_version
         out.is_prototype = reg.is_prototype
-        # PII клієнтів — лише для адміністраторів
+        # PII клієнтів та device-auth стан — лише для адміністраторів
         out.order_number = reg.order_number if include_pii else None
         out.customer_info = reg.customer_info if include_pii else None
-        out.secret_version = reg.secret_version
-        out.whitelisted = reg.whitelisted
+        out.secret_version = reg.secret_version if include_pii else None
+        out.whitelisted = reg.whitelisted if include_pii else None
     return out
 
 

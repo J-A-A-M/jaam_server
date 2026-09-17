@@ -33,6 +33,28 @@ def derive_device_secret(chip_id: str, secret_version: int) -> bytes:
     return hmac.new(DEVICE_AUTH_MASTER_SECRET, f"{chip_id.upper()}:{secret_version}".encode(), hashlib.sha256).digest()
 
 
+def device_auth_key(chip_id: str) -> str:
+    return f"device_auth:{chip_id.upper()}"
+
+
+def device_claim_key(chip_id: str) -> str:
+    return f"device_claim:{chip_id.upper()}"
+
+
+def require_device_auth_master_secret_configured(consequence: str) -> None:
+    """Fail-loud guard для entrypoint'ів: не даємо серверу стартувати з дефолтним секретом.
+
+    `consequence` — повне речення про те, що стає тривіально підробним (узгодження роду/числа
+    різне для websocket_server і update_server, тому текст лишаємо параметризованим цілком,
+    а не третьою копією однакового if/raise).
+    """
+    if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
+        raise RuntimeError(
+            "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
+            f"перед запуском — інакше {consequence}."
+        )
+
+
 async def verify_device_auth(redis_client, chip_id, ts_str, mac_hex, domain: str) -> tuple[bool, str]:
     """Перевіряє HMAC-триплет (chip_id, ts, mac) пристрою jaam_touch проти whitelist у Redis.
 
@@ -49,7 +71,7 @@ async def verify_device_auth(redis_client, chip_id, ts_str, mac_hex, domain: str
         return False, "ts_out_of_window"
 
     chip_id_upper = chip_id.upper()
-    auth = await redis_client.hgetall(f"device_auth:{chip_id_upper}")
+    auth = await redis_client.hgetall(device_auth_key(chip_id_upper))
     # "unknown_device" (жодного запису - admin_panel ще не бачив цей chip_id) відрізняємо від
     # "not_whitelisted" (запис є, але адмін явно зняв whitelisted) лише для чіткості логів -
     # обидва однаково ведуть до відмови нижче за викликом.
@@ -67,6 +89,13 @@ async def verify_device_auth(redis_client, chip_id, ts_str, mac_hex, domain: str
     expected = hmac.new(secret, f"{domain}:{chip_id_upper}:{ts}".encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, mac_hex.lower()):
         return False, "bad_mac"
+
+    # Replay-захист: один (domain, chip_id, ts) валідний лише один раз. Без цього captured
+    # HMAC-триплет можна відтворити скільки завгодно разів у межах DEVICE_AUTH_TS_WINDOW_S.
+    nonce_key = f"device_auth_nonce:{domain}:{chip_id_upper}:{ts}"
+    is_new = await redis_client.set(nonce_key, "1", nx=True, ex=DEVICE_AUTH_TS_WINDOW_S * 2)
+    if not is_new:
+        return False, "replayed"
     return True, "ok"
 
 

@@ -10,10 +10,14 @@ websocket_server/update_server для перевірки. Формула іде�
 import hashlib
 import hmac
 
-from .config import DEVICE_AUTH_MASTER_SECRET
-
-_MASTER_SECRET = DEVICE_AUTH_MASTER_SECRET.encode()
+from . import config
 
 
 def derive_device_secret(chip_id: str, secret_version: int) -> bytes:
-    return hmac.new(_MASTER_SECRET, f"{chip_id.upper()}:{secret_version}".encode(), hashlib.sha256).digest()
+    # Читаємо config.DEVICE_AUTH_MASTER_SECRET лячно (не кешуємо в module-level змінну при
+    # імпорті) - websocket_server/update_server теж читають свою копію з os.environ при
+    # старті процесу, тож усі три місця однаково "заморожені" на час життя процесу, а не
+    # ще й розсинхронізовані одне з одним залежно від порядку імпорту в цьому модулі.
+    return hmac.new(
+        config.DEVICE_AUTH_MASTER_SECRET.encode(), f"{chip_id.upper()}:{secret_version}".encode(), hashlib.sha256
+    ).digest()
