@@ -1818,9 +1818,7 @@ async def process_response(connection: ServerConnection, request: Request, respo
 
 
 async def main():
-    require_device_auth_master_secret_configured(
-        "HMAC-авторизація jaam_touch (/data_touch_v1) тривіально підробна"
-    )
+    require_device_auth_master_secret_configured("HMAC-авторизація jaam_touch (/data_touch_v1) тривіально підробна")
 
     redis_client = redis.Redis(
         host=redis_host,
