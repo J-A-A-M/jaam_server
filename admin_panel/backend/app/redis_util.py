@@ -130,9 +130,10 @@ async def count_clients(client: redis.Redis) -> int:
     return total
 
 
-async def mirror_device_auth(
-    servers: list[RedisServer], chip_id: str, secret_version: int, whitelisted: bool
-) -> None:
+DEVICE_AUTH_REVOKED_CHANNEL = "device:auth:revoked"
+
+
+async def mirror_device_auth(servers: list[RedisServer], chip_id: str, secret_version: int, whitelisted: bool) -> None:
     """Дзеркалить {version, whitelisted} для chip_id у device_auth:<CHIP_ID> на всі сервери.
 
     Postgres (jaam_maps) — одна спільна база без поділу на середовища, тому пишемо
@@ -140,6 +141,12 @@ async def mirror_device_auth(
     дзеркалювання єдиного джерела правди в кожен кеш, який його читає: websocket_server
     та update_server). Жодного секретного матеріалу тут немає — лише версія й прапорець,
     сам секрет — похідний (device_auth.derive_device_secret) і ніде не зберігається.
+
+    Whitelist перевіряється websocket_server лише один раз, у process_request() перед WS
+    upgrade - без явного kick-сигналу вже підключений пристрій лишався б живим аж до
+    власного наступного реконекту. Публікуємо chip_id у DEVICE_AUTH_REVOKED_CHANNEL (лише
+    коли знімаємо whitelisted, не при видачі/поновленні) - websocket_server.alerts_data_touch
+    звіряє його зі своїм з'єднанням і форсує close(), якщо збігається.
     """
     key = f"device_auth:{chip_id.upper()}"
     mapping = {
@@ -149,6 +156,8 @@ async def mirror_device_auth(
     for server in servers:
         try:
             await server.client.hset(key, mapping=mapping)
+            if not whitelisted:
+                await server.client.publish(DEVICE_AUTH_REVOKED_CHANNEL, chip_id.upper())
         except Exception as exc:  # noqa: BLE001
             logger.error(
                 "Не вдалося дзеркалити device_auth для %s на %s: %s",
@@ -158,9 +167,7 @@ async def mirror_device_auth(
             )
 
 
-async def mirror_claim_code(
-    servers: list[RedisServer], chip_id: str, code_hash: str, ttl_s: int
-) -> None:
+async def mirror_claim_code(servers: list[RedisServer], chip_id: str, code_hash: str, ttl_s: int) -> None:
     """Пише одноразовий квиток активації device_claim:<CHIP_ID> ({code_hash, attempts=0}, TTL)
     на всі сервери - update_server's /touch/claim звіряє код пристрою з ним і сам похідний
     секрет (не тут) віддає за matching-ом. TTL - єдине джерело "минув термін дії", Postgres
@@ -169,9 +176,7 @@ async def mirror_claim_code(
     key = f"device_claim:{chip_id.upper()}"
     for server in servers:
         try:
-            await server.client.hset(
-                key, mapping={"code_hash": code_hash, "attempts": "0"}
-            )
+            await server.client.hset(key, mapping={"code_hash": code_hash, "attempts": "0"})
             await server.client.expire(key, ttl_s)
         except Exception as exc:  # noqa: BLE001
             logger.error(

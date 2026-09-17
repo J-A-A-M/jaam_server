@@ -138,7 +138,8 @@ async def _compute_overview(session: AsyncSession) -> OverviewOut:
 
     # Тренд онлайну за 24 год — рахуємо УНІКАЛЬНІ пристрої як online_now
     trend_res = await session.execute(
-        text("""
+        text(
+            """
             SELECT t, COUNT(DISTINCT s.chip_id) AS online
             FROM generate_series(
                 CAST(:day_ago AS timestamptz),
@@ -151,7 +152,8 @@ async def _compute_overview(session: AsyncSession) -> OverviewOut:
                   AND s.chip_id IS NOT NULL
             GROUP BY t
             ORDER BY t
-        """),
+        """
+        ),
         {
             "day_ago": day_ago,
             "now": now,
@@ -170,14 +172,16 @@ async def _compute_overview(session: AsyncSession) -> OverviewOut:
     # Нові мапи по днях за 30 днів
     # (gs.day AT TIME ZONE :tz) — конвертує timestamptz у Kyiv-дату для правильного підпису
     new_day_res = await session.execute(
-        text("""
+        text(
+            """
             SELECT (gs.day AT TIME ZONE :tz)::date AS day, COUNT(d.chip_id) AS count
             FROM generate_series(CAST(:ts_start AS timestamptz), CAST(:ts_end AS timestamptz) - '1 day'::interval, '1 day'::interval) AS gs(day)
             LEFT JOIN devices d
                    ON d.first_seen >= gs.day
                   AND d.first_seen < gs.day + '1 day'::interval
             GROUP BY gs.day ORDER BY gs.day
-        """),
+        """
+        ),
         {"ts_start": _ts_start, "ts_end": _ts_end, "tz": DEFAULT_SERVER_TZ},
     )
     new_per_day = [DayPoint(date=row.day, count=row.count) for row in new_day_res.mappings()]
@@ -186,14 +190,16 @@ async def _compute_overview(session: AsyncSession) -> OverviewOut:
     # рахуємо унікальні пристрої, чия сесія ПЕРЕТИНАЄТЬСЯ з добою
     # (стартувала до кінця доби І ще не завершилась АБО завершилась після початку доби)
     active_day_res = await session.execute(
-        text("""
+        text(
+            """
             SELECT (gs.day AT TIME ZONE :tz)::date AS day, COUNT(DISTINCT s.chip_id) AS count
             FROM generate_series(CAST(:ts_start AS timestamptz), CAST(:ts_end AS timestamptz) - '1 day'::interval, '1 day'::interval) AS gs(day)
             LEFT JOIN device_sessions s
                    ON s.started_at < gs.day + '1 day'::interval
                   AND (s.ended_at >= gs.day OR s.ended_at IS NULL)
             GROUP BY gs.day ORDER BY gs.day
-        """),
+        """
+        ),
         {"ts_start": _ts_start, "ts_end": _ts_end, "tz": DEFAULT_SERVER_TZ},
     )
     active_per_day = [DayPoint(date=row.day, count=row.count) for row in active_day_res.mappings()]

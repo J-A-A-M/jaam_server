@@ -70,12 +70,8 @@ def _to_out(m: JaamMap, device: Device | None, include_pii: bool = True) -> Jaam
 async def list_maps(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-    q: str | None = Query(
-        None, description="Пошук за chip_id / map_id / order / customer_info"
-    ),
-    status_: str | None = Query(
-        None, alias="status", description="online|offline|never"
-    ),
+    q: str | None = Query(None, description="Пошук за chip_id / map_id / order / customer_info"),
+    status_: str | None = Query(None, alias="status", description="online|offline|never"),
     is_prototype: bool | None = None,
     sort: str = "chip_id",
     order: str = "asc",
@@ -104,16 +100,11 @@ async def list_maps(
         filters.append(Device.chip_id.is_(None))
 
     total = await session.scalar(
-        select(func.count())
-        .select_from(JaamMap)
-        .outerjoin(Device, JaamMap.chip_id == Device.chip_id)
-        .where(*filters)
+        select(func.count()).select_from(JaamMap).outerjoin(Device, JaamMap.chip_id == Device.chip_id).where(*filters)
     )
 
     sort_col = _SORT_COLUMNS.get(sort, JaamMap.chip_id)
-    sort_expr = (
-        sort_col.desc().nulls_last() if order == "desc" else sort_col.asc().nulls_last()
-    )
+    sort_expr = sort_col.desc().nulls_last() if order == "desc" else sort_col.asc().nulls_last()
 
     result = await session.execute(
         select(JaamMap, Device)
@@ -152,9 +143,7 @@ async def create_map(
         await session.commit()
     except IntegrityError:
         await session.rollback()
-        raise HTTPException(
-            status_code=409, detail="Мапа з таким chip_id вже є в реєстрі"
-        )
+        raise HTTPException(status_code=409, detail="Мапа з таким chip_id вже є в реєстрі")
     await session.refresh(m)
     device = await session.get(Device, chip_id)
     return _to_out(m, device)
@@ -214,9 +203,7 @@ async def provision_secret(
     await session.commit()
 
     secret_hex = derive_device_secret(chip_id, m.secret_version).hex()
-    await mirror_device_auth(
-        request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted
-    )
+    await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
 
     return ProvisionOut(
         chip_id=chip_id,
@@ -247,17 +234,11 @@ async def issue_claim_code(
     m.whitelisted = True
     await session.commit()
 
-    code = "".join(
-        pysecrets.choice(_CLAIM_CODE_ALPHABET) for _ in range(_CLAIM_CODE_LENGTH)
-    )
+    code = "".join(pysecrets.choice(_CLAIM_CODE_ALPHABET) for _ in range(_CLAIM_CODE_LENGTH))
     code_hash = hashlib.sha256(code.encode()).hexdigest()
 
-    await mirror_device_auth(
-        request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted
-    )
-    await mirror_claim_code(
-        request.app.state.redis_servers, chip_id, code_hash, _CLAIM_CODE_TTL_S
-    )
+    await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
+    await mirror_claim_code(request.app.state.redis_servers, chip_id, code_hash, _CLAIM_CODE_TTL_S)
 
     return ClaimCodeOut(
         chip_id=chip_id,
@@ -285,9 +266,7 @@ async def set_whitelisted(
     await session.commit()
     await session.refresh(m)
 
-    await mirror_device_auth(
-        request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted
-    )
+    await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
 
     device = await session.get(Device, chip_id)
     return _to_out(m, device)

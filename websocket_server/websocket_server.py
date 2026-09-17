@@ -302,6 +302,13 @@ class AlertVersion:
 # Набір каналів однаковий для всіх клієнтів однієї версії, тому підписка одна
 # на процес (redis_fanout), а не одна на клієнта.
 
+# jaam_touch-only "команда", не дані стану: admin_panel публікує сюди chip_id (як plain
+# text, verbatim в message["data"]) щойно техпідтримка знімає whitelisted - alerts_data_touch
+# нижче звіряє його зі своїм власним chip_id і форсує розрив з'єднання, якщо збігається.
+# Без цього заблокований пристрій лишався б підключеним аж до наступного власного реконекту
+# (whitelist перевіряється лише один раз, у process_request() перед WS upgrade).
+DEVICE_AUTH_REVOKED_CHANNEL = "device:auth:revoked"
+
 # jaam_touch (/data_touch_v1): ті самі базові дані карти (alerts/weather/energy/radiation),
 # але ВЛАСНІ, ізольовані від jaam_fusion канали для прошивок — touch ніколи не отримує/
 # не публікує в releases:production/releases:beta (fusion), і навпаки.
@@ -313,6 +320,7 @@ TOUCH_CHANNELS = [
     "websocket:v1:fusion:etryvoga:updated",
     "releases:touch:production:updated",
     "releases:touch:beta:updated",
+    DEVICE_AUTH_REVOKED_CHANNEL,
 ]
 
 FUSION_CHANNELS = [
@@ -403,7 +411,9 @@ def legacy_channels(alert_version) -> list[str]:
 
 
 # Union усіх версій: v1 слухає v1-канал алертів, v2+ — v2-канал, тож v4 сам по собі не покриває все
-ALL_CHANNELS = sorted({*FUSION_CHANNELS, *(ch for v in LEGACY_VERSION_CHANNELS for ch in legacy_channels(v))})
+ALL_CHANNELS = sorted(
+    {DEVICE_AUTH_REVOKED_CHANNEL, *FUSION_CHANNELS, *(ch for v in LEGACY_VERSION_CHANNELS for ch in legacy_channels(v))}
+)
 
 # Канали, чий redis_key не виводиться як channel.removesuffix(":updated")
 _CHANNEL_KEY_OVERRIDES = {
@@ -873,8 +883,14 @@ async def redis_fanout(shared_data: SharedData):
                 if not queues:
                     continue
 
-                key, default = channel_source(channel)
-                data = await get_redis_data(logger, shared_data.redis_client, key, default_response=default)
+                if channel == DEVICE_AUTH_REVOKED_CHANNEL:
+                    # Команда, не стан - payload IS the chip_id, немає Redis-ключа позаду
+                    # каналу для channel_source()/get_redis_data() (на відміну від решти
+                    # каналів тут, кожен з яких дублює "поточне значення" в окремому ключі).
+                    data = message["data"]
+                else:
+                    key, default = channel_source(channel)
+                    data = await get_redis_data(logger, shared_data.redis_client, key, default_response=default)
                 logger.info(f"📬 fan-out {channel} -> {len(queues)} клієнтів")
 
                 for queue in list(queues):
@@ -1183,6 +1199,12 @@ async def alerts_data_touch(
                 case "releases:touch:beta:updated":
                     await websocket.send(make_firmware_batch(data, TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH))
                     logger.debug(f"{client_ip}:{chip_id} <<< updated touch firmware packet ({len(data)} beta versions)")
+                case c if c == DEVICE_AUTH_REVOKED_CHANNEL:
+                    if data != chip_id.upper():
+                        continue
+                    logger.warning(f"{client_ip}:{chip_id} !!! whitelist revoked from admin panel - closing connection")
+                    await websocket.close(code=1008, reason="unauthorized")
+                    return
                 case _:
                     logger.warning(f"{client_ip}:{chip_id} !!! Невідомий канал: {channel}")
 
