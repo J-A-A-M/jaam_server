@@ -99,7 +99,12 @@ services:
     ports:
       - "8081:8081"
     volumes:
-      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      # Абсолютний шлях на хості (не ./nginx/... з репо-чекауту), навмисно - той самий патерн,
+      # що й /shared_data_dev нижче. deploy_dev.yml клонує репо в mktemp-директорію і видаляє
+      # її одразу по завершенні деплою (trap EXIT) - контейнер, змонтований на файл усередині
+      # неї, переживає сам деплой, але жодного docker restart/reload після цього вже неможливо
+      # (bind-mount source не існує). deploy_dev.yml копіює nginx.dev.conf сюди перед `up`.
+      - /shared_data_dev/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       websocket_server_dev:
         condition: service_healthy

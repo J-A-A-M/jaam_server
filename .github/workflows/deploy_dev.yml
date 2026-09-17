@@ -74,6 +74,13 @@ jobs:
             git clone --branch "$REF_NAME" "https://github.com/$REPO.git" .
 
             mkdir -p /shared_data_dev
+            # nginx_dev's bind mount points here (docker-compose.dev.yml), not at the checkout
+            # itself - $TEMP_DIR is deleted (trap above) right after this script exits, which
+            # used to leave the container's mount source dangling and break any later
+            # docker restart/reload on nginx_dev until the next full deploy. Refresh the stable
+            # copy from the freshly cloned repo on every deploy so config changes still land.
+            mkdir -p /shared_data_dev/nginx
+            cp nginx/nginx.dev.conf /shared_data_dev/nginx/nginx.dev.conf
 
             cat > .env <<EOF
             DEV_REDIS_PASSWORD=$DEV_REDIS_PASSWORD
