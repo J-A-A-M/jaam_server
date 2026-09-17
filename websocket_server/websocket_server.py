@@ -1401,6 +1401,12 @@ async def echo(websocket: ServerConnection):
         if touch_auth_reject_reason:
             logger.info(f"{client_ip}:{client_id} >>> sending TOUCH_AUTH_REJECTED ({touch_auth_reject_reason})")
             try:
+                # Затримка ТУТ, після завершення апгрейду (не в process_request() - див. його
+                # коментар про те, чому затримка ДО 101-відповіді ламала сам хендшейк) -
+                # ззовні виглядає як звичайний таймаут, не як миттєвий oracle, а WS-з'єднання
+                # вже повністю встановлене й чекає своєю природною поведінкою (не залежить від
+                # обмеженого таймауту прошивки на власне читання відповіді 101).
+                await asyncio.sleep(TOUCH_AUTH_REJECT_DELAY_S)
                 payload = struct.pack("<B", TYPE_TOUCH_AUTH_REJECTED) + touch_auth_reject_reason.encode("ascii")
                 await websocket.send(payload)
                 # TCP delivers frames on one connection in order, so this close frame can never
@@ -1822,17 +1828,21 @@ async def process_request(connection: ServerConnection, request: Request):
                 logger.warning(f"{client_ip}:{chip_id} !!! TOUCH AUTH REJECT ({reason})")
                 if chip_id:
                     await record_rejected_touch_client(shared_data.redis_client, client_ip, chip_id)
-                # Затримка ДО завершення хендшейку - ззовні виглядає як таймаут, не як
-                # миттєвий oracle.
-                await asyncio.sleep(TOUCH_AUTH_REJECT_DELAY_S)
-                # НЕ відповідаємо тут HTTP 401 - навмисно даємо WS upgrade завершитись
-                # (return нічого = process_request не втручається, бібліотека апгрейдить як
-                # звичайно). echo() зчитує це звідси і шле явний TYPE_TOUCH_AUTH_REJECTED
-                # (opcode 0xAA) по вже встановленому WS-з'єднанню, а вже потім закриває його -
-                # єдиний спосіб дати прошивці ГАРАНТОВАНО відрізнити "наш сервер підтвердив
-                # відмову" від "проксі/бекенд лежить" (502/503 від nginx під час рестарту
-                # виглядали для WS-бібліотеки клієнта ідентично до реальної відмови - саме це
-                # й спричиняло хибний unauthorized-латч під час рестарту сервера).
+                # НЕ відповідаємо тут HTTP 401 і НЕ затримуємо (TOUCH_AUTH_REJECT_DELAY_S
+                # застосовується в echo(), вже ПІСЛЯ апгрейду) - навмисно даємо WS upgrade
+                # завершитись негайно (return нічого = process_request не втручається,
+                # бібліотека апгрейдить як звичайно). Затримка ДО завершення хендшейку тут
+                # ламала сам хендшейк: прошивка чекає HTTP/1.1 101 з обмеженим власним
+                # таймаутом і, не діждавшись його вчасно, просто кидала цю спробу й стартувала
+                # нову - сервер тоді довершував апгрейд і слав TYPE_TOUCH_AUTH_REJECTED вже в
+                # порожнечу, нікому не потрібний (підтверджено живим тестом - пристрій ретраїв
+                # без кінця, жодного разу не отримавши повідомлення). echo() зчитує причину
+                # звідси і шле явний TYPE_TOUCH_AUTH_REJECTED (opcode 0xAA) по вже
+                # встановленому WS-з'єднанню, а вже потім закриває його - єдиний спосіб дати
+                # прошивці ГАРАНТОВАНО відрізнити "наш сервер підтвердив відмову" від
+                # "проксі/бекенд лежить" (502/503 від nginx під час рестарту виглядали для
+                # WS-бібліотеки клієнта ідентично до реальної відмови - саме це й спричиняло
+                # хибний unauthorized-латч під час рестарту сервера).
                 connection.touch_auth_reject_reason = reason
         else:
             # HMAC-верифікований chip_id прив'язуємо до самого з'єднання (не до client dict -
