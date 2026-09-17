@@ -128,7 +128,7 @@ async def create_map(
     admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
-    chip_id = body.chip_id.strip().upper()
+    chip_id = body.chip_id.strip()
     if not chip_id:
         raise HTTPException(status_code=400, detail="chip_id обов'язковий")
 
