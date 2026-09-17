@@ -7,6 +7,8 @@ import hashlib
 import os
 import time
 
+from redis.exceptions import ConnectionError as RedisConnectionError, TimeoutError as RedisTimeoutError
+
 TYPE_ALERTS_BATCH = 0xA1
 TYPE_NOTIFICATIONS_BATCH = 0xA2
 TYPE_WEATHER_BATCH = 0xA3
@@ -194,6 +196,28 @@ async def service_is_fine(logger, redis_client, key):
     await set_redis_data(logger, redis_client, key, get_current_datetime())
 
 
+# redis-py's own health_check_interval PING (set on every redis.Redis(...) construction in this
+# repo) still loses this race sometimes: it can succeed right before the server closes an idle
+# pooled connection, so the very next real command hits "Connection closed by server." A
+# slow-polling service (radiation_dev fetches every 30 хв, ukrenergo_dev's own heartbeat write
+# only happens once per ~5 хв обходу всіх областей) sits idle long enough between Redis calls
+# that this isn't rare - it was tripping their own /healthz heartbeat check almost every cycle
+# in practice, since the one call that failed was exactly service_is_fine()'s write and nothing
+# retried it before this. A single retry is enough - the pool discards the dead connection and
+# hands back a fresh one for the second attempt.
+_REDIS_TRANSIENT_ERRORS = (RedisConnectionError, RedisTimeoutError)
+_REDIS_RETRY_DELAY_S = 0.2
+
+
+async def _with_redis_retry(logger, op_desc, call):
+    try:
+        return await call()
+    except _REDIS_TRANSIENT_ERRORS as e:
+        logger.debug(f"Redis {op_desc}: transient error ({e}), retrying once...")
+        await asyncio.sleep(_REDIS_RETRY_DELAY_S)
+        return await call()
+
+
 async def get_redis_data(logger, redis_client, key, default_response=None):
     """
     Отримати дані з Redis з підтримкою різних типів даних
@@ -210,7 +234,7 @@ async def get_redis_data(logger, redis_client, key, default_response=None):
     if default_response is None:
         default_response = {}
 
-    try:
+    async def _fetch():
         # Перевіряємо тип даних в Redis
         data_type = await redis_client.type(key)
 
@@ -243,6 +267,9 @@ async def get_redis_data(logger, redis_client, key, default_response=None):
             return [(json.loads(item), score) for item, score in data]
 
         return default_response
+
+    try:
+        return await _with_redis_retry(logger, f"get {key}", _fetch)
     except Exception as e:
         logger.error(f"Error getting data from Redis for key {key}: {e}")
         return default_response
@@ -307,7 +334,8 @@ async def set_redis_data(logger, redis_client, key, value, expiry=None):
         - set -> Set або String (JSON)
         - str/int/float/bool -> String
     """
-    try:
+
+    async def _store():
         # Словник (dict) -> Hash або JSON String
         if isinstance(value, dict):
             # Перевіряємо чи всі значення можна зберегти як hash
@@ -370,6 +398,8 @@ async def set_redis_data(logger, redis_client, key, value, expiry=None):
             await redis_client.set(key, json.dumps(value, ensure_ascii=False), ex=expiry)
             logger.debug(f"Data stored in Redis as JSON String with key: {key}")
 
+    try:
+        await _with_redis_retry(logger, f"set {key}", _store)
     except Exception as e:
         logger.error(f"Error storing data in Redis for key {key}: {e}")
 
