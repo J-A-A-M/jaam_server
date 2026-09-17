@@ -157,6 +157,10 @@ async def handle_threat(redis_client, threat, ws_pending, debouncer, track_state
     """Резолвить регіон одного треку; пише в Redis лише якщо regionId змінився з
     попереднього відомого стану треку (дедуп повторних оновлень того самого trk_*)."""
     threat_id = threat.get("id")
+    if threat.get("areaOnly"):
+        logger.debug(f"{_id_col(threat_id)} ⏭️  areaOnly=true (немає точки, лише область), ігноруємо")
+        return
+
     threat_type = threat.get("type")
     config = NEPTUN_TYPE_CONFIG.get(threat_type)
     if not config:
