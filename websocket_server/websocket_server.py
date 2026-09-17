@@ -2,11 +2,14 @@ import asyncio
 import logging
 import os
 import json
+import re
 import struct
 import secrets
 import string
 import datetime
 import aiohttp
+from typing import NamedTuple
+from urllib.parse import urlsplit, parse_qs
 
 from geoip2 import database, errors
 from zoneinfo import ZoneInfo
@@ -30,6 +33,11 @@ try:
         TYPE_RADIATION_BATCH,
         TYPE_FIRMWARE_UPDATE_BETA_BATCH,
         TYPE_FIRMWARE_UPDATE_PROD_BATCH,
+        TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
+        TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
+        TYPE_TOUCH_AUTH_REJECTED,
+        verify_device_auth,
+        require_device_auth_master_secret_configured,
     )
 except ImportError:
     parent_dir = Path(__file__).resolve().parent.parent
@@ -46,6 +54,11 @@ except ImportError:
         TYPE_RADIATION_BATCH,
         TYPE_FIRMWARE_UPDATE_BETA_BATCH,
         TYPE_FIRMWARE_UPDATE_PROD_BATCH,
+        TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
+        TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
+        TYPE_TOUCH_AUTH_REJECTED,
+        verify_device_auth,
+        require_device_auth_master_secret_configured,
     )
 
 # Імпорт regions.json - спочатку з поточної папки, потім з батьківської
@@ -86,6 +99,12 @@ redis_port = int(os.environ.get("REDIS_PORT", 6379))
 redis_password = os.environ.get("REDIS_PASSWORD") or "redis"
 redis_db = int(os.environ.get("REDIS_DB", 0))
 environment = os.environ.get("ENVIRONMENT") or "PROD"
+# /data_touch_v1 (jaam_touch): "enforce" (дефолт, прод) — відхиляти невалідний auth;
+# "shadow" — лише логувати, ніколи не відхиляти (зручно для локального бринг-апу).
+touch_auth_mode = (os.environ.get("TOUCH_AUTH_MODE") or "enforce").lower()
+# Затримка перед 401 для неавторизованого /data_touch_v1 - ззовні відмова має виглядати як
+# звичайний мережевий таймаут, а не миттєвий "так/ні" oracle для перебору chip_id.
+TOUCH_AUTH_REJECT_DELAY_S = float(os.environ.get("TOUCH_AUTH_REJECT_DELAY_S") or 5)
 geo_lite_db_path = os.environ.get("GEO_PATH") or "GeoLite2-City.mmdb"
 ip_info_token = os.environ.get("IP_INFO_TOKEN") or ""
 geo_ip_cache_ttl = int(os.environ.get("GEO_IP_CACHE_TTL") or 86400)  # 24 hours by default
@@ -287,6 +306,37 @@ class AlertVersion:
 # Набір каналів однаковий для всіх клієнтів однієї версії, тому підписка одна
 # на процес (redis_fanout), а не одна на клієнта.
 
+# jaam_touch-only "команда", не дані стану: admin_panel публікує сюди chip_id (як plain
+# text, verbatim в message["data"]) щойно техпідтримка знімає whitelisted - alerts_data_touch
+# нижче звіряє його зі своїм власним chip_id і форсує розрив з'єднання, якщо збігається.
+# Без цього заблокований пристрій лишався б підключеним аж до наступного власного реконекту
+# (whitelist перевіряється лише один раз, у process_request() перед WS upgrade).
+DEVICE_AUTH_REVOKED_CHANNEL = "device:auth:revoked"
+
+# jaam_touch-only канали для прошивок, не спільні з FUSION_CHANNELS - тому мусять бути
+# явно домішані в ALL_CHANNELS нижче (сам union будувався лише з FUSION_CHANNELS + legacy,
+# TOUCH_CHANNELS ніколи туди не потрапляв - тож redis_fanout's raw pubsub-з'єднання ніколи
+# фактично не підписувалось на ці два рядки, попри те, що alerts_data_touch на них чекає).
+TOUCH_ONLY_RELEASE_CHANNELS = [
+    "releases:touch:production:updated",
+    "releases:touch:beta:updated",
+]
+
+# jaam_touch (/data_touch_v1): ті самі базові дані карти (alerts/weather/energy/radiation),
+# але ВЛАСНІ, ізольовані від jaam_fusion канали для прошивок — touch ніколи не отримує/
+# не публікує в releases:production/releases:beta (fusion), і навпаки.
+TOUCH_CHANNELS = [
+    "websocket:v1:fusion:alerts:updated",
+    WEATHER_UPDATED_CHANNEL,
+    "websocket:v1:fusion:energy:updated",
+    "websocket:v1:fusion:radiation:updated",
+    "websocket:v1:fusion:etryvoga:updated",
+    *TOUCH_ONLY_RELEASE_CHANNELS,
+    # DEVICE_AUTH_REVOKED_CHANNEL навмисно НЕ тут - alerts_data_touch підписує на нього
+    # окрему необмежену чергу (revoke_queue), щоб drop-oldest політика основної обмеженої
+    # черги ніколи не могла витіснити одноразову команду форс-дисконнекту.
+]
+
 FUSION_CHANNELS = [
     "websocket:v1:fusion:alerts:updated",
     WEATHER_UPDATED_CHANNEL,
@@ -375,7 +425,14 @@ def legacy_channels(alert_version) -> list[str]:
 
 
 # Union усіх версій: v1 слухає v1-канал алертів, v2+ — v2-канал, тож v4 сам по собі не покриває все
-ALL_CHANNELS = sorted({*FUSION_CHANNELS, *(ch for v in LEGACY_VERSION_CHANNELS for ch in legacy_channels(v))})
+ALL_CHANNELS = sorted(
+    {
+        DEVICE_AUTH_REVOKED_CHANNEL,
+        *TOUCH_ONLY_RELEASE_CHANNELS,
+        *FUSION_CHANNELS,
+        *(ch for v in LEGACY_VERSION_CHANNELS for ch in legacy_channels(v)),
+    }
+)
 
 # Канали, чий redis_key не виводиться як channel.removesuffix(":updated")
 _CHANNEL_KEY_OVERRIDES = {
@@ -845,8 +902,14 @@ async def redis_fanout(shared_data: SharedData):
                 if not queues:
                     continue
 
-                key, default = channel_source(channel)
-                data = await get_redis_data(logger, shared_data.redis_client, key, default_response=default)
+                if channel == DEVICE_AUTH_REVOKED_CHANNEL:
+                    # Команда, не стан - payload IS the chip_id, немає Redis-ключа позаду
+                    # каналу для channel_source()/get_redis_data() (на відміну від решти
+                    # каналів тут, кожен з яких дублює "поточне значення" в окремому ключі).
+                    data = message["data"]
+                else:
+                    key, default = channel_source(channel)
+                    data = await get_redis_data(logger, shared_data.redis_client, key, default_response=default)
                 logger.info(f"📬 fan-out {channel} -> {len(queues)} клієнтів")
 
                 for queue in list(queues):
@@ -874,6 +937,155 @@ async def redis_fanout(shared_data: SharedData):
         await asyncio.sleep(5)
 
 
+class _MapSnapshot(NamedTuple):
+    """Спільний initial-снепшот для alerts_data_fusion (v1) і alerts_data_touch - базові дані
+    карти однакові для обох, лише список релізів прошивки (releases_beta/releases_prod) читається
+    з різних Redis-ключів для кожного (fusion: releases:beta/production, touch: releases:touch:*)."""
+
+    alerts_cache: dict | bool
+    alerts_hash_actual: int
+    alerts_hash_previous: int
+    weather_cache: dict
+    energy_cache: dict
+    radiation_cache: dict
+    releases_beta: list
+    releases_prod: list
+
+
+async def _fetch_map_and_firmware_snapshot(
+    shared_data: SharedData, firmware_beta_key: str, firmware_prod_key: str
+) -> _MapSnapshot:
+    """8 читань під ОДНИМ acquire handshake_semaphore, навмисно послідовно (не gather) - 8
+    паралельних Redis-конекшнів на клієнта якраз і давало пік у пулі під час масового
+    реконекту (стеля 50 колись була замалою саме через це - див. handshake_semaphore's власний
+    коментар). Розбиття цих читань на два окремих acquire (спільні дані карти окремо від
+    firmware-специфічних) лишило б частину негейтованою - тому firmware-ключі теж параметр
+    тут, а не окремий виклик після return."""
+    redis_client = shared_data.redis_client
+    async with shared_data.handshake_semaphore:
+        alerts_cache = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:alerts:data", default_response=False
+        )
+        alerts_hash_actual = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:alerts:hash_actual", default_response=0
+        )
+        alerts_hash_previous = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:alerts:hash_previous", default_response=0
+        )
+        weather_cache = await get_redis_data(logger, redis_client, WEATHER_DATA_KEY, default_response={})
+        energy_cache = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:energy:data", default_response={}
+        )
+        radiation_cache = await get_redis_data(
+            logger, redis_client, "websocket:v1:fusion:radiation:data", default_response={}
+        )
+        releases_beta = await get_redis_data(logger, redis_client, firmware_beta_key, default_response=[])
+        releases_prod = await get_redis_data(logger, redis_client, firmware_prod_key, default_response=[])
+    return _MapSnapshot(
+        alerts_cache,
+        alerts_hash_actual,
+        alerts_hash_previous,
+        weather_cache,
+        energy_cache,
+        radiation_cache,
+        releases_beta,
+        releases_prod,
+    )
+
+
+async def _send_initial_map_packets(
+    websocket: ServerConnection,
+    client_ip,
+    chip_id,
+    snap: _MapSnapshot,
+    firmware_beta_opcode,
+    firmware_prod_opcode,
+    firmware_log_prefix: str,
+) -> None:
+    """Надсилає initial-пакети з _fetch_map_and_firmware_snapshot - спільно для
+    alerts_data_fusion (v1) і alerts_data_touch, лише opcode/лог-префікс firmware різні."""
+    if snap.alerts_cache:
+        alerts_header = struct.pack("<B", TYPE_ALERTS_BATCH)
+        alerts = bytearray()
+        for rid, flags16 in snap.alerts_cache.items():
+            alerts += struct.pack("<H H", int(rid), flags16)
+        hash_actual = struct.pack("<H", snap.alerts_hash_actual)
+        hash_previous = struct.pack("<H", snap.alerts_hash_previous)
+        await websocket.send(alerts_header + hash_actual + hash_previous + alerts)
+        logger.debug(f"{client_ip}:{chip_id} <<< initial alert packet")
+
+    if snap.weather_cache:
+        weather_header = struct.pack("<B", TYPE_WEATHER_BATCH)
+        weather = bytearray()
+        for rid, flags8 in snap.weather_cache.items():
+            weather += struct.pack("<H B", int(rid), int(flags8) & 0xFF)
+        await websocket.send(weather_header + weather)
+        logger.debug(f"{client_ip}:{chip_id} <<< initial weather packet")
+
+    if snap.energy_cache:
+        energy_header = struct.pack("<B", TYPE_GRID_BATCH)
+        await websocket.send(energy_header + make_grid_batch(snap.energy_cache))
+        logger.debug(f"{client_ip}:{chip_id} <<< initial energy packet")
+
+    if snap.radiation_cache:
+        radiation_header = struct.pack("<B", TYPE_RADIATION_BATCH)
+        await websocket.send(radiation_header + make_radiation_batch(snap.radiation_cache))
+        logger.debug(f"{client_ip}:{chip_id} <<< initial radiation packet")
+
+    if snap.releases_beta:
+        await websocket.send(make_firmware_batch(snap.releases_beta, firmware_beta_opcode))
+        logger.debug(
+            f"{client_ip}:{chip_id} <<< initial {firmware_log_prefix}firmware packet "
+            f"({len(snap.releases_beta)} beta versions)"
+        )
+
+    if snap.releases_prod:
+        await websocket.send(make_firmware_batch(snap.releases_prod, firmware_prod_opcode))
+        logger.debug(
+            f"{client_ip}:{chip_id} <<< initial {firmware_log_prefix}firmware packet "
+            f"({len(snap.releases_prod)} production versions)"
+        )
+
+
+async def _dispatch_common_map_channel(websocket: ServerConnection, client_ip, chip_id, channel, data) -> bool:
+    """Обробляє 5 канали, спільні для alerts_data_fusion (v1) і alerts_data_touch (базова карта:
+    alerts/weather/energy/radiation + etryvoga-нотифікації) - повертає True, якщо `channel`
+    впізнано й оброблено (навіть коли після hex_payload()'s False-санітизації надсилати
+    нічого не треба), False - якщо це не один із цих п'яти, і виклику треба перевірити власні
+    (прошивочні) case'и у своєму match. Раніше цей блок був побайтово продубльований в обох
+    функціях - будь-який фікс сюди довелось би вручну переносити в другу копію."""
+    match channel:
+        case "websocket:v1:fusion:alerts:updated":
+            payload = hex_payload(data, "websocket:v1:fusion:payload:alerts", client_ip, chip_id)
+            if payload is not False:
+                await websocket.send(payload)
+                logger.debug(f"{client_ip}:{chip_id} <<< new alert packet")
+            return True
+        case channel if channel == WEATHER_UPDATED_CHANNEL:
+            payload = struct.pack("<B", TYPE_WEATHER_BATCH) + make_weather_batch(data)
+            await websocket.send(payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< new weather packet")
+            return True
+        case "websocket:v1:fusion:energy:updated":
+            payload = struct.pack("<B", TYPE_GRID_BATCH) + make_grid_batch(data)
+            await websocket.send(payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< new energy packet")
+            return True
+        case "websocket:v1:fusion:radiation:updated":
+            payload = struct.pack("<B", TYPE_RADIATION_BATCH) + make_radiation_batch(data)
+            await websocket.send(payload)
+            logger.debug(f"{client_ip}:{chip_id} <<< new radiation packet")
+            return True
+        case "websocket:v1:fusion:etryvoga:updated":
+            payload = hex_payload(data, "websocket:v1:fusion:payload:notifications", client_ip, chip_id)
+            if payload is not False:
+                await websocket.send(payload)
+                logger.debug(f"{client_ip}:{chip_id} <<< new notifications packet")
+            return True
+        case _:
+            return False
+
+
 async def alerts_data_fusion(
     websocket: ServerConnection,
     client,
@@ -888,7 +1100,6 @@ async def alerts_data_fusion(
     try:
         chip_id = await get_client_chip_id(client, chip_id_event)
         firmware = await get_client_firmware(client, firmware_event)
-        redis_client = shared_data.redis_client
 
         # Підписуємось ДО initial read: дублікат пакета нешкідливий, втрачена подія — ні.
         queue = asyncio.Queue(maxsize=32)
@@ -897,78 +1108,16 @@ async def alerts_data_fusion(
         logger.debug(f"{client_ip}:{chip_id}: check")
         match alert_version:
             case AlertVersion.v1:
-                # Послідовно, не gather: 8 паралельних читань = 8 одночасних Redis-конекшнів
-                # на клієнта, що при масовому реконекті і давало пік у пулі.
-                # ponytail: 16 RTT (~3 мс на bridge). Якщо стане вузьким — pipeline,
-                # але тоді треба явно знати тип кожного ключа (set_redis_data пише dict як Hash).
-                async with shared_data.handshake_semaphore:
-                    alerts_cache = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:alerts:data", default_response=False
-                    )
-                    alerts_hash_actual = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:alerts:hash_actual", default_response=0
-                    )
-                    alerts_hash_previous = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:alerts:hash_previous", default_response=0
-                    )
-                    weather_cache = await get_redis_data(logger, redis_client, WEATHER_DATA_KEY, default_response={})
-                    energy_cache = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:energy:data", default_response={}
-                    )
-                    radiation_cache = await get_redis_data(
-                        logger, redis_client, "websocket:v1:fusion:radiation:data", default_response={}
-                    )
-                    releases_beta = await get_redis_data(logger, redis_client, "releases:beta", default_response=[])
-                    releases_prod = await get_redis_data(
-                        logger, redis_client, "releases:production", default_response=[]
-                    )
-
-                if alerts_cache:
-                    alerts_header = struct.pack("<B", TYPE_ALERTS_BATCH)
-                    alerts = bytearray()
-                    for rid, flags16 in alerts_cache.items():
-                        alerts += struct.pack("<H H", int(rid), flags16)
-                    hash_actual = struct.pack("<H", alerts_hash_actual)
-                    hash_previous = struct.pack("<H", alerts_hash_previous)
-                    alerts_payload = alerts_header + hash_actual + hash_previous + alerts
-                    await websocket.send(alerts_payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< initial alert packet")
-
-                if weather_cache:
-                    weather_header = struct.pack("<B", TYPE_WEATHER_BATCH)
-                    weather = bytearray()
-                    for rid, flags8 in weather_cache.items():
-                        weather += struct.pack("<H B", int(rid), int(flags8) & 0xFF)
-                    weather_payload = weather_header + weather
-                    await websocket.send(weather_payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< initial weather packet")
-
-                if energy_cache:
-                    energy_header = struct.pack("<B", TYPE_GRID_BATCH)
-                    energy_payload = energy_header + make_grid_batch(energy_cache)
-                    await websocket.send(energy_payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< initial energy packet")
-
-                if radiation_cache:
-                    radiation_header = struct.pack("<B", TYPE_RADIATION_BATCH)
-                    radiation_payload = radiation_header + make_radiation_batch(radiation_cache)
-                    await websocket.send(radiation_payload)
-                    logger.debug(f"{client_ip}:{chip_id} <<< initial radiation packet")
-
-                if releases_beta:
-                    firmware_payload = make_firmware_batch(releases_beta, TYPE_FIRMWARE_UPDATE_BETA_BATCH)
-                    await websocket.send(firmware_payload)
-                    logger.debug(
-                        f"{client_ip}:{chip_id} <<< initial firmware packet ({len(releases_beta)} beta versions)"
-                    )
-
-                if releases_prod:
-                    firmware_payload = make_firmware_batch(releases_prod, TYPE_FIRMWARE_UPDATE_PROD_BATCH)
-                    await websocket.send(firmware_payload)
-                    logger.debug(
-                        f"{client_ip}:{chip_id} <<< initial firmware packet ({len(releases_prod)} production versions)"
-                    )
-
+                snap = await _fetch_map_and_firmware_snapshot(shared_data, "releases:beta", "releases:production")
+                await _send_initial_map_packets(
+                    websocket,
+                    client_ip,
+                    chip_id,
+                    snap,
+                    TYPE_FIRMWARE_UPDATE_BETA_BATCH,
+                    TYPE_FIRMWARE_UPDATE_PROD_BATCH,
+                    "",
+                )
                 client["initial"] = False
 
                 # Дані вже прочитані спільним redis_fanout — тут лише формування пакета і send
@@ -976,31 +1125,10 @@ async def alerts_data_fusion(
                     channel, data = await queue.get()
                     logger.debug(f"📬 {client_ip}:{chip_id} подія з каналу: {channel}")
 
+                    if await _dispatch_common_map_channel(websocket, client_ip, chip_id, channel, data):
+                        continue
+
                     match channel:
-                        case "websocket:v1:fusion:alerts:updated":
-                            payload = hex_payload(data, "websocket:v1:fusion:payload:alerts", client_ip, chip_id)
-                            if payload is False:
-                                continue
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new alert packet")
-                        case channel if channel == WEATHER_UPDATED_CHANNEL:
-                            payload = struct.pack("<B", TYPE_WEATHER_BATCH) + make_weather_batch(data)
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new weather packet")
-                        case "websocket:v1:fusion:energy:updated":
-                            payload = struct.pack("<B", TYPE_GRID_BATCH) + make_grid_batch(data)
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new energy packet")
-                        case "websocket:v1:fusion:radiation:updated":
-                            payload = struct.pack("<B", TYPE_RADIATION_BATCH) + make_radiation_batch(data)
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new radiation packet")
-                        case "websocket:v1:fusion:etryvoga:updated":
-                            payload = hex_payload(data, "websocket:v1:fusion:payload:notifications", client_ip, chip_id)
-                            if payload is False:
-                                continue
-                            await websocket.send(payload)
-                            logger.debug(f"{client_ip}:{chip_id} <<< new notifications packet")
                         case "releases:production:updated":
                             await websocket.send(make_firmware_batch(data, TYPE_FIRMWARE_UPDATE_PROD_BATCH))
                             logger.debug(
@@ -1025,6 +1153,103 @@ async def alerts_data_fusion(
     finally:
         if queue is not None:
             shared_data.unsubscribe(queue, FUSION_CHANNELS)
+
+
+async def alerts_data_touch(
+    websocket: ServerConnection,
+    client,
+    client_id,
+    client_ip,
+    shared_data: SharedData,
+    chip_id_event=None,
+    firmware_event=None,
+):
+    """Аналог alerts_data_fusion для /data_touch_v1: ті самі базові дані карти
+    (alerts/weather/energy/radiation), але ВЛАСНІ firmware-канали/opcodes (0xA8/0xA9,
+    releases:touch:*) — ізольовано від jaam_fusion (0xA6/0xA7, releases:beta/production)."""
+    queue = None
+    revoke_queue = None
+    try:
+        chip_id = await get_client_chip_id(client, chip_id_event)
+        firmware = await get_client_firmware(client, firmware_event)
+
+        queue = asyncio.Queue(maxsize=32)
+        shared_data.subscribe(queue, TOUCH_CHANNELS)
+        # DEVICE_AUTH_REVOKED_CHANNEL - окрема необмежена черга. Основна queue має maxsize=32
+        # з drop-oldest політикою (redis_fanout) - під навантаженням станом-каналів вона могла
+        # б витіснити ще непрочитану одноразову команду форс-дисконнекту. Ця черга отримує
+        # лише рідкісні revoke-події, тож необмеженість тут не ризикує пам'яттю.
+        revoke_queue = asyncio.Queue()
+        shared_data.subscribe(revoke_queue, [DEVICE_AUTH_REVOKED_CHANNEL])
+
+        logger.debug(f"{client_ip}:{chip_id}: check")
+
+        snap = await _fetch_map_and_firmware_snapshot(shared_data, "releases:touch:beta", "releases:touch:production")
+        await _send_initial_map_packets(
+            websocket,
+            client_ip,
+            chip_id,
+            snap,
+            TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH,
+            TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH,
+            "touch ",
+        )
+
+        client["initial"] = False
+
+        while True:
+            # Ганяємо основну (обмежену) і revoke (необмежену) черги разом - перша подія, яка
+            # прийде, і обробляється; необроблений get() з іншої черги скасовується безпечно
+            # (asyncio.Queue.get() не забирає елемент, якщо його очікування скасовано до resolve).
+            queue_get = asyncio.ensure_future(queue.get())
+            revoke_get = asyncio.ensure_future(revoke_queue.get())
+            try:
+                done, pending = await asyncio.wait({queue_get, revoke_get}, return_when=asyncio.FIRST_COMPLETED)
+            except asyncio.CancelledError:
+                queue_get.cancel()
+                revoke_get.cancel()
+                raise
+            for task in pending:
+                task.cancel()
+
+            if revoke_get in done:
+                _, revoked_chip_id = revoke_get.result()
+                revoke_target = client.get("verified_chip_id") or chip_id.upper()
+                if revoked_chip_id != revoke_target:
+                    continue
+                logger.warning(f"{client_ip}:{chip_id} !!! whitelist revoked from admin panel - closing connection")
+                await websocket.close(code=1008, reason="unauthorized")
+                return
+
+            channel, data = queue_get.result()
+            logger.debug(f"📬 {client_ip}:{chip_id} подія з каналу: {channel}")
+
+            if await _dispatch_common_map_channel(websocket, client_ip, chip_id, channel, data):
+                continue
+
+            match channel:
+                case "releases:touch:production:updated":
+                    await websocket.send(make_firmware_batch(data, TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH))
+                    logger.debug(f"{client_ip}:{chip_id} <<< updated touch firmware packet ({len(data)} prod versions)")
+                case "releases:touch:beta:updated":
+                    await websocket.send(make_firmware_batch(data, TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH))
+                    logger.debug(f"{client_ip}:{chip_id} <<< updated touch firmware packet ({len(data)} beta versions)")
+                case _:
+                    logger.warning(f"{client_ip}:{chip_id} !!! Невідомий канал: {channel}")
+
+    except asyncio.CancelledError as e:
+        logger.debug(f"{client_ip}:{client_id} !!! alerts_data_touch cancelled - {e}")
+    except ChipIdTimeoutException as e:
+        logger.debug(f"{client_ip}:{client_id} !!! chip_id timeout, closing connection - {e}")
+    except FirmwareTimeoutException as e:
+        logger.debug(f"{client_ip}:{client_id} !!! firmware timeout, closing connection - {e}")
+    except Exception as e:
+        logger.debug(f"{client_ip}:{client_id} !!! alerts_data_touch Exception - {e}", exc_info=True)
+    finally:
+        if queue is not None:
+            shared_data.unsubscribe(queue, TOUCH_CHANNELS)
+        if revoke_queue is not None:
+            shared_data.unsubscribe(revoke_queue, [DEVICE_AUTH_REVOKED_CHANNEL])
 
 
 async def alerts_data(
@@ -1165,6 +1390,34 @@ async def echo(websocket: ServerConnection):
         client_id = generate_random_hash(8)
         # get real header from websocket
         client_ip = await get_client_ip(websocket)
+
+        # process_request() already ran verify_device_auth() for /data_touch_v1 and, on
+        # failure, deliberately let the WS upgrade complete anyway instead of responding with a
+        # pre-upgrade HTTP 401 (see its own comment) - this is the other half of that: send the
+        # explicit rejection opcode over the now-established connection, then close. Before any
+        # of the heavier per-connection setup below (geo-ip, redis-backed client, producer
+        # tasks) - a rejected attempt should cost as little as the old pre-upgrade path did.
+        touch_auth_reject_reason = getattr(websocket, "touch_auth_reject_reason", None)
+        if touch_auth_reject_reason:
+            try:
+                # Затримка ТУТ, після завершення апгрейду (не в process_request() - див. його
+                # коментар про те, чому затримка ДО 101-відповіді ламала сам хендшейк) -
+                # ззовні виглядає як звичайний таймаут, не як миттєвий oracle, а WS-з'єднання
+                # вже повністю встановлене й чекає своєю природною поведінкою (не залежить від
+                # обмеженого таймауту прошивки на власне читання відповіді 101).
+                await asyncio.sleep(TOUCH_AUTH_REJECT_DELAY_S)
+                payload = struct.pack("<B", TYPE_TOUCH_AUTH_REJECTED) + touch_auth_reject_reason.encode("ascii")
+                await websocket.send(payload)
+                # TCP delivers frames on one connection in order, so this close frame can never
+                # overtake the data frame above - the client is guaranteed to see the rejection
+                # message (if it ever processes anything on this connection at all) before it
+                # sees the close.
+                await websocket.close(code=1008, reason=f"unauthorized:{touch_auth_reject_reason}")
+                logger.info(f"{client_ip}:{client_id} >>> sent TOUCH_AUTH_REJECTED ({touch_auth_reject_reason})")
+            except Exception as e:
+                logger.debug(f"{client_ip}:{client_id} !!! failed to deliver TOUCH_AUTH_REJECTED - {e}")
+            return
+
         secure_connection = websocket.request.headers.get("X-Connection-Secure", "false")
         logger.info(f"{client_ip}:{client_id} >>> new client")
 
@@ -1222,10 +1475,20 @@ async def echo(websocket: ServerConnection):
         # Зберігаємо клієнта в shared_data.clients для доступу з фонових задач
         shared_data.clients[client_key] = client
 
+        # Якщо process_request встиг HMAC-верифікувати chip_id (/data_touch_v1, не shadow-fail) -
+        # переносимо його на client окремим ключем, який alerts_data_touch довірятиме для
+        # ревокації замість неавтентифікованого in-band "chip_id:<...>" повідомлення.
+        verified_touch_chip_id = getattr(websocket, "verified_touch_chip_id", None)
+        if verified_touch_chip_id:
+            client["verified_chip_id"] = verified_touch_chip_id
+
         chip_id_event = asyncio.Event()
         firmware_event = asyncio.Event()
 
-        match websocket.request.path:
+        # /data_touch_v1 несе auth query-string (chip_id/ts/mac) — відкидаємо її для матчингу шляху.
+        request_path = urlsplit(websocket.request.path).path
+
+        match request_path:
             case "/data_v1":
                 producer_task = asyncio.create_task(
                     alerts_data(
@@ -1295,6 +1558,20 @@ async def echo(websocket: ServerConnection):
                         client_ip,
                         shared_data,
                         AlertVersion.v1,
+                        chip_id_event,
+                        firmware_event,
+                    ),
+                    name=f"alerts_data_{client_id}",
+                )
+
+            case "/data_touch_v1":
+                producer_task = asyncio.create_task(
+                    alerts_data_touch(
+                        websocket,
+                        client,
+                        client_id,
+                        client_ip,
+                        shared_data,
                         chip_id_event,
                         firmware_event,
                     ),
@@ -1483,16 +1760,96 @@ def hex_payload(payload_hex, redis_key: str, client_ip: str = "", chip_id: str =
         return False
 
 
+_CHIP_ID_RE = re.compile(r"^[0-9A-F]{12}$")
+
+
+async def record_rejected_touch_client(redis_client, client_ip: str, chip_id: str) -> None:
+    """Пише звичайний websocket:clients:* запис для НЕавторизованої спроби /data_touch_v1 -
+    тим самим шляхом, яким admin_panel's collector уже підхоплює справжніх клієнтів у Мапи/
+    Реєстр JAAM (жодного окремого кешу/таблиці) - адмін бачить chip_id у консолі й може
+    одразу створити для нього запис і видати секрет, замість копіювати chip_id з логів.
+    firmware="unauthorized" - явний маркер у списку мап, що це саме непровіжинена спроба,
+    не жива сесія. TTL короткий (60с): це лише слід, природно згасне без повторних спроб.
+
+    Цей запис — з НЕавтентифікованого запиту (HMAC не пройшов), тому chip_id тут — те, що
+    прислав клієнт, а не перевірений факт. Приймаємо лише значення форми справжнього
+    chip_id (12 hex-символів, як реальний ESP32 efuse MAC) - інакше довільний рядок від
+    анонімного клієнта міг би засмічувати адмінський реєстр і провокувати провіжн
+    неіснуючого пристрою під довільним ім'ям."""
+    chip_id_upper = chip_id.upper()
+    if not _CHIP_ID_RE.match(chip_id_upper):
+        logger.debug(f"{client_ip}:{chip_id} !!! rejected touch client chip_id malformed, not recording")
+        return
+    client_id = generate_random_hash(8)
+    data = {
+        "chip_id": chip_id_upper,
+        "firmware": "unauthorized",
+        "hardware": "ESP32-S3",
+        "connect_time": datetime.datetime.now(tz=server_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    try:
+        await set_redis_data(logger, redis_client, f"websocket:clients:{client_ip}:{client_id}", data, expiry=60)
+    except Exception as e:
+        logger.error(f"{client_ip}:{chip_id} !!! failed to record rejected touch client: {e}")
+
+
 async def process_request(connection: ServerConnection, request: Request):
     client_ip = await get_client_ip(connection)
     # health check
     if request.path == "/healthz":
         logger.info(f"{client_ip}: health check")
         return connection.respond(HTTPStatus.OK, "OK\n")
+
+    split = urlsplit(request.path)
+    path = split.path
+
     # check for valid path
-    if not request.path.startswith("/data_v") and not request.path.startswith("/data_fusion_v"):
+    if not (path.startswith("/data_v") or path.startswith("/data_fusion_v") or path == "/data_touch_v1"):
         logger.error(f"{client_ip}: invalid path - {request.path}")
         return connection.respond(HTTPStatus.NOT_FOUND, "Not Found\n")
+
+    # jaam_touch: окремий, ізольований від jaam_fusion шлях — обов'язкова HMAC-перевірка
+    # chip_id-whitelist ДО апгрейду WS-з'єднання. Немає legacy-трафіку на цьому шляху,
+    # тож enforce вмикається одразу (без shadow-фази на рівні гейту).
+    if path == "/data_touch_v1":
+        qs = parse_qs(split.query)
+        chip_id = qs.get("chip_id", [None])[0]
+        ok, reason = await verify_device_auth(
+            shared_data.redis_client,
+            chip_id,
+            qs.get("ts", [None])[0],
+            qs.get("mac", [None])[0],
+            domain="WS",
+        )
+        if not ok:
+            if touch_auth_mode == "shadow":
+                logger.warning(f"{client_ip}:{chip_id} !!! TOUCH AUTH SHADOW-FAIL ({reason})")
+            else:
+                logger.warning(f"{client_ip}:{chip_id} !!! TOUCH AUTH REJECT ({reason})")
+                if chip_id:
+                    await record_rejected_touch_client(shared_data.redis_client, client_ip, chip_id)
+                # НЕ відповідаємо тут HTTP 401 і НЕ затримуємо (TOUCH_AUTH_REJECT_DELAY_S
+                # застосовується в echo(), вже ПІСЛЯ апгрейду) - навмисно даємо WS upgrade
+                # завершитись негайно (return нічого = process_request не втручається,
+                # бібліотека апгрейдить як звичайно). Затримка ДО завершення хендшейку тут
+                # ламала сам хендшейк: прошивка чекає HTTP/1.1 101 з обмеженим власним
+                # таймаутом і, не діждавшись його вчасно, просто кидала цю спробу й стартувала
+                # нову - сервер тоді довершував апгрейд і слав TYPE_TOUCH_AUTH_REJECTED вже в
+                # порожнечу, нікому не потрібний (підтверджено живим тестом - пристрій ретраїв
+                # без кінця, жодного разу не отримавши повідомлення). echo() зчитує причину
+                # звідси і шле явний TYPE_TOUCH_AUTH_REJECTED (opcode 0xAA) по вже
+                # встановленому WS-з'єднанню, а вже потім закриває його - єдиний спосіб дати
+                # прошивці ГАРАНТОВАНО відрізнити "наш сервер підтвердив відмову" від
+                # "проксі/бекенд лежить" (502/503 від nginx під час рестарту виглядали для
+                # WS-бібліотеки клієнта ідентично до реальної відмови - саме це й спричиняло
+                # хибний unauthorized-латч під час рестарту сервера).
+                connection.touch_auth_reject_reason = reason
+        else:
+            # HMAC-верифікований chip_id прив'язуємо до самого з'єднання (не до client dict -
+            # той створюється пізніше в echo()). Далі echo() читає це звідси, щоб ревокація
+            # звірялась із дійсно перевіреним chip_id, а не з неавтентифікованим "chip_id:<...>"
+            # повідомленням, яке message_handler приймає від будь-кого пост-хендшейку.
+            connection.verified_touch_chip_id = chip_id.upper()
 
 
 async def process_response(connection: ServerConnection, request: Request, response: Response):
@@ -1504,6 +1861,8 @@ async def process_response(connection: ServerConnection, request: Request, respo
 
 
 async def main():
+    require_device_auth_master_secret_configured("HMAC-авторизація jaam_touch (/data_touch_v1) тривіально підробна")
+
     redis_client = redis.Redis(
         host=redis_host,
         port=redis_port,

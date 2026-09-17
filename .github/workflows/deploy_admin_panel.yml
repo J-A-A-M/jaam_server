@@ -94,6 +94,7 @@ jobs:
               REDIS_PASSWORD: ${{ secrets.CLOUD_REDIS_PASSWORD }}
               DB_PASSWORD: ${{ secrets.ADMIN_PANEL_DB_PASSWORD }}
               JWT_SECRET: ${{ secrets.ADMIN_PANEL_JWT_SECRET }}
+              DEVICE_AUTH_MASTER_SECRET: ${{ secrets.DEVICE_AUTH_MASTER_SECRET }}
               COLLECT_INTERVAL: ${{ inputs.collect_interval || 20 }}
               LOG_LEVEL: ${{ inputs.logging || 'INFO' }}
               REF_NAME: ${{ github.ref_name }}
@@ -102,7 +103,7 @@ jobs:
               host: ${{ env.SERVER_IP }}
               username: ${{ env.SERVER_USER }}
               key: ${{ env.SERVER_SSH_KEY }}
-              envs: REDIS_HOSTS,REDIS_HOST,REDIS_PASSWORD,DB_PASSWORD,JWT_SECRET,COLLECT_INTERVAL,LOG_LEVEL,REF_NAME,REPO
+              envs: REDIS_HOSTS,REDIS_HOST,REDIS_PASSWORD,DB_PASSWORD,JWT_SECRET,DEVICE_AUTH_MASTER_SECRET,COLLECT_INTERVAL,LOG_LEVEL,REF_NAME,REPO
               script: |
                 set -euo pipefail
                 TEMP_DIR=$(mktemp -d)
@@ -116,6 +117,7 @@ jobs:
                     -rh "$REDIS_HOSTS" \
                     -d "$DB_URL" \
                     -s "$JWT_SECRET" \
+                    -das "$DEVICE_AUTH_MASTER_SECRET" \
                     -ci "$COLLECT_INTERVAL" \
                     -cs true \
                     -l "$LOG_LEVEL"
@@ -125,6 +127,7 @@ jobs:
                     -pw "$REDIS_PASSWORD" \
                     -d "$DB_URL" \
                     -s "$JWT_SECRET" \
+                    -das "$DEVICE_AUTH_MASTER_SECRET" \
                     -ci "$COLLECT_INTERVAL" \
                     -cs true \
                     -l "$LOG_LEVEL"

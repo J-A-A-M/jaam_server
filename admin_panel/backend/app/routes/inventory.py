@@ -1,16 +1,32 @@
 """Реєстр офіційних JAAM-мап (jaam_maps): CRUD, склейка зі станом онлайн."""
 
 import datetime
+import hashlib
+import secrets as pysecrets
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import Integer, case, cast, func, or_, outerjoin, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..deps import get_current_user, require_admin
+from ..device_auth import derive_device_secret
 from ..models import Device, JaamMap
-from ..schemas import JaamMapIn, JaamMapListOut, JaamMapOut
+from ..redis_util import delete_claim_code, mirror_claim_code, mirror_device_auth
+from ..schemas import (
+    ClaimCodeOut,
+    JaamMapIn,
+    JaamMapListOut,
+    JaamMapOut,
+    ProvisionOut,
+    WhitelistIn,
+)
+
+# Без неоднозначних символів (0/O, 1/I) - код читають/диктують вголос кінцевому користувачу.
+_CLAIM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+_CLAIM_CODE_LENGTH = 8
+_CLAIM_CODE_TTL_S = 24 * 3600
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -35,9 +51,11 @@ _SORT_COLUMNS = {
 def _to_out(m: JaamMap, device: Device | None, include_pii: bool = True) -> JaamMapOut:
     out = JaamMapOut.model_validate(m)
     if not include_pii:
-        # PII клієнтів — лише для адміністраторів
+        # PII клієнтів та device-auth стан — лише для адміністраторів
         out.order_number = None
         out.customer_info = None
+        out.secret_version = None
+        out.whitelisted = None
     if device is not None:
         out.ever_seen = True
         out.is_online = device.is_online
@@ -157,11 +175,138 @@ async def update_map(
 @router.delete("/{chip_id}", status_code=204)
 async def delete_map(
     chip_id: str,
+    request: Request,
     admin: dict = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ):
     m = await session.get(JaamMap, chip_id)
     if not m:
         raise HTTPException(status_code=404, detail="Запис не знайдено")
+    secret_version = m.secret_version
     await session.delete(m)
     await session.commit()
+
+    # Postgres більше не має запису - без явної ревокації тут device_auth:<CHIP_ID> лишався б
+    # whitelisted=1 у Redis назавжди (verify_device_auth() читає лише Redis, ніколи Postgres),
+    # і видалений/переданий пристрій продовжував би авторизовуватись на WS/OTA. Той самий
+    # шлях, яким /whitelist знімає доступ - публікує в DEVICE_AUTH_REVOKED_CHANNEL, форсуючи
+    # розрив уже живого з'єднання.
+    failed = await mirror_device_auth(request.app.state.redis_servers, chip_id, secret_version, False)
+    _raise_if_mirror_failed(failed, "видалення пристрою")
+    await delete_claim_code(request.app.state.redis_servers, chip_id)
+
+
+def _raise_if_mirror_failed(failed: list[str], action: str) -> None:
+    """Постгрес уже закомічено на момент виклику - тут лише піднімаємо помилку адміну, а не
+    відкочуємо (мирорінг у Redis retry-able сам по собі: повторний /whitelist чи /provision
+    просто перепише той самий стан). Без цього admin_panel мовчки повертав би 200, доки один
+    із дзеркальних Redis-серверів лишався зі застарілим device_auth-записом (див. code review:
+    mirror_device_auth/mirror_claim_code лише логували відмову, виклик про неї не дізнавався)."""
+    if failed:
+        raise HTTPException(
+            status_code=502,
+            detail=f"{action}: не вдалося оновити Redis на {', '.join(failed)} - стан пристрою там міг лишитись застарілим",
+        )
+
+
+async def _get_map_or_404(session: AsyncSession, chip_id: str) -> JaamMap:
+    m = await session.get(JaamMap, chip_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Запис не знайдено")
+    return m
+
+
+async def _rotate_and_whitelist(session: AsyncSession, request: Request, m: JaamMap) -> None:
+    """Bump secret_version, whitelisted=True, commit і дзеркалення в Redis - спільний хвіст
+    для /provision, /claim-code, і повторного увімкнення через /whitelist. Ротація секрету
+    при кожному (пере)ввімкненні критична: без неї старий, можливо скомпрометований секрет
+    пристрою, чий whitelist щойно був знятий, мовчки стає знову робочим при простому
+    поверненні whitelisted=True."""
+    m.secret_version += 1
+    m.whitelisted = True
+    await session.commit()
+    failed = await mirror_device_auth(request.app.state.redis_servers, m.chip_id, m.secret_version, m.whitelisted)
+    _raise_if_mirror_failed(failed, "видача доступу")
+
+
+@router.post("/{chip_id}/provision", response_model=ProvisionOut)
+async def provision_secret(
+    chip_id: str,
+    request: Request,
+    admin: dict = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Видає (ротує) device-secret для jaam_touch: bump secret_version, whitelisted=True,
+    дзеркалить {version, whitelisted} у Redis на всі сервери, повертає plaintext-секрет
+    ОДИН раз — ніде на сервері не зберігається (секрет — похідний від chip_id+version).
+    """
+    m = await _get_map_or_404(session, chip_id)
+    await _rotate_and_whitelist(session, request, m)
+
+    secret_hex = derive_device_secret(chip_id, m.secret_version).hex()
+
+    return ProvisionOut(
+        chip_id=chip_id,
+        secret_hex=secret_hex,
+        secret_version=m.secret_version,
+        whitelisted=m.whitelisted,
+    )
+
+
+@router.post("/{chip_id}/claim-code", response_model=ClaimCodeOut)
+async def issue_claim_code(
+    chip_id: str,
+    request: Request,
+    admin: dict = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Для кінцевого користувача, не техніка з серійним портом: ротує secret_version (як і
+    /provision), але замість 64-символьного hex видає короткий одноразовий код (24г). Пристрій
+    сам забирає похідний секрет через POST /touch/claim на update_server (chip_id+code) -
+    жодного комп'ютера чи кабелю не потрібно, лише WiFi. Код ніде не зберігається у відкритому
+    вигляді - лише SHA-256 хеш, мирориться в Redis (device_claim:<CHIP_ID>, TTL) тим самим
+    шляхом, яким /provision мирориться device_auth."""
+    m = await _get_map_or_404(session, chip_id)
+    await _rotate_and_whitelist(session, request, m)
+
+    code = "".join(pysecrets.choice(_CLAIM_CODE_ALPHABET) for _ in range(_CLAIM_CODE_LENGTH))
+    code_hash = hashlib.sha256(code.encode()).hexdigest()
+    failed = await mirror_claim_code(request.app.state.redis_servers, chip_id, code_hash, _CLAIM_CODE_TTL_S)
+    _raise_if_mirror_failed(failed, "видача коду активації")
+
+    return ClaimCodeOut(
+        chip_id=chip_id,
+        claim_code=code,
+        secret_version=m.secret_version,
+        expires_in_s=_CLAIM_CODE_TTL_S,
+    )
+
+
+@router.patch("/{chip_id}/whitelist", response_model=JaamMapOut)
+async def set_whitelisted(
+    chip_id: str,
+    body: WhitelistIn,
+    request: Request,
+    admin: dict = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """Вмикає/вимикає доступ пристрою. Увімкнення (False -> True) ротує secret_version через
+    той самий шлях, що і /provision - інакше секрет, виданий до ревокації, автоматично
+    відновлював би доступ. Вимкнення видаляє й будь-який ще не активований claim-код, щоб
+    його не можна було погасити вже після відкликання доступу."""
+    m = await _get_map_or_404(session, chip_id)
+
+    if body.whitelisted and not m.whitelisted:
+        await _rotate_and_whitelist(session, request, m)
+    else:
+        m.whitelisted = body.whitelisted
+        await session.commit()
+        await session.refresh(m)
+        failed = await mirror_device_auth(request.app.state.redis_servers, chip_id, m.secret_version, m.whitelisted)
+        _raise_if_mirror_failed(failed, "зміна доступу")
+
+    if not body.whitelisted:
+        await delete_claim_code(request.app.state.redis_servers, chip_id)
+
+    device = await session.get(Device, chip_id)
+    return _to_out(m, device)

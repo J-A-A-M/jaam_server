@@ -2,6 +2,12 @@ import json
 import datetime
 import random
 import asyncio
+import hmac
+import hashlib
+import os
+import time
+
+from redis.exceptions import ConnectionError as RedisConnectionError, TimeoutError as RedisTimeoutError
 
 TYPE_ALERTS_BATCH = 0xA1
 TYPE_NOTIFICATIONS_BATCH = 0xA2
@@ -10,6 +16,107 @@ TYPE_GRID_BATCH = 0xA4
 TYPE_RADIATION_BATCH = 0xA5
 TYPE_FIRMWARE_UPDATE_BETA_BATCH = 0xA6
 TYPE_FIRMWARE_UPDATE_PROD_BATCH = 0xA7
+# jaam_touch має власні opcodes — не перевикористовує 0xA6/0xA7 jaam_fusion,
+# щоб touch-прошивка не могла отримувати/парсити fusion-специфічні дані і навпаки.
+TYPE_FIRMWARE_UPDATE_TOUCH_BETA_BATCH = 0xA8
+TYPE_FIRMWARE_UPDATE_TOUCH_PROD_BATCH = 0xA9
+# Явне підтвердження відмови в touch chip_id-автентифікації (echo(), не process_request() -
+# WS upgrade навмисно ЗАВЖДИ завершується, навіть для відхилених спроб, щоб це повідомлення
+# і close-фрейм, що йде одразу за ним, могли дійти по вже встановленому WS-з'єднанню). Раніше
+# клієнт вгадував "точно відмовлено" по CloseReason не-101 HTTP-відповіді - та сама ознака, що
+# й у 502/503 від nginx/cloudflared під час рестарту бекенду, тож перезапуск сервера, що
+# збігався з 3 поспіль спробами реконекту, міг залатчити пристрій у unauthorized НАЗАВЖДИ.
+# Цей opcode - єдине джерело правди для unauthorized-латчу на боці прошивки (WsClient.cpp),
+# окрім локального "секрет не провіжинений" факту.
+TYPE_TOUCH_AUTH_REJECTED = 0xAA
+
+
+# --- Device auth (jaam_touch chip_id whitelist) -----------------------------
+# Секрет пристрою — похідний, не зберігається на сервері: derive_device_secret
+# з тим самим DEVICE_AUTH_MASTER_SECRET обчислюється і в admin_panel (щоб один раз
+# видати технiку), і тут (щоб перевірити HMAC від прошивки). У Redis/Postgres
+# зберігається лише secret_version+whitelisted, жодного секретного матеріалу.
+DEVICE_AUTH_MASTER_SECRET = (os.environ.get("DEVICE_AUTH_MASTER_SECRET") or "change-me-in-production").encode()
+DEVICE_AUTH_TS_WINDOW_S = 120
+
+
+def derive_device_secret(chip_id: str, secret_version: int) -> bytes:
+    return hmac.new(DEVICE_AUTH_MASTER_SECRET, f"{chip_id.upper()}:{secret_version}".encode(), hashlib.sha256).digest()
+
+
+def device_auth_key(chip_id: str) -> str:
+    return f"device_auth:{chip_id.upper()}"
+
+
+def device_claim_key(chip_id: str) -> str:
+    return f"device_claim:{chip_id.upper()}"
+
+
+def require_device_auth_master_secret_configured(consequence: str) -> None:
+    """Fail-loud guard для entrypoint'ів: не даємо серверу стартувати з дефолтним секретом.
+
+    `consequence` — повне речення про те, що стає тривіально підробним (узгодження роду/числа
+    різне для websocket_server і update_server, тому текст лишаємо параметризованим цілком,
+    а не третьою копією однакового if/raise).
+    """
+    if DEVICE_AUTH_MASTER_SECRET == b"change-me-in-production":
+        raise RuntimeError(
+            "DEVICE_AUTH_MASTER_SECRET не змінено! Виставте змінну оточення DEVICE_AUTH_MASTER_SECRET "
+            f"перед запуском — інакше {consequence}."
+        )
+
+
+async def verify_device_auth(redis_client, chip_id, ts_str, mac_hex, domain: str) -> tuple[bool, str]:
+    """Перевіряє HMAC-триплет (chip_id, ts, mac) пристрою jaam_touch проти whitelist у Redis.
+
+    `domain` розділяє контексти підпису (напр. "WS" чи "OTA:<filename>"), щоб захоплений
+    токен для одного контексту був непридатний для іншого. Повертає (ok, reason).
+    """
+    if not chip_id or not ts_str or not mac_hex:
+        return False, "missing_fields"
+    try:
+        ts = int(ts_str)
+    except (TypeError, ValueError):
+        return False, "bad_ts"
+    if abs(time.time() - ts) > DEVICE_AUTH_TS_WINDOW_S:
+        return False, "ts_out_of_window"
+
+    chip_id_upper = chip_id.upper()
+    auth = await redis_client.hgetall(device_auth_key(chip_id_upper))
+    # "unknown_device" (жодного запису - admin_panel ще не бачив цей chip_id) відрізняємо від
+    # "not_whitelisted" (запис є, але адмін явно зняв whitelisted) лише для чіткості логів -
+    # обидва однаково ведуть до відмови нижче за викликом.
+    if not auth:
+        return False, "unknown_device"
+    if auth.get("whitelisted") != "1":
+        return False, "not_whitelisted"
+
+    try:
+        secret_version = int(auth.get("version", 0))
+    except (TypeError, ValueError):
+        secret_version = 0
+
+    secret = derive_device_secret(chip_id_upper, secret_version)
+    expected = hmac.new(secret, f"{domain}:{chip_id_upper}:{ts}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, mac_hex.lower()):
+        return False, "bad_mac"
+
+    # Replay-захист: один (domain, chip_id, ts) валідний лише один раз. Без цього captured
+    # HMAC-триплет можна відтворити скільки завгодно разів у межах DEVICE_AUTH_TS_WINDOW_S.
+    nonce_key = f"device_auth_nonce:{domain}:{chip_id_upper}:{ts}"
+    is_new = await redis_client.set(nonce_key, "1", nx=True, ex=DEVICE_AUTH_TS_WINDOW_S * 2)
+    if not is_new:
+        return False, "replayed"
+    return True, "ok"
+
+
+# Фільтр для бета-версій touch (одна апаратна версія — без c3/s3/lite винятків)
+def touch_beta_filter(name):
+    return "JAAM_TOUCH" in name and "-b" in name
+
+
+def touch_release_filter(name):
+    return "JAAM_TOUCH" in name and "-b" not in name
 
 
 def truncate_name(name, max_length=30):
@@ -98,6 +205,28 @@ async def service_is_fine(logger, redis_client, key):
     await set_redis_data(logger, redis_client, key, get_current_datetime())
 
 
+# redis-py's own health_check_interval PING (set on every redis.Redis(...) construction in this
+# repo) still loses this race sometimes: it can succeed right before the server closes an idle
+# pooled connection, so the very next real command hits "Connection closed by server." A
+# slow-polling service (radiation_dev fetches every 30 хв, ukrenergo_dev's own heartbeat write
+# only happens once per ~5 хв обходу всіх областей) sits idle long enough between Redis calls
+# that this isn't rare - it was tripping their own /healthz heartbeat check almost every cycle
+# in practice, since the one call that failed was exactly service_is_fine()'s write and nothing
+# retried it before this. A single retry is enough - the pool discards the dead connection and
+# hands back a fresh one for the second attempt.
+_REDIS_TRANSIENT_ERRORS = (RedisConnectionError, RedisTimeoutError)
+_REDIS_RETRY_DELAY_S = 0.2
+
+
+async def _with_redis_retry(logger, op_desc, call):
+    try:
+        return await call()
+    except _REDIS_TRANSIENT_ERRORS as e:
+        logger.debug(f"Redis {op_desc}: transient error ({e}), retrying once...")
+        await asyncio.sleep(_REDIS_RETRY_DELAY_S)
+        return await call()
+
+
 async def get_redis_data(logger, redis_client, key, default_response=None):
     """
     Отримати дані з Redis з підтримкою різних типів даних
@@ -114,7 +243,7 @@ async def get_redis_data(logger, redis_client, key, default_response=None):
     if default_response is None:
         default_response = {}
 
-    try:
+    async def _fetch():
         # Перевіряємо тип даних в Redis
         data_type = await redis_client.type(key)
 
@@ -147,6 +276,9 @@ async def get_redis_data(logger, redis_client, key, default_response=None):
             return [(json.loads(item), score) for item, score in data]
 
         return default_response
+
+    try:
+        return await _with_redis_retry(logger, f"get {key}", _fetch)
     except Exception as e:
         logger.error(f"Error getting data from Redis for key {key}: {e}")
         return default_response
@@ -211,7 +343,8 @@ async def set_redis_data(logger, redis_client, key, value, expiry=None):
         - set -> Set або String (JSON)
         - str/int/float/bool -> String
     """
-    try:
+
+    async def _store():
         # Словник (dict) -> Hash або JSON String
         if isinstance(value, dict):
             # Перевіряємо чи всі значення можна зберегти як hash
@@ -274,6 +407,8 @@ async def set_redis_data(logger, redis_client, key, value, expiry=None):
             await redis_client.set(key, json.dumps(value, ensure_ascii=False), ex=expiry)
             logger.debug(f"Data stored in Redis as JSON String with key: {key}")
 
+    try:
+        await _with_redis_retry(logger, f"set {key}", _store)
     except Exception as e:
         logger.error(f"Error storing data in Redis for key {key}: {e}")
 

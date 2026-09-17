@@ -3,12 +3,14 @@ import uvicorn
 import logging
 import json
 import asyncio
+import hashlib
+import hmac
 import httpx
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
+from starlette.responses import JSONResponse, FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from starlette.routing import Route
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -25,6 +27,13 @@ try:
         beta_filter,
         release_filter,
         get_file_names,
+        touch_beta_filter,
+        touch_release_filter,
+        verify_device_auth,
+        derive_device_secret,
+        require_device_auth_master_secret_configured,
+        device_auth_key,
+        device_claim_key,
     )
 except ImportError:
     parent_dir = Path(__file__).resolve().parent.parent
@@ -38,6 +47,13 @@ except ImportError:
         beta_filter,
         release_filter,
         get_file_names,
+        touch_beta_filter,
+        touch_release_filter,
+        verify_device_auth,
+        derive_device_secret,
+        require_device_auth_master_secret_configured,
+        device_auth_key,
+        device_claim_key,
     )
 
 debug_level = os.environ.get("LOGGING") or "INFO"
@@ -51,6 +67,18 @@ shared_path = os.environ.get("SHARED_PATH") or "/shared_data/releases"
 shared_path_beta = os.environ.get("SHARED_PATH_BETA") or "/shared_data/beta"
 update_loop_time = int(os.environ.get("UPDATE_PERIOD", 3600))
 github_token = os.environ.get("GITHUB_TOKEN")  # Optional: для підвищення ліміту API
+
+# jaam_touch — повністю окремий пайплайн від jaam_fusion вище: власний приватний репозиторій,
+# власні шляхи/диск/Redis-ключі. Читання приватних релізів потребує github_token з repo-scope.
+github_repo_touch = os.environ.get("GITHUB_REPO_TOUCH") or "J-A-A-M/jaam_touch"
+shared_path_touch = os.environ.get("SHARED_PATH_TOUCH") or "/shared_data/releases_touch"
+shared_path_touch_beta = os.environ.get("SHARED_PATH_TOUCH_BETA") or "/shared_data/beta_touch"
+
+# Той самий TOUCH_AUTH_MODE, що й у websocket_server: "shadow" лише логує невдалу
+# HMAC-перевірку, не блокує запит - зручно для локального бринг-апу touch-пристроїв
+# без валідного device-auth. Без цього прапорця OTA hard-fail'ив 401 навіть коли
+# websocket_server вже пропускав ті самі пристрої в shadow-режимі.
+touch_auth_mode = (os.environ.get("TOUCH_AUTH_MODE") or "enforce").lower()
 
 
 if not isinstance(port, int) or not (1024 <= port <= 65535):
@@ -175,6 +203,64 @@ async def fetch_github_releases():
         return None
 
 
+async def fetch_github_releases_touch():
+    """Те саме, що fetch_github_releases, але для приватного репозиторію jaam_touch.
+    Потребує github_token з repo-scope (приватний репозиторій)."""
+    try:
+        headers = {"Accept": "application/vnd.github+json"}
+        if github_token:
+            headers["Authorization"] = f"Bearer {github_token}"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://api.github.com/repos/{github_repo_touch}/releases",
+                headers=headers,
+                params={"per_page": 100},
+                timeout=10.0,
+            )
+            response.raise_for_status()
+            releases = response.json()
+
+            if "X-RateLimit-Remaining" in response.headers:
+                logger.info(
+                    f"GitHub API (touch) rate limit remaining: {response.headers['X-RateLimit-Remaining']}/{response.headers.get('X-RateLimit-Limit', 'unknown')}"
+                )
+            logger.info(f"Fetched {len(releases)} touch releases from GitHub")
+
+            files_with_urls = []
+            for release in releases:
+                if release.get("draft", False):
+                    logger.debug(f"Skipping draft touch release: {release.get('tag_name', 'unknown')}")
+                    continue
+
+                if "assets" in release:
+                    for asset in release["assets"]:
+                        name = asset["name"]
+                        if name.endswith(".bin"):
+                            files_with_urls.append(
+                                {
+                                    "name": name,
+                                    "tag": release["tag_name"],
+                                    "prerelease": release["prerelease"],
+                                    # asset["url"] (api.github.com/.../releases/assets/{id}), NOT
+                                    # browser_download_url - the latter is the web-UI download
+                                    # link and 404s for a private repo even with a valid Bearer
+                                    # token attached (it expects a browser session, not an API
+                                    # token). The API asset endpoint redirects to a signed,
+                                    # time-limited URL when hit with Accept: application/octet-
+                                    # stream + Authorization - see updater/files.py's
+                                    # download_file(), which sends exactly that.
+                                    "url": asset["url"],
+                                }
+                            )
+
+            logger.info(f"Filtered {len(files_with_urls)} touch .bin files")
+            return files_with_urls
+    except Exception as e:
+        logger.error(f"Error fetching touch releases from GitHub: {e}")
+        return None
+
+
 async def list(request):
     redis_client = request.app.state.redis_client
 
@@ -287,6 +373,113 @@ async def update_fusion_beta(request):
         raise HTTPException(status_code=404, detail=f"File {target_filename} not found")
 
 
+async def _check_touch_auth(request, filename: str):
+    """chip_id + HMAC(secret, 'OTA:<filename>:chip_id:ts') — domain включає ім'я файлу,
+    щоб захоплений токен для однієї версії був непридатний для іншої.
+
+    Triplet приходить у HTTP-заголовках (X-Chip-Id/X-Ts/X-Mac), НЕ query-string - Cloudflare
+    (принаймні на dev-update.jaam.net.ua, за замовчуванням, без жодного Page Rule) обрізає
+    query-string для будь-якого шляху, що закінчується на розпізнане "статичне" розширення
+    типу .bin, ще до origin - підтверджено прямим порівнянням: той самий запит на /healthz
+    (без .bin) зберігав query-string, а на /touch/beta/<x>.bin - ні. Заголовки цій евристиці
+    не підлягають."""
+    redis_client = request.app.state.redis_client
+    ok, reason = await verify_device_auth(
+        redis_client,
+        request.headers.get("x-chip-id"),
+        request.headers.get("x-ts"),
+        request.headers.get("x-mac"),
+        domain=f"OTA:{filename}",
+    )
+    if not ok:
+        if touch_auth_mode == "shadow":
+            logger.warning(f"{request.headers.get('x-chip-id')} !!! TOUCH AUTH SHADOW-FAIL ({reason})")
+        else:
+            raise HTTPException(status_code=401, detail=f"unauthorized: {reason}")
+
+
+CLAIM_MAX_ATTEMPTS = 5
+CLAIM_REJECT_DELAY_S = 1.5  # невелика затримка на невдалій спробі - не робить oracle миттєвим
+
+
+async def claim_touch_secret(request):
+    """Кінцевий користувач: chip_id + короткий одноразовий код (видає admin_panel's
+    "Видати код активації") замість Serial PROVISION з комп'ютера. device_claim:<CHIP_ID>
+    (code_hash, attempts, TTL) мирориться сюди з admin_panel при видачі коду - тут лише
+    звіряємо хеш і за збігу віддаємо той самий похідний секрет, що verify_device_auth рахує
+    для звичайної WS/OTA перевірки. Одноразовий - ключ видаляється одразу після успіху; на
+    CLAIM_MAX_ATTEMPTS невдалих спроб код теж згорає, щоб не давати необмежений перебір."""
+    redis_client = request.app.state.redis_client
+    body = await request.json()
+    chip_id = body.get("chip_id")
+    code = body.get("code")
+    if not chip_id or not code:
+        raise HTTPException(status_code=400, detail="chip_id and code required")
+
+    chip_id_upper = chip_id.upper()
+    key = device_claim_key(chip_id_upper)
+    ticket = await redis_client.hgetall(key)
+    if not ticket:
+        await asyncio.sleep(CLAIM_REJECT_DELAY_S)
+        raise HTTPException(status_code=401, detail="invalid or expired code")
+
+    code_hash = hashlib.sha256(code.encode()).hexdigest()
+    if not hmac.compare_digest(code_hash, ticket.get("code_hash", "")):
+        attempts = await redis_client.hincrby(key, "attempts", 1)
+        if attempts >= CLAIM_MAX_ATTEMPTS:
+            await redis_client.delete(key)
+            logger.warning(f"{chip_id_upper} !!! claim code burned after {attempts} failed attempts")
+        await asyncio.sleep(CLAIM_REJECT_DELAY_S)
+        raise HTTPException(status_code=401, detail="invalid or expired code")
+
+    await redis_client.delete(key)  # одноразовий - незалежно від подальшого результату
+
+    auth = await redis_client.hgetall(device_auth_key(chip_id_upper))
+    # Адмін міг зняти whitelisted між видачею коду і його активацією (напр. пристрій
+    # заявлено загубленим ще в дорозі) - той самий "invalid or expired code" відгук,
+    # що і для інших відмов вище, щоб не давати timing/response oracle "код був
+    # правильний, але пристрій заблокований".
+    if auth.get("whitelisted") != "1":
+        await asyncio.sleep(CLAIM_REJECT_DELAY_S)
+        raise HTTPException(status_code=401, detail="invalid or expired code")
+    try:
+        secret_version = int(auth.get("version", 0))
+    except (TypeError, ValueError):
+        secret_version = 0
+
+    secret_hex = derive_device_secret(chip_id_upper, secret_version).hex()
+    logger.info(f"{chip_id_upper} >>> claimed secret_version={secret_version} via claim code")
+    return JSONResponse({"chip_id": chip_id_upper, "secret_hex": secret_hex, "secret_version": secret_version})
+
+
+async def update_touch(request):
+    filename = request.path_params["filename"]
+    await _check_touch_auth(request, filename)
+
+    redis_client = request.app.state.redis_client
+    files_data = await get_redis_data(logger, redis_client, "releases:touch:production", default_response=[])
+
+    target_filename = f"{filename}.bin"
+    for file_info in files_data:
+        if file_info["name"] == target_filename:
+            return FileResponse(f"{shared_path_touch}/{file_info['name']}")
+    raise HTTPException(status_code=404, detail=f"File {target_filename} not found")
+
+
+async def update_touch_beta(request):
+    filename = request.path_params["filename"]
+    await _check_touch_auth(request, filename)
+
+    redis_client = request.app.state.redis_client
+    files_data = await get_redis_data(logger, redis_client, "releases:touch:beta", default_response=[])
+
+    target_filename = f"{filename}.bin"
+    for file_info in files_data:
+        if file_info["name"] == target_filename:
+            return FileResponse(f"{shared_path_touch_beta}/{file_info['name']}")
+    raise HTTPException(status_code=404, detail=f"File {target_filename} not found")
+
+
 # Legacy function - disabled (shared_path not defined)
 # async def update_board(request):
 #     return FileResponse(f'{shared_path}/{request.path_params["board"]}/{request.path_params["filename"]}.bin')
@@ -354,6 +547,37 @@ async def update_cache(redis_client):
             await asyncio.sleep(update_loop_time)
 
 
+async def update_cache_touch(redis_client):
+    """Аналог update_cache, але для окремого приватного репозиторію jaam_touch
+    (releases:touch:data, а не releases:data — не перетинається з jaam_fusion)."""
+    while True:
+        try:
+            logger.debug("start update_cache_touch")
+
+            old_data = await get_redis_data(logger, redis_client, "releases:touch:data", default_response=[])
+
+            releases = await fetch_github_releases_touch()
+            if releases:
+                if releases != old_data:
+                    await set_redis_data(logger, redis_client, "releases:touch:data", releases)
+                    await redis_client.publish("releases:touch:data:updated", "1")
+                    logger.info(f"✅ Оновлені дані releases:touch:data {len(releases)} збережено в Redis")
+                else:
+                    logger.debug("⏭️  Дані touch не змінилися, пропускаємо збереження")
+            else:
+                logger.debug("❌  Дані touch відсутні, пропускаємо збереження")
+            logger.debug("end update_cache_touch")
+            await asyncio.sleep(update_loop_time)
+        except asyncio.CancelledError:
+            logger.error("❌ update_cache_touch: task canceled. Shutting down...")
+            await redis_client.close()
+            break
+        except Exception as e:
+            logger.error(f"❌ Error in update_cache_touch: {e}")
+            logger.debug(f"❌ Повний стек помилки:", exc_info=True)
+            await asyncio.sleep(update_loop_time)
+
+
 @asynccontextmanager
 async def lifespan(app: Starlette):
     # Startup: create Redis connection
@@ -378,16 +602,21 @@ async def lifespan(app: Starlette):
 
         # Start background tasks
         update_cache_task = asyncio.create_task(run_with_restart(logger, update_cache, redis_client, "update_cache"))
+        update_cache_touch_task = asyncio.create_task(
+            run_with_restart(logger, update_cache_touch, redis_client, "update_cache_touch")
+        )
 
         yield
 
         # Shutdown: cleanup
         logger.info("⏹️  Shutting down...")
         update_cache_task.cancel()
-        try:
-            await update_cache_task
-        except asyncio.CancelledError:
-            pass
+        update_cache_touch_task.cancel()
+        for task in (update_cache_task, update_cache_touch_task):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     except redis.ConnectionError as e:
         logger.error(f"❌ Failed to connect to Redis: {e}")
@@ -406,22 +635,35 @@ async def home(request):
     return HTMLResponse(response)
 
 
+async def healthz(request):
+    return PlainTextResponse("OK\n")
+
+
 app = Starlette(
     debug=debug,
     exception_handlers=exception_handlers,
     lifespan=lifespan,
     routes=[
         Route("/", home),
+        Route("/healthz", healthz),
         Route("/list", list),
         Route("/betalist", list_beta),
         Route("/{filename}.bin", update),
         Route("/beta/{filename}.bin", update_beta),
         Route("/fusion/{filename}.bin", update_fusion),
         Route("/fusion/beta/{filename}.bin", update_fusion_beta),
+        # jaam_touch: окремий, auth-gated пайплайн (див. _check_touch_auth) — ізольований
+        # від /fusion/*.bin вище.
+        Route("/touch/{filename}.bin", update_touch),
+        Route("/touch/beta/{filename}.bin", update_touch_beta),
+        # Кінцевий користувач активує пристрій коротким кодом замість Serial PROVISION -
+        # не потребує auth-заголовків, самé тіло запиту (chip_id+code) є авторизацією.
+        Route("/touch/claim", claim_touch_secret, methods=["POST"]),
         # Route("/{board}/{filename}.bin", update_board),
         # Route("/beta/{board}/{filename}.bin", update_beta_board),
     ],
 )
 
 if __name__ == "__main__":
+    require_device_auth_master_secret_configured("auth-токени OTA-завантаження /touch/*.bin тривіально підробні")
     uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, forwarded_allow_ips=["*"])

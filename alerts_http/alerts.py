@@ -41,7 +41,15 @@ if not fields_env:
     raise ValueError("FIELDS environment variable is required")
 
 # response field -> redis key segment, loaded from FIELDS env var (JSON)
-FIELDS: dict = json.loads(fields_env)
+# The secret backing this env var is stored double-JSON-encoded (a JSON string containing
+# escaped JSON, not the raw object) - one json.loads() yields a str, not a dict. Unwrap once
+# more in that case rather than fixing it at the secret store, which this deploy doesn't
+# have write access to.
+FIELDS = json.loads(fields_env)
+if isinstance(FIELDS, str):
+    FIELDS = json.loads(FIELDS)
+if not isinstance(FIELDS, dict):
+    raise ValueError(f"FIELDS environment variable did not decode to a dict (got {type(FIELDS).__name__})")
 logger.info(f"📋 FIELDS: {FIELDS}")
 
 # in-memory cache: redis_key -> last known JSON string (None = not yet loaded)

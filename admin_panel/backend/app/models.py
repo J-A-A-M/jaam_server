@@ -2,7 +2,17 @@
 
 import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -96,6 +106,12 @@ class JaamMap(Base):
     is_prototype: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     order_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     customer_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # jaam_touch device-auth whitelist: secret_version інкрементується при provision/rotate
+    # (сам секрет — похідний від DEVICE_AUTH_MASTER_SECRET, тут не зберігається).
+    # whitelisted за замовчуванням False - новий запис у реєстрі не повинен мати доступу,
+    # доки адмін явно не видасть секрет/код через /provision чи /claim-code.
+    secret_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
+    whitelisted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -114,6 +130,17 @@ class User(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     credentials: Mapped[list["UserCredential"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class HardwareVersion(Base):
+    """Значення hw_version, доступні у формі реєстру JAAM-мап (редагується через UI)."""
+
+    __tablename__ = "hardware_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class RedisServerConfig(Base):

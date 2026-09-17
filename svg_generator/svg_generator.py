@@ -301,6 +301,8 @@ async def svg_generator_alerts(redis_client):
                 get_redis_data(logger, redis_client, "alerts:http:reasons:data", default_response={}),
             )
 
+            await service_is_fine(logger, redis_client, "svg_generator:alerts:last_call")
+
             for region_data in alerts_cache:
                 if region_data["regionType"] == "State":
                     region_id = int(region_data["regionId"])

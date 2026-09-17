@@ -82,6 +82,16 @@ BEGIN
         ALTER TABLE jaam_maps ADD COLUMN map_id VARCHAR(128);
     END IF;
 
+    -- jaam_maps: device-auth whitelist columns (chip_id whitelist для jaam_touch)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_name='jaam_maps' AND column_name='secret_version') THEN
+        ALTER TABLE jaam_maps ADD COLUMN secret_version INTEGER NOT NULL DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_name='jaam_maps' AND column_name='whitelisted') THEN
+        ALTER TABLE jaam_maps ADD COLUMN whitelisted BOOLEAN NOT NULL DEFAULT true;
+    END IF;
+
     -- redis_server_configs: drop unused per-server timezone column (feature removed)
     ALTER TABLE redis_server_configs DROP COLUMN IF EXISTS timezone;
 
