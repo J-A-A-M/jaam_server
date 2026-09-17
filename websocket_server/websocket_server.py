@@ -1399,7 +1399,6 @@ async def echo(websocket: ServerConnection):
         # tasks) - a rejected attempt should cost as little as the old pre-upgrade path did.
         touch_auth_reject_reason = getattr(websocket, "touch_auth_reject_reason", None)
         if touch_auth_reject_reason:
-            logger.info(f"{client_ip}:{client_id} >>> sending TOUCH_AUTH_REJECTED ({touch_auth_reject_reason})")
             try:
                 # Затримка ТУТ, після завершення апгрейду (не в process_request() - див. його
                 # коментар про те, чому затримка ДО 101-відповіді ламала сам хендшейк) -
@@ -1414,6 +1413,7 @@ async def echo(websocket: ServerConnection):
                 # message (if it ever processes anything on this connection at all) before it
                 # sees the close.
                 await websocket.close(code=1008, reason=f"unauthorized:{touch_auth_reject_reason}")
+                logger.info(f"{client_ip}:{client_id} >>> sent TOUCH_AUTH_REJECTED ({touch_auth_reject_reason})")
             except Exception as e:
                 logger.debug(f"{client_ip}:{client_id} !!! failed to deliver TOUCH_AUTH_REJECTED - {e}")
             return
