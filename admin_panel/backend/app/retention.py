@@ -27,27 +27,23 @@ _BATCH = 5000
 # Події, які НІКОЛИ не видаляються (історія життєвого циклу мапи).
 IMMUNE_EVENT_TYPES = ("first_seen", "firmware_change", "firmware_id_change", "geo_change")
 
-_DELETE_EVENTS = text(
-    """
+_DELETE_EVENTS = text("""
     DELETE FROM device_events
     WHERE id IN (
         SELECT id FROM device_events
         WHERE ts < :cutoff AND type NOT IN :immune
         LIMIT :batch
     )
-    """
-).bindparams(bindparam("immune", expanding=True))
+    """).bindparams(bindparam("immune", expanding=True))
 
-_DELETE_SESSIONS = text(
-    """
+_DELETE_SESSIONS = text("""
     DELETE FROM device_sessions
     WHERE id IN (
         SELECT id FROM device_sessions
         WHERE ended_at IS NOT NULL AND ended_at < :cutoff
         LIMIT :batch
     )
-    """
-)
+    """)
 
 
 async def _purge(stmt, params: dict) -> int:
