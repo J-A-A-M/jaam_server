@@ -102,6 +102,7 @@ sink_local_files = os.environ.get("SINK_LOCAL_FILES", "True").lower() == "true"
 fusion_alerts_debounce = float(os.environ.get("FUSION_ALERTS_DEBOUNCE", 1))
 fusion_alerts_throttle = float(os.environ.get("FUSION_ALERTS_THROTTLE", 0))
 fusion_etryvoga_throttle = float(os.environ.get("FUSION_ETRYVOGA_THROTTLE", 0))
+fusion_neptun_ws_throttle = float(os.environ.get("FUSION_NEPTUN_WS_THROTTLE", 0))
 radiation_max_sensor_age_days = float(os.environ.get("RADIATION_MAX_SENSOR_AGE_DAYS", 7))
 
 logging.basicConfig(level=debug_level, format="%(asctime)s %(levelname)s : %(message)s")
@@ -695,6 +696,72 @@ async def update_websocket_fusion_v2_etryvoga(redis_client, run_once=False):
     )
 
 
+async def update_websocket_fusion_v2_neptun_ws(redis_client, run_once=False):
+    # без "fpv" - свідомо поза fusion-протоколом, немає вільного біта в flags16
+    channel_config = {
+        "alerts:neptun_ws:drones:updated": ("alerts:neptun_ws:drones:data", 1 << 5),
+        "alerts:neptun_ws:missiles:updated": ("alerts:neptun_ws:missiles:data", 1 << 6),
+        "alerts:neptun_ws:kabs:updated": ("alerts:neptun_ws:kabs:data", 1 << 7),
+        "alerts:neptun_ws:ballistic:updated": ("alerts:neptun_ws:ballistic:data", 1 << 8),
+        "alerts:neptun_ws:recons:updated": ("alerts:neptun_ws:recons:data", 1 << 10),
+    }
+
+    throttler = Throttler(fusion_neptun_ws_throttle)
+    pending_channels: set[str] = set()
+
+    async def process_channel(data_key: str, bit: int):
+        try:
+            type_data = await get_redis_data(logger, redis_client, data_key, default_response={})
+
+            logger.debug(f"⚠️ NEPTUN FUSION V2 DATA (bit={bit:#x}): {type_data}")
+
+            if type_data:
+                region_names = []
+                for rid_str in type_data:
+                    name, _ = common.convert_region_ids(regions, int(rid_str), "regionId", "legacyId")
+                    region_names.append(name or rid_str)
+                payload_hex = etryvoga.build_notifications_payload(
+                    list(type_data), TYPE_NOTIFICATIONS_BATCH, lambda rid: bit
+                )
+                logger.debug("💾 Зберігаємо websocket:v1:fusion:payload:notifications")
+                await set_redis_data(
+                    logger,
+                    redis_client,
+                    "websocket:v1:fusion:payload:notifications",
+                    payload_hex,
+                )
+                await redis_client.publish("websocket:v1:fusion:neptun:updated", "1")
+                logger.info(f"✅ websocket_fusion_v2_neptun_ws збережено (bit={bit:#x}): {', '.join(region_names)}")
+            else:
+                logger.info(f"ℹ️  websocket_fusion_v2_neptun_ws немає даних (bit={bit:#x})")
+
+        except Exception as e:
+            logger.error(f"❌ process_channel v2 ({data_key}): {str(e)}")
+            logger.debug("❌ Повний стек помилки:", exc_info=True)
+
+    async def drain():
+        channels_to_process = list(pending_channels)
+        pending_channels.clear()
+        for ch in channels_to_process:
+            data_key, bit = channel_config[ch]
+            await process_channel(data_key, bit)
+
+    async def on_message(channel):
+        pending_channels.add(channel)
+        await throttler.call(drain)
+
+    await run_pubsub_loop(
+        redis_client,
+        list(channel_config.keys()),
+        on_message,
+        "update_websocket_fusion_v2_neptun_ws",
+        logger,
+        run_once=run_once,
+        throttler=throttler,
+        accepted_channels=set(channel_config.keys()),
+    )
+
+
 async def update_websocket_fusion_v1_openweathermap(redis_client, run_once=False):
     async def process_weather(_channel=None):
         try:
@@ -894,6 +961,11 @@ async def main():
             asyncio.create_task(
                 run_with_restart(
                     logger, update_websocket_fusion_v2_etryvoga, redis_client, "update_websocket_fusion_v2_etryvoga"
+                )
+            ),
+            asyncio.create_task(
+                run_with_restart(
+                    logger, update_websocket_fusion_v2_neptun_ws, redis_client, "update_websocket_fusion_v2_neptun_ws"
                 )
             ),
             asyncio.create_task(
