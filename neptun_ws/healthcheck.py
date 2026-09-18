@@ -18,7 +18,7 @@ redis_db = int(os.environ.get("REDIS_DB", 0))
 
 LAST_CALL_KEY = "alerts:neptun_ws:last_call"
 # neptun шле heartbeat-фрейм кожні ~15с — 60с з запасом на мережеву гикавку.
-MAX_AGE_SECONDS = 60
+MAX_AGE_SECONDS = 600
 
 
 def main():
