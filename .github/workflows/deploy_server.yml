@@ -18,6 +18,10 @@ on:
         type: boolean
         default: false
         description: Etryvoga websocket parser
+      redeploy_neptun_ws:
+        type: boolean
+        default: false
+        description: Neptun websocket parser
       redeploy_alerts:
         type: boolean
         default: false
@@ -145,6 +149,23 @@ jobs:
                 git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
                 bash redeploy_etryvoga_ws.sh \
                   -e ${{ secrets.ETRYVOGA_WS_HOST }} \
+                  -m ${{ secrets.CLOUD_REDIS_HOST }} \
+                  -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
+          - name: Redeploy Neptun websocket parser
+            if: ${{ inputs.redeploy_neptun_ws }}
+            uses: appleboy/ssh-action@v1.2.0
+            with:
+              host: ${{ env.SERVER_IP }}
+              username: ${{ env.SERVER_USER }}
+              key: ${{ env.SERVER_SSH_KEY }}
+              script: |
+                set -euo pipefail
+                TEMP_DIR=$(mktemp -d)
+                trap 'rm -rf "$TEMP_DIR"' EXIT
+                cd "$TEMP_DIR"
+                git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
+                bash redeploy_neptun_ws.sh \
+                  -u ${{ secrets.NEPTUN_WS_HOST }} \
                   -m ${{ secrets.CLOUD_REDIS_HOST }} \
                   -pw ${{ secrets.CLOUD_REDIS_PASSWORD }}
           - name: Redeploy Alerts

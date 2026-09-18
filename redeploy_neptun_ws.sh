@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Default values
-NEPTUN_WS_URL="wss://neptun.in.ua/api/v1/stream"
+NEPTUN_WS_URL=""
 REDIS_HOST=""
 REDIS_PASSWORD="redis"
 REDIS_DB="0"
